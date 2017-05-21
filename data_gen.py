@@ -18,7 +18,7 @@ def write_to_file(list_sent, file_path):
 def write_to_file_wiki(list_sent, file_path):
     with io.open(file_path, mode="w", encoding="utf-8") as f:
         for sent in list_sent:
-            f.write(sent.encode("utf-8"))
+            f.write(sent)  # .encode("utf-8")
 
 
 def get_pairs(file_path):
@@ -98,11 +98,11 @@ if __name__ == '__main__':
 
     print(len(wikitext_103_train[0]), len(wikitext_103_train[1]))
 
-    write_to_file(wikitext_103_train[0], pjoin("data", "wikitext-103", "train_BUT.txt"))
-    write_to_file(wikitext_103_train[1], pjoin("data", "wikitext-103", "train_BECAUSE.txt"))
+    write_to_file_wiki(wikitext_103_train[0], pjoin("data", "wikitext-103", "train_BUT.txt"))
+    write_to_file_wiki(wikitext_103_train[1], pjoin("data", "wikitext-103", "train_BECAUSE.txt"))
 
-    write_to_file(wikitext_103_valid[0], pjoin("data", "wikitext-103", "valid_BUT.txt"))
-    write_to_file(wikitext_103_valid[1], pjoin("data", "wikitext-103", "valid_BECAUSE.txt"))
+    write_to_file_wiki(wikitext_103_valid[0], pjoin("data", "wikitext-103", "valid_BUT.txt"))
+    write_to_file_wiki(wikitext_103_valid[1], pjoin("data", "wikitext-103", "valid_BECAUSE.txt"))
 
-    write_to_file(wikitext_103_test[0], pjoin("data", "wikitext-103", "test_BUT.txt"))
-    write_to_file(wikitext_103_test[1], pjoin("data", "wikitext-103", "test_BECAUSE.txt"))
+    write_to_file_wiki(wikitext_103_test[0], pjoin("data", "wikitext-103", "test_BUT.txt"))
+    write_to_file_wiki(wikitext_103_test[1], pjoin("data", "wikitext-103", "test_BECAUSE.txt"))

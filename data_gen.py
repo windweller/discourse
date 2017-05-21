@@ -12,7 +12,7 @@ from os.path import join as pjoin
 def write_to_file(list_sent, file_path):
     with open(file_path, mode="wb") as f:
         for sent in list_sent:
-            f.write(sent + b"\n")
+            f.write(sent)  # both PTB and Wikitext has \n already!
 
 
 def get_pairs(file_path):

@@ -15,6 +15,12 @@ def write_to_file(list_sent, file_path):
             f.write(sent)  # both PTB and Wikitext has \n already!
 
 
+def write_to_file_wiki(list_sent, file_path):
+    with io.open(file_path, mode="w", encoding="utf-8") as f:
+        for sent in list_sent:
+            f.write(sent.encode("utf-8"))
+
+
 def get_pairs(file_path):
     but_sents = []
     cause_sents = []

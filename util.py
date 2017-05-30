@@ -134,6 +134,7 @@ def but_detector_refill(batches, fd_because, fd_but, relation_vocab, batch_size,
             line = fd.readline()
 
     # sort by length of first sentence chunk?
+    # idunno why we would want this.
     if sort_and_shuffle:
         line_pairs = sorted(line_pairs, key=lambda e: len(e[0]))
 
@@ -143,6 +144,8 @@ def but_detector_refill(batches, fd_because, fd_but, relation_vocab, batch_size,
 
         batches.append((x_batch, x2_batch, y_batch))
 
+    # idunno why we're shuffling by batches instead of items.
+    # is it so batches contain similar lengths of sentences?
     if sort_and_shuffle:
         random.shuffle(batches)
     return

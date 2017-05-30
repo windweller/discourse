@@ -125,7 +125,9 @@ def process_glove(args, vocab_list, save_path, size=4e5, random_init=True):
 
 
 def create_vocabulary(vocabulary_path, data_paths, tokenizer=None):
-    if not gfile.Exists(vocabulary_path):
+    if gfile.Exists(vocabulary_path):
+        print("Vocabulary file already exists at %s") % vocabulary_path
+    else:
         print("Creating vocabulary %s from data %s" % (vocabulary_path, str(data_paths)))
         vocab = {}
         for path in data_paths:

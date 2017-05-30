@@ -22,6 +22,8 @@ y: classification (label 0: because ; 1:but)
 
 cause and effect: load in one file
 
+2 pair_iter, one for each task
+but wrap both in one if i have time with a flag
 """
 def pair_iter(fnamex, fnamex2, batch_size, num_layers, sort_and_shuffle=True):
     fdx, fdx2 = open(fnamex), open(fnamex2)
@@ -49,6 +51,19 @@ def pair_iter(fnamex, fnamex2, batch_size, num_layers, sort_and_shuffle=True):
         yield (source_tokens, source_mask, source2_tokens, source2_mask, target_tokens, target_mask)
 
     return
+
+def but_detector_pair_iter(fnamex, fnamex2, batch_size, sort_and_shuffle=True):
+    """Create batches of inputs for but/because classifier.
+
+    Keyword arguments:
+    fnamex -- name of one data file (e.g. ptb/train_BUT.ids.txt)
+    fnamex2 -- name of other data file (e.g. ptb/train_BECAUSE.ids.txt)
+    batch_size -- number of sentences per batch
+    sort_and_shuffle -- idunno what this is for
+
+    """
+    fdx, fdx2 = open(fname), open(fnamex2)
+    batches = []
 
 
 def refill(batches, fdx, fdx2, fdy, batch_size, sort_and_shuffle=True):

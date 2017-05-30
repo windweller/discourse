@@ -37,6 +37,12 @@ UNK_ID = 1
 
 save vocab into file vocab.dat
 just a text file where each line is a word type
+
+function naming convention
+
+train_BECAUSE
+tokenized version of data: train_BECAUSE.ids.txt
+this gets passed into pair_iter...
 """
 
 def setup_args():

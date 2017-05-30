@@ -31,7 +31,11 @@ def get_pairs(file_path):
                 if "but" in words[1:]:  # no sentence from beginning has but
                     but_sents.append(line)
             if "because" in line:
-                cause_sents.append(line)
+                words = line.split()
+                if "because" in words[1:]:
+                    cause_sents.append(line)
+
+    # when preparing data, take off "because" / "because of"
 
     return but_sents, cause_sents
 

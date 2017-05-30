@@ -15,14 +15,29 @@ from tqdm import *
 import numpy as np
 from os.path import join as pjoin
 
-_PAD = b"<pad>"
-_SOS = b"<sos>"
+_PAD = b"<pad>" # no need to pad
 _UNK = b"<unk>"
-_START_VOCAB = [_PAD, _SOS, _UNK]
+_START_VOCAB = [_PAD, _UNK]
 
 PAD_ID = 0
-SOS_ID = 1
-UNK_ID = 2
+UNK_ID = 1
+
+"""
+# preprossesing for seq to seq (data_gen)
+# data reads preprocessed files
+
+* make vocab files
+    - vocab
+        dict {word: number}
+    - reverse vocab
+        list[number] = word
+* download and load glove
+    - 6b
+    - 300d
+
+save vocab into file vocab.dat
+just a text file where each line is a word type
+"""
 
 def setup_args():
     parser = argparse.ArgumentParser()
@@ -57,7 +72,17 @@ def initialize_vocabulary(vocabulary_path):
     else:
         raise ValueError("Vocabulary file %s not found.", vocabulary_path)
 
+"""
+once we have vocabulary, go through and make trimmed down word matrix
 
+convert indices in my vocabulary to indices in glove
+not all words will overlap in both vocabs.
+
+trained glove will be somewhere in the directory
+
+(last quarter this was wrong, but this is probably correct. maybe check git history)
+cs224n website has this. pa4 code.
+"""
 def process_glove(args, vocab_list, save_path, size=4e5, random_init=True):
     """
     :param vocab_list: [vocab]
@@ -116,7 +141,10 @@ def create_vocabulary(vocabulary_path, data_paths, tokenizer=None):
             for w in vocab_list:
                 vocab_file.write(w + b"\n")
 
-
+"""
+tokenize and map words to ids in vocab
+called by data_to_token_ids
+"""
 def sentence_to_token_ids(sentence, vocabulary, tokenizer=None):
     if tokenizer:
         words = tokenizer(sentence)

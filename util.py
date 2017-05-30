@@ -13,8 +13,18 @@ def tokenize(string):
     return [int(s) for s in string.split()]
 
 
-def pair_iter(fnamex, fnamex2, fnamey, batch_size, num_layers, sort_and_shuffle=True):
-    fdx, fdx2, fdy = open(fnamex), open(fnamex2), open(fnamey)
+"""
+fnamex: e.g. train_BECAUSE.ids.txt
+
+x: sentence (1st chunk, before discourse marker)
+x2: sentence (2nd chunk, after discourse marker)
+y: classification (label 0: because ; 1:but)
+
+cause and effect: load in one file
+
+"""
+def pair_iter(fnamex, fnamex2, batch_size, num_layers, sort_and_shuffle=True):
+    fdx, fdx2 = open(fnamex), open(fnamex2)
     batches = []
 
     while True:

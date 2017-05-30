@@ -121,16 +121,23 @@ def but_detector_refill(batches, fd_because, fd_but, relation_vocab, batch_size,
         line = fd.readline()
         while line:
             tokens = tokenize(line)
+
+            # split by relevant discourse relation
             index_of_relation = tokens.index(relation_id_in_vocab)
             x1_tokens = tokens[:index_of_relation]
             x2_tokens = tokens[index_of_relation+1:]
+
             y = target_class
 
+            # exclude sentences that are too long
             if len(x1_tokens) <= FLAGS.max_seq_len \
                     and len(x2_tokens) <= FLAGS.max_seq_len:
                 line_pairs.append((x1_tokens, x2_tokens, y))
-            if len(line_pairs) == batch_size * 160 # idunno why this is 160
+            # idunno where the number 160 is coming from
+            # why do we want max 160 batches?
+            if len(line_pairs) == batch_size * 160
                 break
+
             line = fd.readline()
 
     # sort by length of first sentence chunk?

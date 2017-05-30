@@ -77,8 +77,8 @@ def but_detector_pair_iter(fname_because, fname_but, relation_vocab, batch_size,
             # stopping condition, when batches is empty again
             break
 
-        # pad sentence chunks
         x_tokens, x2_tokens, y = batches.pop(0)
+        # pad sentence chunks
         x_padded, x2_padded = padded(x_tokens, num_layers, question_len), \
                               padded(x2_tokens, num_layers, context_len)
 
@@ -98,10 +98,10 @@ def but_detector_pair_iter(fname_because, fname_but, relation_vocab, batch_size,
 
 def but_detector_refill(batches, fd_because, fd_but, relation_vocab, batch_size,
                         sort_and_shuffle=True):
-    """idunno what this does
+    """Mutates batches list to fill with tuples of sentence chunks and class id
 
     Keyword arguments:
-    batches -- idunno what this does
+    batches -- the batches list to mutate
     fd_because -- loaded "because" sentences
     relation_vocab -- a dict from discourse markers to their ids in vocab
     fd_but -- loaded "but" sentences

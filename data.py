@@ -176,20 +176,20 @@ def data_to_token_ids(data_path, target_path, vocabulary_path,
                     token_ids = sentence_to_token_ids(line, vocab, tokenizer)
                     tokens_file.write(" ".join([str(tok) for tok in token_ids]) + "\n")
 
-
 if __name__ == '__main__':
     args = setup_args()
+
     vocab_path = pjoin(args.vocab_dir, "vocab.dat")
 
-    train_path = pjoin(args.source_dir, "train")
-    valid_path = pjoin(args.source_dir, "val")
-    dev_path = pjoin(args.source_dir, "dev")
+    partial_fnames = ["test_BECAUSE", "test_BUT",
+                           "train_BECAUSE", "train_BUT",
+                           "valid_BECAUSE", "valid_BUT"]
 
-    create_vocabulary(vocab_path,
-                      [pjoin(args.source_dir, "train.context"),
-                       pjoin(args.source_dir, "train.question"),
-                       pjoin(args.source_dir, "val.context"),
-                       pjoin(args.source_dir, "val.question")])
+    data_fnames = [partial_fname + ".txt" for partial_fname in partial_fnames]
+    data_paths = [pjoin(args.source_dir, fname) for fname in data_fnames]
+
+    create_vocabulary(vocab_path, data_paths)
+
     vocab, rev_vocab = initialize_vocabulary(pjoin(args.vocab_dir, "vocab.dat"))
 
     # ======== Trim Distributed Word Representation =======
@@ -203,12 +203,7 @@ if __name__ == '__main__':
     # If your model loads data differently (like in bulk)
     # You should change the below code
 
-    x_train_dis_path = train_path + ".ids.context"
-    y_train_ids_path = train_path + ".ids.question"
-    data_to_token_ids(train_path + ".context", x_train_dis_path, vocab_path)
-    data_to_token_ids(train_path + ".question", y_train_ids_path, vocab_path)
-
-    x_dis_path = valid_path + ".ids.context"
-    y_ids_path = valid_path + ".ids.question"
-    data_to_token_ids(valid_path + ".context", x_dis_path, vocab_path)
-    data_to_token_ids(valid_path + ".question", y_ids_path, vocab_path)
+    for partial_fname in partial_fnames:
+        data_path = pjoin(args.source_dir, partial_fname + ".txt")
+        ids_path = pjoin(args.source_dir, partial_fname + ".ids.txt")
+        data_to_token_ids(data_path, ids_path, vocab_path)

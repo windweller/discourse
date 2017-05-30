@@ -52,12 +52,14 @@ def pair_iter(fnamex, fnamex2, batch_size, num_layers, sort_and_shuffle=True):
 
     return
 
-def but_detector_pair_iter(fname_because, fname_but, batch_size, num_layers, sort_and_shuffle=True):
+def but_detector_pair_iter(fname_because, fname_but, relation_vocab, batch_size,
+                           num_layers, sort_and_shuffle=True):
     """Create batches of inputs for but/because classifier.
 
     Keyword arguments:
-    fname_because -- name of "because" data file (e.g. ptb/train_BECAUSE.ids.txt)
+    fname_because -- name of "because" data file (e.g. train_BECAUSE.ids.txt)
     fname_but -- name of "but" data file (e.g. ptb/train_BUT.ids.txt)
+    relation_vocab -- a dict from discourse markers to their ids in vocab
     batch_size -- number of sentences per batch
     num_layers -- idunno what this is for, but it gets passed into `padded`
     sort_and_shuffle -- idunno what this is for
@@ -69,7 +71,8 @@ def but_detector_pair_iter(fname_because, fname_but, batch_size, num_layers, sor
     while True:
         if len(batches) == 0:
             # initialize patches
-            refill(batches, fd_because, fd_but, batch_size, sort_and_shuffle=sort_and_shuffle)
+            but_detector_refill(batches, fd_because, fd_but, relation_vocab,
+                                batch_size, sort_and_shuffle=sort_and_shuffle)
         if len(batches) == 0:
             # stopping condition, when batches is empty again
             break
@@ -88,12 +91,64 @@ def but_detector_pair_iter(fname_because, fname_but, batch_size, num_layers, sor
         # class ID for this sentence (either 0 for because or 1 for but)
         target_class = y
 
-        yield (source_tokens, source_mask, source2_tokens, source2_mask, target_class)
+        yield (source_tokens, source_mask, source2_tokens, source2_mask,
+               target_class)
 
     return
 
+def but_detector_refill(batches, fd_because, fd_but, relation_vocab, batch_size,
+                        sort_and_shuffle=True):
+    """idunno what this does
 
-def refill(batches, fdx, fdx2, fdy, batch_size, sort_and_shuffle=True):
+    Keyword arguments:
+    batches -- idunno what this does
+    fd_because -- loaded "because" sentences
+    relation_vocab -- a dict from discourse markers to their ids in vocab
+    fd_but -- loaded "but" sentences
+    batch_size -- number of sentences per batch
+    sort_and_shuffle -- idunno what this is for
+
+    """
+    line_pairs = []
+    fds = {"because": fd_because, "but": fd_but}
+    discourse_markers = ["because", "but"]
+
+    # accumulate tuples for every sentence from each file
+    for target_class in [0,1]:
+        discourse_marker = discourse_markers[target_class]
+        relation_id_in_vocab = relation_vocab[discourse_marker]
+        fd = fds[discourse_marker]
+        line = fd.readline()
+        while line:
+            tokens = tokenize(line)
+            index_of_relation = tokens.index(relation_id_in_vocab)
+            x1_tokens = tokens[:index_of_relation]
+            x2_tokens = tokens[index_of_relation+1:]
+            y = target_class
+
+            if len(x1_tokens) <= FLAGS.max_seq_len \
+                    and len(x2_tokens) <= FLAGS.max_seq_len:
+                line_pairs.append((x1_tokens, x2_tokens, y))
+            if len(line_pairs) == batch_size * 160 # idunno why this is 160
+                break
+            line = fd.readline()
+
+    # sort by length of first sentence chunk?
+    if sort_and_shuffle:
+        line_pairs = sorted(line_pairs, key=lambda e: len(e[0]))
+
+    for batch_start in xrange(0, len(line_pairs), batch_size):
+        batch_end = batch_start + batch_size
+        x1_batch, x2_batch, y_batch = zip(*line_pairs[batch_start:batch_end])
+
+        batches.append((x_batch, x2_batch, y_batch))
+
+    if sort_and_shuffle:
+        random.shuffle(batches)
+    return
+
+
+def refill(batches, fd_because, fd_but, batch_size, sort_and_shuffle=True):
     # context_len restricts samples smaller than context_len
     line_pairs = []
     linex, linex2, liney = fdx.readline(), fdx2.readline(), fdy.readline()

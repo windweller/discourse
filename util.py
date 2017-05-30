@@ -52,18 +52,45 @@ def pair_iter(fnamex, fnamex2, batch_size, num_layers, sort_and_shuffle=True):
 
     return
 
-def but_detector_pair_iter(fnamex, fnamex2, batch_size, sort_and_shuffle=True):
+def but_detector_pair_iter(fname_because, fname_but, batch_size, num_layers, sort_and_shuffle=True):
     """Create batches of inputs for but/because classifier.
 
     Keyword arguments:
-    fnamex -- name of one data file (e.g. ptb/train_BUT.ids.txt)
-    fnamex2 -- name of other data file (e.g. ptb/train_BECAUSE.ids.txt)
+    fname_because -- name of "because" data file (e.g. ptb/train_BECAUSE.ids.txt)
+    fname_but -- name of "but" data file (e.g. ptb/train_BUT.ids.txt)
     batch_size -- number of sentences per batch
+    num_layers -- idunno what this is for, but it gets passed into `padded`
     sort_and_shuffle -- idunno what this is for
 
     """
-    fdx, fdx2 = open(fname), open(fnamex2)
+    fd_because, fd_but = open(fname_because), open(fname_but)
     batches = []
+
+    while True:
+        if len(batches) == 0:
+            # initialize patches
+            refill(batches, fd_because, fd_but, batch_size, sort_and_shuffle=sort_and_shuffle)
+        if len(batches) == 0:
+            # stopping condition, when batches is empty again
+            break
+
+        # pad sentence chunks
+        x_tokens, x2_tokens, y = batches.pop(0)
+        x_padded, x2_padded = padded(x_tokens, num_layers, question_len), \
+                              padded(x2_tokens, num_layers, context_len)
+
+        # first part of sentence (before discourse marker)
+        source_tokens = np.array(x_padded).T
+        source_mask = (source_tokens != qa_data.PAD_ID).astype(np.int32)
+        # second part of sentence (after discourse marker)
+        source2_tokens = np.array(x2_padded).T
+        source2_mask = (source2_tokens != qa_data.PAD_ID).astype(np.int32)
+        # class ID for this sentence (either 0 for because or 1 for but)
+        target_class = y
+
+        yield (source_tokens, source_mask, source2_tokens, source2_mask, target_class)
+
+    return
 
 
 def refill(batches, fdx, fdx2, fdy, batch_size, sort_and_shuffle=True):

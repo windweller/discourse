@@ -139,10 +139,11 @@ def create_vocabulary(vocabulary_path, data_paths, tokenizer=None):
                         print("processing line %d" % counter)
                     tokens = tokenizer(line) if tokenizer else basic_tokenizer(line)
                     for w in tokens:
-                        if w in vocab:
-                            vocab[w] += 1
-                        else:
-                            vocab[w] = 1
+                        if not w in _START_VOCAB:
+                            if w in vocab:
+                                vocab[w] += 1
+                            else:
+                                vocab[w] = 1
         vocab_list = _START_VOCAB + sorted(vocab, key=vocab.get, reverse=True)
         print("Vocabulary size: %d" % len(vocab_list))
         with gfile.GFile(vocabulary_path, mode="wb") as vocab_file:

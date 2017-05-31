@@ -191,6 +191,7 @@ def add_sos(tokens):
 
 
 def padded(tokens, depth, batch_pad=0):
+    # idunno what depth is
     maxlen = max(map(lambda x: len(x), tokens)) if batch_pad == 0 else batch_pad
     align = pow(2, depth - 1)
     padlen = maxlen + (align - maxlen) % align

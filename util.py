@@ -135,7 +135,7 @@ def but_detector_refill(batches, fd_because, fd_but, relation_vocab, batch_size,
                 line_pairs.append((x1_tokens, x2_tokens, y))
             # idunno where the number 160 is coming from
             # why do we want max 160 batches?
-            if len(line_pairs) == batch_size * 160
+            if len(line_pairs) == batch_size * 160:
                 break
 
             line = fd.readline()

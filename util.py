@@ -149,7 +149,7 @@ def but_detector_refill(batches, fd_because, fd_but, relation_vocab, batch_size,
         batch_end = batch_start + batch_size
         x1_batch, x2_batch, y_batch = zip(*line_pairs[batch_start:batch_end])
 
-        batches.append((x_batch, x2_batch, y_batch))
+        batches.append((x1_batch, x2_batch, y_batch))
 
     # idunno why we're shuffling by batches instead of items.
     # is it so batches contain similar lengths of sentences?

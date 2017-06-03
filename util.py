@@ -190,9 +190,6 @@ def but_detector_refill(batches, fd_because, fd_but, relation_vocab, batch_size,
 #     return
 
 
-def padded(tokens, depth, batch_pad=0):
-    # idunno what depth is
-    maxlen = max(map(lambda x: len(x), tokens)) if batch_pad == 0 else batch_pad
-    align = pow(2, depth - 1)
-    padlen = maxlen + (align - maxlen) % align
-    return map(lambda token_list: token_list + [data.PAD_ID] * (padlen - len(token_list)), tokens)
+def padded(tokens, batch_pad=0):
+  maxlen = max(map(lambda x: len(x), tokens)) if batch_pad == 0 else batch_pad
+  return map(lambda token_list: token_list + [data.PAD_ID] * (maxlen - len(token_list)), tokens)

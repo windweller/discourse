@@ -120,36 +120,39 @@ def but_detector_refill(batches, fd_because, fd_but, relation_vocab, batch_size,
         because_tokens, but_tokens = tokenize(line_because), tokenize(line_but)
 
         index_of_because = because_tokens.index(relation_vocab["because"])
-        x1_because_tokens = because_tokens[:index_of_relation]
-        x2_because_tokens = because_tokens[index_of_relation+1:]
+        x1_because_tokens = because_tokens[:index_of_because]
+        x2_because_tokens = because_tokens[index_of_because+1:]
 
         index_of_but = but_tokens.index(relation_vocab["but"])
-        x1_but_tokens = but_tokens[:index_of_relation]
-        x2_but_tokens = but_tokens[index_of_relation+1:]
+        x1_but_tokens = but_tokens[:index_of_but]
+        x2_but_tokens = but_tokens[index_of_but+1:]
 
         # exclude sentences that are too long
         if len(x1_because_tokens) <= FLAGS.max_seq_len \
                 and len(x2_because_tokens) <= FLAGS.max_seq_len \
                 and len(x1_but_tokens) <= FLAGS.max_seq_len \
                 and len(x2_but_tokens) <= FLAGS.max_seq_len:
-            line_pairs.append((x1_because_tokens, x2_because_tokens, 0))
-            line_pairs.append((x1_but_tokens, x2_but_tokens, 1))
+            new_pairs = [
+                (x1_because_tokens, x2_because_tokens, 0),
+                (x1_but_tokens, x2_but_tokens, 1)
+            ];
+            random.shuffle(new_pairs);
+            line_pairs += new_pairs
 
         # only grab 160 batches at once
         if len(line_pairs) == batch_size * 160:
             break
 
-        line = fd.readline()
-
-    # shuffle order of examples
-    if shuffle:
-        line_pairs = random.shuffle(line_pairs)
+        line_because, line_but = fd_because.readline(), fd_but.readline()
 
     for batch_start in xrange(0, len(line_pairs), batch_size):
         batch_end = batch_start + batch_size
         x1_batch, x2_batch, y_batch = zip(*line_pairs[batch_start:batch_end])
 
         batches.append((x1_batch, x2_batch, y_batch))
+
+    if shuffle:
+        random.shuffle(batches)
 
     return
 

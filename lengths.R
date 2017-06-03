@@ -1,3 +1,10 @@
+# install.packages("ggplot2")
+# install.packages("tidyr")
+# install.packages("dplyr")
+library(ggplot2)
+library(tidyr)
+library(dplyr)
+
 df = read.csv("data/lengths.csv")
 names(df) = c("len1", "len2", "connective", "version", "source")
 df = df %>% mutate(file = paste(source, version)) %>%

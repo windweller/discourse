@@ -110,36 +110,37 @@ def but_detector_refill(batches, fd_because, fd_but, relation_vocab, batch_size,
 
     """
     line_pairs = []
-    fds = {"because": fd_because, "but": fd_but}
     discourse_markers = ["because", "but"]
 
-    # accumulate tuples for every sentence from each file
-    for target_class in [0,1]:
-        discourse_marker = discourse_markers[target_class]
-        relation_id_in_vocab = relation_vocab[discourse_marker]
-        fd = fds[discourse_marker]
+    line_because = fd_because.readline()
+    line_but = fd_but.readline()
+
+    while line_because and line_but:
+        because_tokens, but_tokens = tokenize(line_because), tokenize(line_but)
+
+        index_of_because = because_tokens.index(relation_vocab["because"])
+        x1_because_tokens = because_tokens[:index_of_relation]
+        x2_because_tokens = because_tokens[index_of_relation+1:]
+
+        index_of_but = but_tokens.index(relation_vocab["but"])
+        x1_but_tokens = but_tokens[:index_of_relation]
+        x2_but_tokens = but_tokens[index_of_relation+1:]
+
+        # exclude sentences that are too long
+        if len(x1_because_tokens) <= FLAGS.max_seq_len \
+                and len(x2_because_tokens) <= FLAGS.max_seq_len \
+                and len(x1_but_tokens) <= FLAGS.max_seq_len \
+                and len(x2_but_tokens) <= FLAGS.max_seq_len:
+            line_pairs.append((x1_because_tokens, x2_because_tokens, 0))
+            line_pairs.append((x1_but_tokens, x2_but_tokens, 1))
+
+        # only grab 160 batches at once
+        if len(line_pairs) == batch_size * 160:
+            break
+
         line = fd.readline()
-        while line:
-            tokens = tokenize(line)
 
-            # split by relevant discourse relation
-            index_of_relation = tokens.index(relation_id_in_vocab)
-            x1_tokens = tokens[:index_of_relation]
-            x2_tokens = tokens[index_of_relation+1:]
-
-            y = target_class
-
-            # exclude sentences that are too long
-            if len(x1_tokens) <= FLAGS.max_seq_len \
-                    and len(x2_tokens) <= FLAGS.max_seq_len:
-                line_pairs.append((x1_tokens, x2_tokens, y))
-            # only grab 160 batches at once
-            if len(line_pairs) == batch_size * 160:
-                break
-
-            line = fd.readline()
-
-    # shuffle order of examples completely
+    # shuffle order of examples
     if shuffle:
         line_pairs = random.shuffle(line_pairs)
 
@@ -156,25 +157,25 @@ def but_detector_refill(batches, fd_because, fd_but, relation_vocab, batch_size,
 #     # context_len restricts samples smaller than context_len
 #     line_pairs = []
 #     linex, linex2, liney = fdx.readline(), fdx2.readline(), fdy.readline()
-#
+
 #     while linex and linex2 and liney:
 #         x_tokens, x2_tokens, y_tokens = tokenize(linex), tokenize(linex2), tokenize(liney)
-#
+
 #         if len(x_tokens) < FLAGS.question_len and len(y_tokens) < FLAGS.max_seq_len \
 #                 and len(x2_tokens) <= FLAGS.max_seq_len:
 #             line_pairs.append((x_tokens, x2_tokens, y_tokens))
 #         if len(line_pairs) == batch_size * 160:
 #             break
 #         linex, linex2, liney = fdx.readline(), fdx2.readline(), fdy.readline()
-#
+
 #     if sort_and_shuffle:
 #         line_pairs = sorted(line_pairs, key=lambda e: len(e[0]))
-#
+
 #     for batch_start in xrange(0, len(line_pairs), batch_size):
 #         x_batch, x2_batch, y_batch = zip(*line_pairs[batch_start:batch_start + batch_size])
-#
+
 #         batches.append((x_batch, x2_batch, y_batch))
-#
+
 #     if sort_and_shuffle:
 #         random.shuffle(batches)
 #     return

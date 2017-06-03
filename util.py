@@ -87,10 +87,10 @@ def but_detector_pair_iter(fname_because, fname_but, relation_vocab, batch_size,
                               padded(x2_tokens, FLAGS.max_seq_len)
 
         # first part of sentence (before discourse marker)
-        source_tokens = np.array(x_padded).T
+        source_tokens = np.array(x_padded)
         source_mask = (source_tokens != data.PAD_ID).astype(np.int32)
         # second part of sentence (after discourse marker)
-        source2_tokens = np.array(x2_padded).T
+        source2_tokens = np.array(x2_padded)
         source2_mask = (source2_tokens != data.PAD_ID).astype(np.int32)
         # class ID for this sentence (either 0 for because or 1 for but)
         target_class = y

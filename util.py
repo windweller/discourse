@@ -83,8 +83,8 @@ def but_detector_pair_iter(fname_because, fname_but, relation_vocab, batch_size,
         # pad sentence chunks
         # idunno if this should use FLAGS or something else.
         # the orig here use question_length or something.
-        x_padded, x2_padded = padded(x_tokens, num_layers, FLAGS.max_seq_len), \
-                              padded(x2_tokens, num_layers, FLAGS.max_seq_len)
+        x_padded, x2_padded = padded(x_tokens, FLAGS.max_seq_len), \
+                              padded(x2_tokens, FLAGS.max_seq_len)
 
         # first part of sentence (before discourse marker)
         source_tokens = np.array(x_padded).T

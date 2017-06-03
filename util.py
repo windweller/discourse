@@ -144,6 +144,9 @@ def but_detector_refill(batches, fd_because, fd_but, relation_vocab, batch_size,
             break
 
         line_because, line_but = fd_because.readline(), fd_but.readline()
+        
+    if shuffle:
+        random.shuffle(line_pairs)
 
     for batch_start in xrange(0, len(line_pairs), batch_size):
         batch_end = batch_start + batch_size
@@ -195,6 +198,6 @@ if __name__ == '__main__':
         "data/ptb/train_BECAUSE.ids.txt",
         "data/ptb/train_BUT.ids.txt",
         {"because": 10, "but": 5},
-        10
+        20
     )))
 

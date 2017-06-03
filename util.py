@@ -99,7 +99,7 @@ def but_detector_pair_iter(fname_because, fname_but, relation_vocab, batch_size,
     return
 
 def but_detector_refill(batches, fd_because, fd_but, relation_vocab, batch_size,
-                        sort_and_shuffle=True):
+                        shuffle=True):
     """Mutates batches list to fill with tuples of sentence chunks and class id
 
     Keyword arguments:
@@ -108,7 +108,7 @@ def but_detector_refill(batches, fd_because, fd_but, relation_vocab, batch_size,
     relation_vocab -- a dict from discourse markers to their ids in vocab
     fd_but -- loaded "but" sentences
     batch_size -- number of sentences per batch
-    sort_and_shuffle -- idunno what this is for
+    shuffle -- flag to shuffle the examples completely
 
     """
     line_pairs = []
@@ -142,10 +142,9 @@ def but_detector_refill(batches, fd_because, fd_but, relation_vocab, batch_size,
 
             line = fd.readline()
 
-    # sort by length of first sentence chunk?
-    # idunno why we would want this.
-    if sort_and_shuffle:
-        line_pairs = sorted(line_pairs, key=lambda e: len(e[0]))
+    # shuffle order of examples completely
+    if shuffle:
+        line_pairs = random.shuffle(line_pairs)
 
     for batch_start in xrange(0, len(line_pairs), batch_size):
         batch_end = batch_start + batch_size
@@ -153,10 +152,6 @@ def but_detector_refill(batches, fd_because, fd_but, relation_vocab, batch_size,
 
         batches.append((x1_batch, x2_batch, y_batch))
 
-    # idunno why we're shuffling by batches instead of items.
-    # is it so batches contain similar lengths of sentences?
-    if sort_and_shuffle:
-        random.shuffle(batches)
     return
 
 

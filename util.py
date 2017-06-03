@@ -55,7 +55,7 @@ but wrap both in one if i have time with a flag
 #     return
 
 def but_detector_pair_iter(fname_because, fname_but, relation_vocab, batch_size,
-                           num_layers, sort_and_shuffle=True):
+                           shuffle=True):
     """Create batches of inputs for but/because classifier.
 
     Keyword arguments:
@@ -63,8 +63,7 @@ def but_detector_pair_iter(fname_because, fname_but, relation_vocab, batch_size,
     fname_but -- name of "but" data file (e.g. ptb/train_BUT.ids.txt)
     relation_vocab -- a dict from discourse markers to their ids in vocab
     batch_size -- number of sentences per batch
-    num_layers -- idunno what this is for, but it gets passed into `padded`
-    sort_and_shuffle -- idunno what this is for
+    shuffle -- flag to shuffle the examples completely
 
     """
     fd_because, fd_but = open(fname_because), open(fname_but)
@@ -74,17 +73,14 @@ def but_detector_pair_iter(fname_because, fname_but, relation_vocab, batch_size,
         if len(batches) == 0:
             # initialize patches
             but_detector_refill(batches, fd_because, fd_but, relation_vocab,
-                                batch_size, sort_and_shuffle=sort_and_shuffle)
+                                batch_size, shuffle=shuffle)
         if len(batches) == 0:
-            # stopping condition, when batches is empty again
+            # stopping condition, when batches is empty even after refill
             break
 
         x_tokens, x2_tokens, y = batches.pop(0)
         # pad sentence chunks
-        # idunno if this should use FLAGS or something else.
-        # the orig here use question_length or something.
-        x_padded, x2_padded = padded(x_tokens, FLAGS.max_seq_len), \
-                              padded(x2_tokens, FLAGS.max_seq_len)
+        x_padded, x2_padded = padded(x_tokens), padded(x2_tokens)
 
         # first part of sentence (before discourse marker)
         source_tokens = np.array(x_padded).T
@@ -137,8 +133,7 @@ def but_detector_refill(batches, fd_because, fd_but, relation_vocab, batch_size,
             if len(x1_tokens) <= FLAGS.max_seq_len \
                     and len(x2_tokens) <= FLAGS.max_seq_len:
                 line_pairs.append((x1_tokens, x2_tokens, y))
-            # idunno where the number 160 is coming from
-            # why do we want max 160 batches?
+            # only grab 160 batches at once
             if len(line_pairs) == batch_size * 160:
                 break
 

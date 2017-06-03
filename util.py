@@ -10,6 +10,7 @@ import random
 import data
 
 FLAGS = tf.app.flags.FLAGS
+tf.flags.DEFINE_integer("max_seq_len", 35, "cut off sentence after this of words")
 
 def tokenize(string):
     return [int(s) for s in string.split()]
@@ -184,3 +185,13 @@ def but_detector_refill(batches, fd_because, fd_but, relation_vocab, batch_size,
 def padded(tokens, batch_pad=0):
   maxlen = max(map(lambda x: len(x), tokens)) if batch_pad == 0 else batch_pad
   return map(lambda token_list: token_list + [data.PAD_ID] * (maxlen - len(token_list)), tokens)
+
+
+if __name__ == '__main__':
+    print(next(but_detector_pair_iter(
+        "data/ptb/train_BECAUSE.ids.txt",
+        "data/ptb/train_BUT.ids.txt",
+        {"because": 10, "but": 5},
+        10
+    )))
+

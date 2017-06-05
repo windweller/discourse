@@ -149,8 +149,12 @@ def but_detector_refill(batches, fd_because, fd_but, vocab, batch_size,
         because_tokens, but_tokens = tokenize(line_because), tokenize(line_but)
 
         index_of_because = because_tokens.index(vocab["because"])
+        index_of_of = because_tokens.index(vocab["of"])
         x1_because_tokens = because_tokens[:index_of_because]
-        x2_because_tokens = because_tokens[index_of_because+1:]
+        if index_of_of == index_of_because+1:
+            x2_because_tokens = because_tokens[index_of_because+2:]
+        else:
+            x2_because_tokens = because_tokens[index_of_because+1:]
 
         index_of_but = but_tokens.index(vocab["but"])
         x1_but_tokens = but_tokens[:index_of_but]
@@ -249,8 +253,13 @@ def cause_effect_refill(batches, fd_because, vocab, batch_size,
         because_tokens = tokenize(line)
 
         index_of_because = because_tokens.index(vocab["because"])
+        index_of_of = because_tokens.index(vocab["of"])
         effect_tokens = because_tokens[:index_of_because]
-        cause_tokens = because_tokens[index_of_because+1:]
+
+        if index_of_of == index_of_because+1:
+            cause_tokens = because_tokens[index_of_because+1:]
+        else:
+            cause_tokens = because_tokens[index_of_because+2:]
 
         # exclude sentences that are too long
         if len(effect_tokens) <= FLAGS.max_seq_len \

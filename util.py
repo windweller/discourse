@@ -10,7 +10,7 @@ import random
 import data
 
 FLAGS = tf.app.flags.FLAGS
-tf.flags.DEFINE_integer("max_seq_len", 35, "cut off sentence after this of words")
+# tf.flags.DEFINE_integer("max_seq_len", 35, "cut off sentence after this of words")
 
 def tokenize(string):
     return [int(s) for s in string.split()]
@@ -148,26 +148,17 @@ def but_detector_refill(batches, fd_because, fd_but, vocab, batch_size,
     while line_because and line_but:
         because_tokens, but_tokens = tokenize(line_because), tokenize(line_but)
 
-        because_id = vocab["because"]
-        of_id = vocab["of"]
-        but_id = vocab["but"]
+        index_of_because = because_tokens.index(vocab["because"])
+        index_of_of = because_tokens.index(vocab["of"])
+        x1_because_tokens = because_tokens[:index_of_because]
+        if index_of_of == index_of_because+1:
+            x2_because_tokens = because_tokens[index_of_because+2:]
+        else:
+            x2_because_tokens = because_tokens[index_of_because+1:]
 
-        if because_id in because_tokens:
-            index_of_because = because_tokens.index(because_id)
-            if of_id in because_tokens:
-                index_of_of = because_tokens.index(of_id)
-                x1_because_tokens = because_tokens[:index_of_because]
-                if index_of_of == index_of_because+1:
-                    x2_because_tokens = because_tokens[index_of_because+2:]
-                else:
-                    x2_because_tokens = because_tokens[index_of_because+1:]
-            else:
-                x2_because_tokens = because_tokens[index_of_because+1:]
-
-        if but_id in but_tokens:
-            index_of_but = but_tokens.index(but_id)
-            x1_but_tokens = but_tokens[:index_of_but]
-            x2_but_tokens = but_tokens[index_of_but+1:]
+        index_of_but = but_tokens.index(vocab["but"])
+        x1_but_tokens = but_tokens[:index_of_but]
+        x2_but_tokens = but_tokens[index_of_but+1:]
 
         # exclude sentences that are too long
         if len(x1_because_tokens) <= FLAGS.max_seq_len \
@@ -261,20 +252,14 @@ def cause_effect_refill(batches, fd_because, vocab, batch_size,
     while line:
         because_tokens = tokenize(line)
 
-        because_id = vocab["because"]
-        of_id = vocab["of"]
+        index_of_because = because_tokens.index(vocab["because"])
+        index_of_of = because_tokens.index(vocab["of"])
+        effect_tokens = because_tokens[:index_of_because]
 
-        if because_id in because_tokens:
-            index_of_because = because_tokens.index(because_id)
-            effect_tokens = because_tokens[:index_of_because]
-
-            if of_id in because_tokens:
-                if index_of_of == index_of_because+1:
-                    cause_tokens = because_tokens[index_of_because+2:]
-                else:
-                    cause_tokens = because_tokens[index_of_because+1:]
-            else:
-                cause_tokens = because_tokens[index_of_because+1:]
+        if index_of_of == index_of_because+1:
+            cause_tokens = because_tokens[index_of_because+1:]
+        else:
+            cause_tokens = because_tokens[index_of_because+2:]
 
         # exclude sentences that are too long
         if len(effect_tokens) <= FLAGS.max_seq_len \
@@ -312,9 +297,9 @@ def padded(tokens, batch_pad=0):
 
 
 if __name__ == '__main__':
-    print(next(cause_effect_pair_iter(
+    print(next(but_detector_pair_iter(
         "data/ptb/train_BECAUSE.ids.txt",
-        # "data/ptb/train_BUT.ids.txt",
+        "data/ptb/train_BUT.ids.txt",
         {"because": 10, "but": 5},
         20
     )))

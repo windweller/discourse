@@ -152,15 +152,21 @@ def but_detector_refill(batches, fd_because, fd_but, vocab, batch_size,
         of_id = vocab["of"]
         but_id = vocab["but"]
 
+        # check if the discourse relations are even in the sentences
+        # (they're supposed to be, but apparently they're not, in practice??!)
+        # idunno why this is.
         if because_id in because_tokens and but_id in but_tokens:
             index_of_because = because_tokens.index(because_id)
+            # grab sentence chunk before 'because'
             x1_because_tokens = because_tokens[:index_of_because]
+            # second chunk should not start with 'of'
             if (of_id in because_tokens) and (because_tokens.index(of_id) == index_of_because):
                 because_start_of_next_chunk = index_of_because+2
             else:
                 because_start_of_next_chunk = index_of_because+1
             x2_because_tokens = because_tokens[because_start_of_next_chunk:]
 
+            # grab sentence chunks for 'but'
             index_of_but = but_tokens.index(but_id)
             x1_but_tokens = but_tokens[:index_of_but]
             x2_but_tokens = but_tokens[index_of_but+1:]

@@ -188,6 +188,99 @@ def but_detector_refill(batches, fd_because, fd_but, vocab, batch_size,
 
     return
 
+def cause_effect_pair_iter(fname_because, vocab, batch_size, shuffle=True):
+    """Create batches of inputs for but/because classifier.
+
+    Keyword arguments:
+    fname_because -- name of "because" data file (e.g. train_BECAUSE.ids.txt)
+    vocab -- a dict from words to their ids in vocab
+    batch_size -- number of sentences per batch
+    shuffle -- flag to shuffle the examples completely
+
+    """
+    fd_because = open(fname_because)
+    batches = []
+
+    while True:
+        if len(batches) == 0:
+            # initialize patches
+            cause_effect_refill(batches, fd_because, vocab,
+                                batch_size, shuffle=shuffle)
+        if len(batches) == 0:
+            # stopping condition, when batches is empty even after refill
+            break
+
+        x_tokens, x2_tokens, y = batches.pop(0)
+        # pad sentence chunks
+        x_padded, x2_padded = padded(x_tokens), padded(x2_tokens)
+
+        # first part of sentence (before discourse marker)
+        source_tokens = np.array(x_padded)
+        source_mask = (source_tokens != data.PAD_ID).astype(np.int32)
+        # second part of sentence (after discourse marker)
+        source2_tokens = np.array(x2_padded)
+        source2_mask = (source2_tokens != data.PAD_ID).astype(np.int32)
+        # class ID for this sentence (either 0 for because or 1 for but)
+        target_class = y
+
+        yield (source_tokens, source_mask, source2_tokens, source2_mask,
+               target_class)
+
+    return
+
+def cause_effect_refill(batches, fd_because, vocab, batch_size,
+                        shuffle=True):
+    """Mutates batches list to fill with tuples of sentence chunks and class id
+
+    Keyword arguments:
+    batches -- the batches list to mutate
+    fd_because -- loaded "because" sentences
+    vocab -- a dict from words to their ids in vocab
+    fd_but -- loaded "but" sentences
+    batch_size -- number of sentences per batch
+    shuffle -- flag to shuffle the examples completely
+
+    """
+    line_pairs = []
+
+    line = fd_because.readline()
+
+    while line:
+        because_tokens = tokenize(line)
+
+        index_of_because = because_tokens.index(vocab["because"])
+        effect_tokens = because_tokens[:index_of_because]
+        cause_tokens = because_tokens[index_of_because+1:]
+
+        # exclude sentences that are too long
+        if len(effect_tokens) <= FLAGS.max_seq_len \
+                and len(cause_tokens) <= FLAGS.max_seq_len:
+            # 0 is incorrect, 1 is correct
+            if random.randint(0, 1):
+                line_pairs.append((cause_tokens, effect_tokens, 0))
+            else:
+                line_pairs.append((effect_tokens, cause_tokens, 1))
+
+        # only grab 160 batches at once
+        if len(line_pairs) == batch_size * 160:
+            break
+
+        line = fd_because.readline()
+        
+    if shuffle:
+        random.shuffle(line_pairs)
+
+    for batch_start in xrange(0, len(line_pairs), batch_size):
+        batch_end = batch_start + batch_size
+        x1_batch, x2_batch, y_batch = zip(*line_pairs[batch_start:batch_end])
+
+        batches.append((x1_batch, x2_batch, y_batch))
+
+    if shuffle:
+        random.shuffle(batches)
+
+    return
+
 
 def padded(tokens, batch_pad=0):
   maxlen = max(map(lambda x: len(x), tokens)) if batch_pad == 0 else batch_pad

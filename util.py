@@ -55,6 +55,34 @@ but wrap both in one if i have time with a flag
 #
 #     return
 
+
+# def refill(batches, fd_because, fd_but, batch_size, sort_and_shuffle=True):
+#     # context_len restricts samples smaller than context_len
+#     line_pairs = []
+#     linex, linex2, liney = fdx.readline(), fdx2.readline(), fdy.readline()
+
+#     while linex and linex2 and liney:
+#         x_tokens, x2_tokens, y_tokens = tokenize(linex), tokenize(linex2), tokenize(liney)
+
+#         if len(x_tokens) < FLAGS.question_len and len(y_tokens) < FLAGS.max_seq_len \
+#                 and len(x2_tokens) <= FLAGS.max_seq_len:
+#             line_pairs.append((x_tokens, x2_tokens, y_tokens))
+#         if len(line_pairs) == batch_size * 160:
+#             break
+#         linex, linex2, liney = fdx.readline(), fdx2.readline(), fdy.readline()
+
+#     if sort_and_shuffle:
+#         line_pairs = sorted(line_pairs, key=lambda e: len(e[0]))
+
+#     for batch_start in xrange(0, len(line_pairs), batch_size):
+#         x_batch, x2_batch, y_batch = zip(*line_pairs[batch_start:batch_start + batch_size])
+
+#         batches.append((x_batch, x2_batch, y_batch))
+
+#     if sort_and_shuffle:
+#         random.shuffle(batches)
+#     return
+
 def but_detector_pair_iter(fname_because, fname_but, vocab, batch_size,
                            shuffle=True):
     """Create batches of inputs for but/because classifier.
@@ -62,7 +90,7 @@ def but_detector_pair_iter(fname_because, fname_but, vocab, batch_size,
     Keyword arguments:
     fname_because -- name of "because" data file (e.g. train_BECAUSE.ids.txt)
     fname_but -- name of "but" data file (e.g. ptb/train_BUT.ids.txt)
-    relation_vocab -- a dict from discourse markers to their ids in vocab
+    vocab -- a dict from words to their ids in vocab
     batch_size -- number of sentences per batch
     shuffle -- flag to shuffle the examples completely
 
@@ -73,7 +101,7 @@ def but_detector_pair_iter(fname_because, fname_but, vocab, batch_size,
     while True:
         if len(batches) == 0:
             # initialize patches
-            but_detector_refill(batches, fd_because, fd_but, relation_vocab,
+            but_detector_refill(batches, fd_because, fd_but, vocab,
                                 batch_size, shuffle=shuffle)
         if len(batches) == 0:
             # stopping condition, when batches is empty even after refill
@@ -105,7 +133,7 @@ def but_detector_refill(batches, fd_because, fd_but, vocab, batch_size,
     batches -- the batches list to mutate
     fd_because -- loaded "because" sentences
     fd_but -- loaded "but" sentences
-    relation_vocab -- a dict from discourse markers to their ids in vocab
+    vocab -- a dict from words to their ids in vocab
     fd_but -- loaded "but" sentences
     batch_size -- number of sentences per batch
     shuffle -- flag to shuffle the examples completely
@@ -159,34 +187,6 @@ def but_detector_refill(batches, fd_because, fd_but, vocab, batch_size,
         random.shuffle(batches)
 
     return
-
-
-# def refill(batches, fd_because, fd_but, batch_size, sort_and_shuffle=True):
-#     # context_len restricts samples smaller than context_len
-#     line_pairs = []
-#     linex, linex2, liney = fdx.readline(), fdx2.readline(), fdy.readline()
-
-#     while linex and linex2 and liney:
-#         x_tokens, x2_tokens, y_tokens = tokenize(linex), tokenize(linex2), tokenize(liney)
-
-#         if len(x_tokens) < FLAGS.question_len and len(y_tokens) < FLAGS.max_seq_len \
-#                 and len(x2_tokens) <= FLAGS.max_seq_len:
-#             line_pairs.append((x_tokens, x2_tokens, y_tokens))
-#         if len(line_pairs) == batch_size * 160:
-#             break
-#         linex, linex2, liney = fdx.readline(), fdx2.readline(), fdy.readline()
-
-#     if sort_and_shuffle:
-#         line_pairs = sorted(line_pairs, key=lambda e: len(e[0]))
-
-#     for batch_start in xrange(0, len(line_pairs), batch_size):
-#         x_batch, x2_batch, y_batch = zip(*line_pairs[batch_start:batch_start + batch_size])
-
-#         batches.append((x_batch, x2_batch, y_batch))
-
-#     if sort_and_shuffle:
-#         random.shuffle(batches)
-#     return
 
 
 def padded(tokens, batch_pad=0):

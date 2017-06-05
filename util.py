@@ -164,22 +164,22 @@ def but_detector_refill(batches, fd_because, fd_but, vocab, batch_size,
             else:
                 x2_because_tokens = because_tokens[index_of_because+1:]
 
-        if but_id in but_tokens:
-            index_of_but = but_tokens.index(but_id)
-            x1_but_tokens = but_tokens[:index_of_but]
-            x2_but_tokens = but_tokens[index_of_but+1:]
+            if but_id in but_tokens:
+                index_of_but = but_tokens.index(but_id)
+                x1_but_tokens = but_tokens[:index_of_but]
+                x2_but_tokens = but_tokens[index_of_but+1:]
 
-        # exclude sentences that are too long
-        if len(x1_because_tokens) <= FLAGS.max_seq_len \
-                and len(x2_because_tokens) <= FLAGS.max_seq_len \
-                and len(x1_but_tokens) <= FLAGS.max_seq_len \
-                and len(x2_but_tokens) <= FLAGS.max_seq_len:
-            new_pairs = [
-                (x1_because_tokens, x2_because_tokens, 0),
-                (x1_but_tokens, x2_but_tokens, 1)
-            ];
-            random.shuffle(new_pairs);
-            line_pairs += new_pairs
+                # exclude sentences that are too long
+                if len(x1_because_tokens) <= FLAGS.max_seq_len \
+                        and len(x2_because_tokens) <= FLAGS.max_seq_len \
+                        and len(x1_but_tokens) <= FLAGS.max_seq_len \
+                        and len(x2_but_tokens) <= FLAGS.max_seq_len:
+                    new_pairs = [
+                        (x1_because_tokens, x2_because_tokens, 0),
+                        (x1_but_tokens, x2_but_tokens, 1)
+                    ];
+                    random.shuffle(new_pairs);
+                    line_pairs += new_pairs
 
         # only grab 160 batches at once
         if len(line_pairs) == batch_size * 160:

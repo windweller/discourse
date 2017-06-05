@@ -55,7 +55,7 @@ but wrap both in one if i have time with a flag
 #
 #     return
 
-def but_detector_pair_iter(fname_because, fname_but, relation_vocab, batch_size,
+def but_detector_pair_iter(fname_because, fname_but, vocab, batch_size,
                            shuffle=True):
     """Create batches of inputs for but/because classifier.
 
@@ -97,13 +97,14 @@ def but_detector_pair_iter(fname_because, fname_but, relation_vocab, batch_size,
 
     return
 
-def but_detector_refill(batches, fd_because, fd_but, relation_vocab, batch_size,
+def but_detector_refill(batches, fd_because, fd_but, vocab, batch_size,
                         shuffle=True):
     """Mutates batches list to fill with tuples of sentence chunks and class id
 
     Keyword arguments:
     batches -- the batches list to mutate
     fd_because -- loaded "because" sentences
+    fd_but -- loaded "but" sentences
     relation_vocab -- a dict from discourse markers to their ids in vocab
     fd_but -- loaded "but" sentences
     batch_size -- number of sentences per batch
@@ -119,11 +120,11 @@ def but_detector_refill(batches, fd_because, fd_but, relation_vocab, batch_size,
     while line_because and line_but:
         because_tokens, but_tokens = tokenize(line_because), tokenize(line_but)
 
-        index_of_because = because_tokens.index(relation_vocab["because"])
+        index_of_because = because_tokens.index(vocab["because"])
         x1_because_tokens = because_tokens[:index_of_because]
         x2_because_tokens = because_tokens[index_of_because+1:]
 
-        index_of_but = but_tokens.index(relation_vocab["but"])
+        index_of_but = but_tokens.index(vocab["but"])
         x1_but_tokens = but_tokens[:index_of_but]
         x2_but_tokens = but_tokens[index_of_but+1:]
 

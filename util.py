@@ -154,9 +154,9 @@ def but_detector_refill(batches, fd_because, fd_but, vocab, batch_size,
 
         if because_id in because_tokens:
             index_of_because = because_tokens.index(because_id)
+            x1_because_tokens = because_tokens[:index_of_because]
             if of_id in because_tokens:
                 index_of_of = because_tokens.index(of_id)
-                x1_because_tokens = because_tokens[:index_of_because]
                 if index_of_of == index_of_because+1:
                     x2_because_tokens = because_tokens[index_of_because+2:]
                 else:

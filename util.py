@@ -10,7 +10,7 @@ import random
 import data
 
 FLAGS = tf.app.flags.FLAGS
-tf.flags.DEFINE_integer("max_seq_len", 35, "cut off sentence after this of words")
+# tf.flags.DEFINE_integer("max_seq_len", 35, "cut off sentence after this of words")
 
 def tokenize(string):
     return [int(s) for s in string.split()]

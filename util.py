@@ -9,6 +9,8 @@ import random
 
 import data
 
+np.random.seed(123)
+
 FLAGS = tf.app.flags.FLAGS
 # tf.flags.DEFINE_integer("max_seq_len", 35, "cut off sentence after this of words")
 

@@ -154,34 +154,36 @@ def but_detector_refill(batches, fd_because, fd_but, vocab, batch_size,
         of_id = vocab["of"]
         but_id = vocab["but"]
 
-        if because_id in because_tokens:
+        # check if the discourse relations are even in the sentences
+        # (they're supposed to be, but apparently they're not, in practice??!)
+        # idunno why this is.
+        if because_id in because_tokens and but_id in but_tokens:
             index_of_because = because_tokens.index(because_id)
+            # grab sentence chunk before 'because'
             x1_because_tokens = because_tokens[:index_of_because]
-            if of_id in because_tokens:
-                index_of_of = because_tokens.index(of_id)
-                if index_of_of == index_of_because+1:
-                    x2_because_tokens = because_tokens[index_of_because+2:]
-                else:
-                    x2_because_tokens = because_tokens[index_of_because+1:]
+            # second chunk should not start with 'of'
+            if (of_id in because_tokens) and (because_tokens.index(of_id) == index_of_because):
+                because_start_of_next_chunk = index_of_because+2
             else:
-                x2_because_tokens = because_tokens[index_of_because+1:]
+                because_start_of_next_chunk = index_of_because+1
+            x2_because_tokens = because_tokens[because_start_of_next_chunk:]
 
-            if but_id in but_tokens:
-                index_of_but = but_tokens.index(but_id)
-                x1_but_tokens = but_tokens[:index_of_but]
-                x2_but_tokens = but_tokens[index_of_but+1:]
+            # grab sentence chunks for 'but'
+            index_of_but = but_tokens.index(but_id)
+            x1_but_tokens = but_tokens[:index_of_but]
+            x2_but_tokens = but_tokens[index_of_but+1:]
 
-                # exclude sentences that are too long
-                if len(x1_because_tokens) <= FLAGS.max_seq_len \
-                        and len(x2_because_tokens) <= FLAGS.max_seq_len \
-                        and len(x1_but_tokens) <= FLAGS.max_seq_len \
-                        and len(x2_but_tokens) <= FLAGS.max_seq_len:
-                    new_pairs = [
-                        (x1_because_tokens, x2_because_tokens, 0),
-                        (x1_but_tokens, x2_but_tokens, 1)
-                    ];
-                    random.shuffle(new_pairs);
-                    line_pairs += new_pairs
+            # exclude sentences that are too long
+            if len(x1_because_tokens) <= FLAGS.max_seq_len \
+                    and len(x2_because_tokens) <= FLAGS.max_seq_len \
+                    and len(x1_but_tokens) <= FLAGS.max_seq_len \
+                    and len(x2_but_tokens) <= FLAGS.max_seq_len:
+                new_pairs = [
+                    (x1_because_tokens, x2_because_tokens, 0),
+                    (x1_but_tokens, x2_but_tokens, 1)
+                ];
+                random.shuffle(new_pairs);
+                line_pairs += new_pairs
 
         # only grab 160 batches at once
         if len(line_pairs) == batch_size * 160:

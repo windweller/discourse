@@ -5,7 +5,6 @@ from __future__ import print_function
 import numpy as np
 from six.moves import xrange
 import tensorflow as tf
-import random
 
 import data
 
@@ -182,7 +181,7 @@ def but_detector_refill(batches, fd_because, fd_but, vocab, batch_size,
                     (x1_because_tokens, x2_because_tokens, 0),
                     (x1_but_tokens, x2_but_tokens, 1)
                 ];
-                random.shuffle(new_pairs);
+                np.random.shuffle(new_pairs);
                 line_pairs += new_pairs
 
         # only grab 160 batches at once
@@ -192,7 +191,7 @@ def but_detector_refill(batches, fd_because, fd_but, vocab, batch_size,
         line_because, line_but = fd_because.readline(), fd_but.readline()
         
     if shuffle:
-        random.shuffle(line_pairs)
+        np.random.shuffle(line_pairs)
 
     for batch_start in xrange(0, len(line_pairs), batch_size):
         batch_end = batch_start + batch_size
@@ -201,7 +200,7 @@ def but_detector_refill(batches, fd_because, fd_but, vocab, batch_size,
         batches.append((x1_batch, x2_batch, y_batch))
 
     if shuffle:
-        random.shuffle(batches)
+        np.random.shuffle(batches)
 
     return
 
@@ -285,7 +284,7 @@ def cause_effect_refill(batches, fd_because, vocab, batch_size,
         if len(effect_tokens) <= FLAGS.max_seq_len \
                 and len(cause_tokens) <= FLAGS.max_seq_len:
             # 0 is incorrect, 1 is correct
-            if random.randint(0, 1):
+            if np.random.randint(0, 1):
                 line_pairs.append((cause_tokens, effect_tokens, 0))
             else:
                 line_pairs.append((effect_tokens, cause_tokens, 1))
@@ -297,7 +296,7 @@ def cause_effect_refill(batches, fd_because, vocab, batch_size,
         line = fd_because.readline()
         
     if shuffle:
-        random.shuffle(line_pairs)
+        np.random.shuffle(line_pairs)
 
     for batch_start in xrange(0, len(line_pairs), batch_size):
         batch_end = batch_start + batch_size
@@ -306,7 +305,7 @@ def cause_effect_refill(batches, fd_because, vocab, batch_size,
         batches.append((x1_batch, x2_batch, y_batch))
 
     if shuffle:
-        random.shuffle(batches)
+        np.random.shuffle(batches)
 
     return
 

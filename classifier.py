@@ -244,6 +244,8 @@ class SequenceClassifier(object):
         exp_cost = None
         exp_norm = None
 
+        lr = FLAGS.learning_rate
+
         while num_epochs == 0 or epoch < num_epochs:
             epoch += 1
             current_step = 0
@@ -289,14 +291,10 @@ class SequenceClassifier(object):
                                                                                               valid_accu,
                                                                                               epoch_toc - epoch_tic))
 
-            if epoch >= self.flags.learning_rate_decay_epoch:
-                logging.info("Annealing learning rate after epoch {} by {}".format(self.flags.learning_rate_decay_epoch,
-                                                                                   self.flags.learning_rate_decay))
+            if len(previous_losses) >= 1 and valid_cost > previous_losses[-1]:
+                lr = lr * FLAGS.learning_rate_decay
+                logging.info("Epoch %d, learning rate %f" % (epoch, lr))
                 session.run(self.learning_rate_decay_op)
-
-            if len(previous_losses) > 2 and valid_cost > previous_losses[-1]:
-                # logging.info("Additional annealing learning rate by %f" % self.FLAGS.learning_rate_decay_factor)
-                # session.run(self.learning_rate_decay_op)
                 logging.info("validation cost trigger: restore model from epoch %d" % best_epoch)
                 self.saver.restore(session, checkpoint_path + ("-%d" % best_epoch))
             else:

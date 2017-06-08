@@ -6,6 +6,10 @@ import numpy as np
 from six.moves import xrange
 import tensorflow as tf
 
+import pickle
+import os
+from os.path import join as pjoin
+
 import data
 
 np.random.seed(123)
@@ -84,28 +88,29 @@ but wrap both in one if i have time with a flag
 #         random.shuffle(batches)
 #     return
 
-def but_detector_pair_iter(fname_because, fname_but, vocab, batch_size,
-                           shuffle=True):
+def but_detector_pair_iter(data_dir, split, vocab, batch_size):
     """Create batches of inputs for but/because classifier.
 
     Keyword arguments:
-    fname_because -- name of "because" data file (e.g. train_BECAUSE.ids.txt)
-    fname_but -- name of "but" data file (e.g. ptb/train_BUT.ids.txt)
+    data_dir -- data directory
+    split -- train, valid, or test
     vocab -- a dict from words to their ids in vocab
     batch_size -- number of sentences per batch
-    shuffle -- flag to shuffle the examples completely
 
     """
-    fd_because, fd_but = open(fname_because), open(fname_but)
-    batches = []
+
+    cache_filename = pjoin(data_dir, split + "_" + str(batch_size) + ".dat")
+    ## if file exists,
+    if os.path.isfile(cache_filename):
+        batches = pickle.load(open(cache_filename, 'rb'))
+    else:
+        ## fill up batches from pickle file, or make pickle file if necessary
+        batches = but_detector_data_shuffler(data_dir, split, vocab, batch_size,
+                                             cache_filename)
 
     while True:
         if len(batches) == 0:
-            # initialize patches
-            but_detector_refill(batches, fd_because, fd_but, vocab,
-                                batch_size, shuffle=shuffle)
-        if len(batches) == 0:
-            # stopping condition, when batches is empty even after refill
+            # stopping condition, when batches is empty
             break
 
         x_tokens, x2_tokens, y = batches.pop(0)
@@ -126,20 +131,18 @@ def but_detector_pair_iter(fname_because, fname_but, vocab, batch_size,
 
     return
 
-def but_detector_refill(batches, fd_because, fd_but, vocab, batch_size,
-                        shuffle=True):
-    """Mutates batches list to fill with tuples of sentence chunks and class id
+# save as pickle file
+# list of lists
+def but_detector_data_shuffler(data_dir, split, vocab,
+                               batch_size, cache_filename):
 
-    Keyword arguments:
-    batches -- the batches list to mutate
-    fd_because -- loaded "because" sentences
-    fd_but -- loaded "but" sentences
-    vocab -- a dict from words to their ids in vocab
-    fd_but -- loaded "but" sentences
-    batch_size -- number of sentences per batch
-    shuffle -- flag to shuffle the examples completely
+    batches = []
 
-    """
+    fname_because = pjoin(data_dir, split + "_BECAUSE.ids.txt")
+    fname_but = pjoin(data_dir, split + "_BUT.ids.txt")
+
+    fd_because, fd_but = open(fname_because), open(fname_but)
+
     line_pairs = []
     discourse_markers = ["because", "but"]
 
@@ -182,16 +185,11 @@ def but_detector_refill(batches, fd_because, fd_but, vocab, batch_size,
                     (x1_but_tokens, x2_but_tokens, 1)
                 ];
                 np.random.shuffle(new_pairs);
-                line_pairs += new_pairs
-
-        # only grab 160 batches at once
-        if len(line_pairs) == batch_size * 160:
-            break
+                line_pairs += new_pairs;
 
         line_because, line_but = fd_because.readline(), fd_but.readline()
         
-    if shuffle:
-        np.random.shuffle(line_pairs)
+    np.random.shuffle(line_pairs)
 
     for batch_start in xrange(0, len(line_pairs), batch_size):
         batch_end = batch_start + batch_size
@@ -199,10 +197,11 @@ def but_detector_refill(batches, fd_because, fd_but, vocab, batch_size,
 
         batches.append((x1_batch, x2_batch, y_batch))
 
-    if shuffle:
-        np.random.shuffle(batches)
+    np.random.shuffle(batches)
 
-    return
+    pickle.dump( batches, open( cache_filename, "wb" ) )
+
+    return batches
 
 def cause_effect_pair_iter(fname_because, vocab, batch_size, shuffle=True):
     """Create batches of inputs for but/because classifier.
@@ -315,11 +314,12 @@ def padded(tokens, batch_pad=0):
   return map(lambda token_list: token_list + [data.PAD_ID] * (maxlen - len(token_list)), tokens)
 
 
+# data_dir, split, vocab, batch_size
 if __name__ == '__main__':
     print(next(but_detector_pair_iter(
-        "data/ptb/train_BECAUSE.ids.txt",
-        "data/ptb/train_BUT.ids.txt",
-        {"because": 10, "but": 5},
+        "data/ptb/",
+        "train",
+        {"because": 10, "but": 5, "of": 3},
         20
     )))
 

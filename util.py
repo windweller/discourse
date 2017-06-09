@@ -290,7 +290,7 @@ def cause_effect_refill(batches, fd_because, vocab, batch_size,
                 line_pairs.append((effect_tokens, cause_tokens, 1))
 
         # only grab 160 batches at once
-        if len(line_pairs) == batch_size * 160:
+        if len(line_pairs) == batch_size * 5:
             break
 
         line = fd_because.readline()

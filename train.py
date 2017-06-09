@@ -51,7 +51,8 @@ def main(_):
     but_test = pjoin("data", FLAGS.dataset, "test_BUT.ids.txt")
     because_test = pjoin("data", FLAGS.dataset, "test_BECAUSE.ids.txt")
 
-    print(vars(FLAGS))
+    data_dir = pjoin("data", FLAGS.dataset)
+
     with open(os.path.join(FLAGS.run_dir, "flags.json"), 'w') as fout:
         json.dump(FLAGS.__flags, fout)
 
@@ -73,7 +74,7 @@ def main(_):
 
         sc_but_because.but_because_train(session, but_train, because_train, but_valid,
                                          because_valid, but_test, because_test,
-                                         0, FLAGS.epochs, FLAGS.run_dir)
+                                         0, FLAGS.epochs, FLAGS.run_dir, data_dir)
 
 if __name__ == "__main__":
     tf.app.run()

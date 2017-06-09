@@ -212,10 +212,10 @@ class SequenceClassifier(object):
 
         return outputs[0], outputs[1]
 
-    def but_because_validate(self, session, but_valid, because_valid):
+    def but_because_validate(self, session, data_dir, split):
         valid_costs, valid_accus = [], []
         for because_tokens, because_mask, but_tokens, \
-            but_mask, labels in but_detector_pair_iter(because_valid, but_valid, self.vocab,
+            but_mask, labels in but_detector_pair_iter(data_dir, split, self.vocab,
                                                        self.flags.batch_size):
             cost, logits = self.test(session, because_tokens, because_mask, but_tokens, but_mask, labels)
             valid_costs.append(cost)
@@ -230,7 +230,7 @@ class SequenceClassifier(object):
         pass
 
     def but_because_train(self, session, but_train, because_train, but_valid,
-                          because_valid, but_test, because_test, curr_epoch, num_epochs, save_train_dir):
+                          because_valid, but_test, because_test, curr_epoch, num_epochs, save_train_dir, data_dir):
 
         tic = time.time()
         params = tf.trainable_variables()
@@ -253,7 +253,7 @@ class SequenceClassifier(object):
             ## Train
             epoch_tic = time.time()
             for because_tokens, because_mask, but_tokens, \
-                but_mask, labels in but_detector_pair_iter(because_train, but_train, self.vocab,
+                but_mask, labels in but_detector_pair_iter(data_dir, "train", self.vocab,
                                                                      self.flags.batch_size):
                 # Get a batch and make a step.
                 tic = time.time()
@@ -285,7 +285,7 @@ class SequenceClassifier(object):
             checkpoint_path = os.path.join(save_train_dir, "dis.ckpt")
 
             ## Validate
-            valid_cost, valid_accu = self.but_because_validate(session, but_valid, because_valid)
+            valid_cost, valid_accu = self.but_because_validate(session, data_dir, "valid")
 
             logging.info("Epoch %d Validation cost: %f validation accu: %f epoch time: %f" % (epoch, valid_cost,
                                                                                               valid_accu,
@@ -305,7 +305,7 @@ class SequenceClassifier(object):
 
         # after training, we test this thing
         ## Test
-        test_cost, test_accu = self.but_because_validate(session, but_test, because_test)
+        test_cost, test_accu = self.but_because_validate(session, data_dir, "test")
         logging.info("Final test cost: %f test accu: %f" % (test_cost, test_accu))
 
         sys.stdout.flush()

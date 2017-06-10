@@ -287,7 +287,7 @@ def cause_effect_refill(batches, fd_because, vocab, batch_size,
         if len(effect_tokens) <= FLAGS.max_seq_len \
                 and len(cause_tokens) <= FLAGS.max_seq_len:
             # 0 is incorrect, 1 is correct
-            if np.random.randint(0, 1):
+            if np.random.randint(0, 2):
                 line_pairs.append((cause_tokens, effect_tokens, 0))
             else:
                 line_pairs.append((effect_tokens, cause_tokens, 1))
@@ -320,10 +320,12 @@ def padded(tokens, batch_pad=0):
 
 # data_dir, split, vocab, batch_size
 if __name__ == '__main__':
-    print(next(but_detector_pair_iter(
-        "data/ptb/",
-        "train",
-        {"because": 10, "but": 5, "of": 3},
-        20
-    )))
+	print(next(cause_effect_pair_iter("data/ptb/train_BECAUSE.ids.txt",
+								      {"because": 10, "but": 5, "of": 3}, 20)))
+    # print(next(but_detector_pair_iter(
+    #     "data/ptb/",
+    #     "train",
+    #     {"because": 10, "but": 5, "of": 3},
+    #     20
+    # )))
 

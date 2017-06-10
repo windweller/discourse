@@ -6,6 +6,7 @@ import os
 import json
 
 import tensorflow as tf
+import numpy as np
 
 from classifier import SequenceClassifier, Encoder
 from os.path import join as pjoin
@@ -56,6 +57,9 @@ def main(_):
         json.dump(FLAGS.__flags, fout)
 
     with tf.Graph().as_default(), tf.Session() as session:
+        tf.set_random_seed(FLAGS.seed)
+        np.random.seed(FLAGS.seed)
+
         initializer = tf.random_uniform_initializer(-FLAGS.init_scale, FLAGS.init_scale, seed=FLAGS.seed)
 
         with tf.variable_scope("model", reuse=None, initializer=initializer):

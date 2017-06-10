@@ -27,10 +27,10 @@ tf.app.flags.DEFINE_float("dropout", 0.2, "probability of dropping units")
 tf.app.flags.DEFINE_integer("batch_size", 100, "batch size")
 tf.app.flags.DEFINE_integer("seed", 123, "random seed to use")
 tf.app.flags.DEFINE_float("init_scale", 0.1, "scale for random initialization")
-tf.app.flags.DEFINE_float("learning_rate", 0.001, "initial learning rate")
+tf.app.flags.DEFINE_float("learning_rate", 0.01, "initial learning rate")
 tf.app.flags.DEFINE_float("learning_rate_decay", 0.8, "amount to decrease learning rate")
 tf.app.flags.DEFINE_integer("keep", 0, "How many checkpoints to keep, 0 indicates keep all.")
-tf.app.flags.DEFINE_integer("print_every", 1, "How many iterations to do per print.")
+tf.app.flags.DEFINE_integer("print_every", 5, "How many iterations to do per print.")
 tf.app.flags.DEFINE_float("max_gradient_norm", 5.0, "Clip gradients to this norm.")
 tf.app.flags.DEFINE_string("run_dir", "sandbox", "directory to store experiment outputs")
 tf.app.flags.DEFINE_string("dataset", "ptb", "select the dataset to use")
@@ -39,7 +39,6 @@ tf.app.flags.DEFINE_string("embed_path", "", "Path to the trimmed GLoVe embeddin
 tf.app.flags.DEFINE_string("restore_checkpoint", None, "checkpoint file to restore model parameters from")
 
 logging.basicConfig(level=logging.INFO)
-
 
 def get_optimizer(opt):
     if opt == "adam":
@@ -238,13 +237,13 @@ class SequenceClassifier(object):
         toc = time.time()
         logging.info("Number of params: %d (retreival took %f secs)" % (num_params, toc - tic))
 
+        lr = FLAGS.learning_rate
         epoch = curr_epoch
         best_epoch = 0
         previous_losses = []
+        valid_accus = []
         exp_cost = None
         exp_norm = None
-
-        lr = FLAGS.learning_rate
 
         while num_epochs == 0 or epoch < num_epochs:
             epoch += 1
@@ -286,15 +285,21 @@ class SequenceClassifier(object):
 
             ## Validate
             valid_cost, valid_accu = self.but_because_validate(session, data_dir, "valid")
+            valid_accus.append(valid_accu)
 
             logging.info("Epoch %d Validation cost: %f validation accu: %f epoch time: %f" % (epoch, valid_cost,
                                                                                               valid_accu,
                                                                                               epoch_toc - epoch_tic))
 
-            if len(previous_losses) >= 1 and valid_cost > previous_losses[-1]:
-                lr = lr * FLAGS.learning_rate_decay
-                logging.info("Epoch %d, learning rate %f" % (epoch, lr))
+            if epoch >= self.flags.learning_rate_decay_epoch:
+                lr *= FLAGS.learning_rate_decay
+                logging.info("Annealing learning rate at epoch {} to {}".format(epoch, lr))
                 session.run(self.learning_rate_decay_op)
+
+            # use accuracy to guide this part, instead of loss
+            if len(previous_losses) > 2 and valid_accu > valid_accus[-1]:
+                # logging.info("Additional annealing learning rate by %f" % self.FLAGS.learning_rate_decay_factor)
+                # session.run(self.learning_rate_decay_op)
                 logging.info("validation cost trigger: restore model from epoch %d" % best_epoch)
                 self.saver.restore(session, checkpoint_path + ("-%d" % best_epoch))
             else:
@@ -302,6 +307,10 @@ class SequenceClassifier(object):
                 best_epoch = epoch
                 self.saver.save(session, checkpoint_path, global_step=epoch)
 
+
+        logging.info("restore model from best epoch %d" % best_epoch)
+        logging.info("best validation accuracy: %d" % valid_accus[best_epoch])
+        self.saver.restore(session, checkpoint_path + ("-%d" % best_epoch))
 
         # after training, we test this thing
         ## Test

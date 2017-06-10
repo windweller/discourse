@@ -283,7 +283,7 @@ def cause_effect_refill(batches, fd_because, vocab, batch_size,
         if len(effect_tokens) <= FLAGS.max_seq_len \
                 and len(cause_tokens) <= FLAGS.max_seq_len:
             # 0 is incorrect, 1 is correct
-            if np.random.randint(0, 1):
+            if np.random.randint(0, 2):
                 line_pairs.append((cause_tokens, effect_tokens, 0))
             else:
                 line_pairs.append((effect_tokens, cause_tokens, 1))

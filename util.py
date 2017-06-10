@@ -8,6 +8,8 @@ import tensorflow as tf
 
 import pickle
 import os
+import sys
+import logging
 from os.path import join as pjoin
 
 import data
@@ -99,12 +101,14 @@ def but_detector_pair_iter(data_dir, split, vocab, batch_size):
 
     """
 
-    cache_filename = pjoin(data_dir, split + "_" + str(batch_size) + ".dat")
+    cache_filename = pjoin(data_dir, split + "_" + str(batch_size) + ".pkl")
     ## if file exists,
     if os.path.isfile(cache_filename):
+        logging.info("restoring old batches")
         batches = pickle.load(open(cache_filename, 'rb'))
     else:
         ## fill up batches from pickle file, or make pickle file if necessary
+        logging.info("generate new batches")
         batches = but_detector_data_shuffler(data_dir, split, vocab, batch_size,
                                              cache_filename)
 

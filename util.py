@@ -90,7 +90,7 @@ but wrap both in one if i have time with a flag
 #         random.shuffle(batches)
 #     return
 
-def but_detector_pair_iter(data_dir, split, vocab, batch_size):
+def but_detector_pair_iter(data_dir, split, vocab, batch_size, shuffle=True):
     """Create batches of inputs for but/because classifier.
 
     Keyword arguments:
@@ -98,6 +98,7 @@ def but_detector_pair_iter(data_dir, split, vocab, batch_size):
     split -- train, valid, or test
     vocab -- a dict from words to their ids in vocab
     batch_size -- number of sentences per batch
+    shuffle -- we don't want to shuffle the validation and test sets.
 
     """
 
@@ -109,8 +110,8 @@ def but_detector_pair_iter(data_dir, split, vocab, batch_size):
     else:
         ## fill up batches from pickle file, or make pickle file if necessary
         logging.info("generate new batches")
-        batches = but_detector_data_shuffler(data_dir, split, vocab, batch_size,
-                                             cache_filename)
+        batches = but_detector_data_precache(data_dir, split, vocab, batch_size,
+                                             cache_filename, shuffle=shuffle)
 
     while True:
         if len(batches) == 0:
@@ -137,8 +138,8 @@ def but_detector_pair_iter(data_dir, split, vocab, batch_size):
 
 # save as pickle file
 # list of lists
-def but_detector_data_shuffler(data_dir, split, vocab,
-                               batch_size, cache_filename):
+def but_detector_data_precache(data_dir, split, vocab,
+                               batch_size, cache_filename, shuffle=True):
 
     batches = []
 
@@ -188,12 +189,14 @@ def but_detector_data_shuffler(data_dir, split, vocab,
                     (x1_because_tokens, x2_because_tokens, 0),
                     (x1_but_tokens, x2_but_tokens, 1)
                 ];
-                np.random.shuffle(new_pairs);
+                if shuffle:
+                    np.random.shuffle(new_pairs);
                 line_pairs += new_pairs;
 
         line_because, line_but = fd_because.readline(), fd_but.readline()
         
-    np.random.shuffle(line_pairs)
+    if shuffle:
+        np.random.shuffle(line_pairs)
 
     for batch_start in xrange(0, len(line_pairs), batch_size):
         batch_end = batch_start + batch_size
@@ -201,7 +204,8 @@ def but_detector_data_shuffler(data_dir, split, vocab,
 
         batches.append((x1_batch, x2_batch, y_batch))
 
-    np.random.shuffle(batches)
+    if shuffle:
+        np.random.shuffle(batches)
 
     pickle.dump( batches, open( cache_filename, "wb" ) )
 

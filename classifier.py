@@ -13,7 +13,7 @@ from tensorflow.python.ops import rnn_cell
 from tensorflow.python.ops.rnn_cell import DropoutWrapper
 from tensorflow.python.ops import variable_scope as vs
 
-from util import but_detector_pair_iter
+from util import but_detector_pair_iter, cause_effect_pair_iter
 
 FLAGS = tf.app.flags.FLAGS
 
@@ -55,7 +55,7 @@ class Encoder(object):
         self.size = size
         self.keep_prob = tf.placeholder(tf.float32)
         lstm_cell = rnn_cell.BasicLSTMCell(self.size)
-        lstm_cell = DropoutWrapper(lstm_cell, input_keep_prob=self.keep_prob)
+        lstm_cell = DropoutWrapper(lstm_cell, input_keep_prob=self.keep_prob, seed=123)
         self.encoder_cell = tf.nn.rnn_cell.MultiRNNCell([lstm_cell] * num_layers, state_is_tuple=True)
 
     def encode(self, inputs, masks, reuse=False, scope_name=""):
@@ -90,9 +90,6 @@ class Encoder(object):
             encoder_outputs = tf.add(output_state_fw[0][1], output_state_bw[0][1])
 
         return out, encoder_outputs
-
-    def dropout(self, inp):
-        return tf.nn.dropout(inp, self.keep_prob)
 
 
 class CNNEncoder(object):
@@ -146,6 +143,9 @@ class SequenceClassifier(object):
         if task == 'but':
             self.setup_but_because()
             self.loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(self.logits, self.labels))
+        else:
+            self.setup_cause_effect()
+            self.loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(self.logits, self.labels))
 
         if is_training:
             # ==== set up training/updating procedure ====
@@ -166,6 +166,9 @@ class SequenceClassifier(object):
         # seqA: but, seqB: because, this will learn to differentiate them
         seqA_w_matrix, seqA_c_vec = self.encoder.encode(self.seqA_inputs, self.seqA_mask)
         seqB_w_matrix, seqB_c_vec = self.encoder.encode(self.seqB_inputs, self.seqB_mask, reuse=True)
+
+        self.seqA_rep = seqA_c_vec
+        self.seqB_rep = seqB_c_vec
 
         # for now we just use context vector
         # we create additional perspectives
@@ -189,11 +192,11 @@ class SequenceClassifier(object):
 
         input_feed[self.encoder.keep_prob] = self.keep_prob_config
 
-        output_feed = [self.updates, self.logits, self.gradient_norm, self.loss, self.param_norm]
+        output_feed = [self.updates, self.logits, self.gradient_norm, self.loss, self.param_norm, self.seqA_rep]
 
         outputs = session.run(output_feed, input_feed)
 
-        return outputs[1], outputs[2], outputs[3], outputs[4]
+        return outputs[1], outputs[2], outputs[3], outputs[4], outputs[5]
 
     def test(self, session, because_tokens, because_mask, but_tokens, but_mask, labels):
         input_feed = {}
@@ -226,7 +229,123 @@ class SequenceClassifier(object):
         return valid_cost, valid_accu
 
     def setup_cause_effect(self):
-        pass
+        # seqA: but, seqB: because, this will learn to differentiate them
+        seqA_w_matrix, seqA_c_vec = self.encoder.encode(self.seqA_inputs, self.seqA_mask)
+        seqB_w_matrix, seqB_c_vec = self.encoder.encode(self.seqB_inputs, self.seqB_mask, reuse=True)
+
+        self.seqA_rep = seqA_c_vec
+        self.seqB_rep = seqB_c_vec
+
+        # for now we just use context vector
+        # we create additional perspectives
+
+        # seqA_c_vec: (batch_size, hidden_size)
+        persA_B_mul = seqA_c_vec * seqB_c_vec
+        persA_B_sub = seqA_c_vec - seqB_c_vec
+        persA_B_avg = (seqA_c_vec + seqB_c_vec) / 2.0
+
+        # logits is [batch_size, label_size]
+        self.logits = rnn_cell._linear([seqA_c_vec, seqB_c_vec, persA_B_mul, persA_B_sub, persA_B_avg],
+                                       self.label_size, bias=True)
+
+    def cause_effect_validate(self, session, because_valid):
+        valid_costs, valid_accus = [], []
+        for cause_tokens, cause_mask, effect_tokens, \
+            effect_mask, labels in cause_effect_pair_iter(because_valid, self.vocab,
+                                                       self.flags.batch_size):
+            cost, logits = self.test(session, cause_tokens, cause_mask, effect_tokens, effect_mask, labels)
+            valid_costs.append(cost)
+            accu = np.mean(np.argmax(logits, axis=1) == labels)
+            valid_accus.append(accu)
+
+        valid_accu = sum(valid_accus) / float(len(valid_accus))
+        valid_cost = sum(valid_costs) / float(len(valid_costs))
+        return valid_cost, valid_accu
+
+    def cause_effect_train(self, session, because_train, because_valid, because_test,
+                           curr_epoch, num_epochs, save_train_dir):
+        tic = time.time()
+        params = tf.trainable_variables()
+        num_params = sum(map(lambda t: np.prod(tf.shape(t.value()).eval()), params))
+        toc = time.time()
+        logging.info("Number of params: %d (retreival took %f secs)" % (num_params, toc - tic))
+
+        lr = FLAGS.learning_rate
+        epoch = curr_epoch
+        best_epoch = 0
+        previous_losses = []
+        valid_accus = []
+        exp_cost = None
+        exp_norm = None
+
+        while num_epochs == 0 or epoch < num_epochs:
+            epoch += 1
+            current_step = 0
+
+            ## Train
+            epoch_tic = time.time()
+            for cause_tokens, cause_mask, effect_tokens, \
+                effect_mask, labels in cause_effect_pair_iter(because_train, self.vocab, self.flags.batch_size):
+                # Get a batch and make a step.
+                tic = time.time()
+
+                logits, grad_norm, cost, param_norm, seqA_rep = self.optimize(session, cause_tokens, cause_mask,
+                                                                              effect_tokens, effect_mask, labels)
+
+                accu = np.mean(np.argmax(logits, axis=1) == labels)
+
+                toc = time.time()
+                iter_time = toc - tic
+                current_step += 1
+
+                if not exp_cost:
+                    exp_cost = cost
+                    exp_norm = grad_norm
+                else:
+                    exp_cost = 0.99 * exp_cost + 0.01 * cost
+                    exp_norm = 0.99 * exp_norm + 0.01 * grad_norm
+
+                if current_step % self.flags.print_every == 0:
+                    logging.info(
+                        'epoch %d, iter %d, cost %f, exp_cost %f, accuracy %f, grad norm %f, param norm %f, batch time %f' %
+                        (epoch, current_step, cost, exp_cost, accu, grad_norm, param_norm, iter_time))
+
+            epoch_toc = time.time()
+
+            ## Checkpoint
+            checkpoint_path = os.path.join(save_train_dir, "dis.ckpt")
+
+            ## Validate
+            valid_cost, valid_accu = self.cause_effect_validate(session, because_valid)
+            valid_accus.append(valid_accu)
+
+            logging.info("Epoch %d Validation cost: %f validation accu: %f epoch time: %f" % (epoch, valid_cost,
+                                                                                              valid_accu,
+                                                                                              epoch_toc - epoch_tic))
+
+            # use accuracy to guide this part, instead of loss
+            if len(previous_losses) > 2 and valid_accu < max(valid_accus):
+                lr *= FLAGS.learning_rate_decay
+                logging.info("Annealing learning rate at epoch {} to {}".format(epoch, lr))
+                session.run(self.learning_rate_decay_op)
+
+                logging.info("validation cost trigger: restore model from epoch %d" % best_epoch)
+                self.saver.restore(session, checkpoint_path + ("-%d" % best_epoch))
+            else:
+                previous_losses.append(valid_cost)
+                best_epoch = epoch
+                self.saver.save(session, checkpoint_path, global_step=epoch)
+
+        logging.info("restore model from best epoch %d" % best_epoch)
+        logging.info("best validation accuracy: %d" % valid_accus[best_epoch])
+        self.saver.restore(session, checkpoint_path + ("-%d" % best_epoch))
+
+        # after training, we test this thing
+        ## Test
+        test_cost, test_accu = self.cause_effect_validate(session, because_test)
+        logging.info("Final test cost: %f test accu: %f" % (test_cost, test_accu))
+
+        sys.stdout.flush()
 
     def but_because_train(self, session, but_train, because_train, but_valid,
                           because_valid, but_test, because_test, curr_epoch, num_epochs, save_train_dir, data_dir):
@@ -257,7 +376,7 @@ class SequenceClassifier(object):
                 # Get a batch and make a step.
                 tic = time.time()
 
-                logits, grad_norm, cost, param_norm = self.optimize(session, because_tokens, because_mask,
+                logits, grad_norm, cost, param_norm, seqA_rep = self.optimize(session, because_tokens, because_mask,
                                                             but_tokens, but_mask, labels)
 
                 accu = np.mean(np.argmax(logits, axis=1) == labels)
@@ -291,15 +410,17 @@ class SequenceClassifier(object):
                                                                                               valid_accu,
                                                                                               epoch_toc - epoch_tic))
 
-            if epoch >= self.flags.learning_rate_decay_epoch:
+            # if epoch >= self.flags.learning_rate_decay_epoch:
+            #     lr *= FLAGS.learning_rate_decay
+            #     logging.info("Annealing learning rate at epoch {} to {}".format(epoch, lr))
+            #     session.run(self.learning_rate_decay_op)
+
+            # use accuracy to guide this part, instead of loss
+            if len(previous_losses) > 2 and valid_accu < max(valid_accus):
                 lr *= FLAGS.learning_rate_decay
                 logging.info("Annealing learning rate at epoch {} to {}".format(epoch, lr))
                 session.run(self.learning_rate_decay_op)
 
-            # use accuracy to guide this part, instead of loss
-            if len(previous_losses) > 2 and valid_accu > valid_accus[-1]:
-                # logging.info("Additional annealing learning rate by %f" % self.FLAGS.learning_rate_decay_factor)
-                # session.run(self.learning_rate_decay_op)
                 logging.info("validation cost trigger: restore model from epoch %d" % best_epoch)
                 self.saver.restore(session, checkpoint_path + ("-%d" % best_epoch))
             else:

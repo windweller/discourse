@@ -48,9 +48,9 @@ this gets passed into pair_iter...
 def setup_args():
     parser = argparse.ArgumentParser()
     code_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)))
-    vocab_dir = os.path.join("data", "ptb")
-    glove_dir = os.path.join("download", "dwr")
-    source_dir = os.path.join("data", "ptb")
+    vocab_dir = os.path.join("data", "wikitext-103")
+    glove_dir = os.path.join("data", "glove.6B")
+    source_dir = os.path.join("data", "wikitext-103")
     parser.add_argument("--source_dir", default=source_dir)
     parser.add_argument("--glove_dir", default=glove_dir)
     parser.add_argument("--vocab_dir", default=vocab_dir)

@@ -3,6 +3,7 @@ from __future__ import division
 from __future__ import print_function
 
 import os
+import sys
 import json
 
 import tensorflow as tf
@@ -58,13 +59,12 @@ def main(_):
 
     with tf.Graph().as_default(), tf.Session() as session:
         tf.set_random_seed(FLAGS.seed)
-        np.random.seed(FLAGS.seed)
 
         initializer = tf.random_uniform_initializer(-FLAGS.init_scale, FLAGS.init_scale, seed=FLAGS.seed)
 
         with tf.variable_scope("model", reuse=None, initializer=initializer):
             encoder = Encoder(size=FLAGS.state_size, num_layers=FLAGS.layers)
-            sc_but_because = SequenceClassifier(encoder, FLAGS, vocab_size, vocab, embed_path, task=FLAGS.task)
+            sc = SequenceClassifier(encoder, FLAGS, vocab_size, vocab, embed_path, task=FLAGS.task)
 
         model_saver = tf.train.Saver(max_to_keep=FLAGS.epochs)
         tf.global_variables_initializer().run()
@@ -72,9 +72,13 @@ def main(_):
         if FLAGS.restore_checkpoint is not None:
             model_saver.restore(session, FLAGS.restore_checkpoint)
 
-        sc_but_because.but_because_train(session, but_train, because_train, but_valid,
+        if FLAGS.task == "but":
+            sc.but_because_train(session, but_train, because_train, but_valid,
                                          because_valid, but_test, because_test,
                                          0, FLAGS.epochs, FLAGS.run_dir, data_dir)
+        else:
+            sc.cause_effect_train(session, because_train, because_valid,because_test,
+                                               0, FLAGS.epochs, FLAGS.run_dir)
 
 if __name__ == "__main__":
     tf.app.run()

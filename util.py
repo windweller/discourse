@@ -169,7 +169,7 @@ def but_detector_data_precache(data_dir, split, vocab,
             # grab sentence chunk before 'because'
             x1_because_tokens = because_tokens[:index_of_because]
             # second chunk should not start with 'of'
-            if (of_id in because_tokens) and (because_tokens.index(of_id) == index_of_because):
+            if (of_id in because_tokens) and (because_tokens.index(of_id) == index_of_because +1):
                 because_start_of_next_chunk = index_of_because+2
             else:
                 because_start_of_next_chunk = index_of_because+1
@@ -261,7 +261,7 @@ def cause_effect_refill(batches, fd_because, vocab, batch_size,
     vocab -- a dict from words to their ids in vocab
     fd_but -- loaded "but" sentences
     batch_size -- number of sentences per batch
-    shuffle -- flag to shuffle the examples completely
+    shuffle -- don't shuffle valdiation and test sets
 
     """
     line_pairs = []

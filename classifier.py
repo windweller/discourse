@@ -33,10 +33,12 @@ tf.app.flags.DEFINE_integer("keep", 0, "How many checkpoints to keep, 0 indicate
 tf.app.flags.DEFINE_integer("print_every", 5, "How many iterations to do per print.")
 tf.app.flags.DEFINE_float("max_gradient_norm", 5.0, "Clip gradients to this norm.")
 tf.app.flags.DEFINE_string("run_dir", "sandbox", "directory to store experiment outputs")
-tf.app.flags.DEFINE_string("dataset", "ptb", "select the dataset to use")
+tf.app.flags.DEFINE_string("dataset", "ptb", "ptb/wikitext-103 select the dataset to use")
 tf.app.flags.DEFINE_string("task", "but", "choose the task: but/cause")
 tf.app.flags.DEFINE_string("embed_path", "", "Path to the trimmed GLoVe embedding")
 tf.app.flags.DEFINE_string("restore_checkpoint", None, "checkpoint file to restore model parameters from")
+tf.app.flags.DEFINE_boolean("dev", False, "if flag true, will run on dev dataset in a pure testing mode")
+tf.app.flags.DEFINE_integer("best_epoch", 1, "enter the best epoch to use")
 
 logging.basicConfig(level=logging.INFO)
 
@@ -262,6 +264,32 @@ class SequenceClassifier(object):
         valid_cost = sum(valid_costs) / float(len(valid_costs))
         return valid_cost, valid_accu
 
+    def cause_effect_dev_test(self, session, because_dev, save_train_dir, best_epoch):
+        ## Checkpoint
+        checkpoint_path = os.path.join(save_train_dir, "dis.ckpt")
+
+        logging.info("restore model from best epoch %d" % best_epoch)
+        self.saver.restore(session, checkpoint_path + ("-%d" % best_epoch))
+
+        test_cost, test_accu = self.cause_effect_validate(session, because_dev)
+        logging.info("Final test cost: %f test accu: %f" % (test_cost, test_accu))
+
+        sys.stdout.flush()
+
+    def but_because_dev_test(self, session, data_dir, save_train_dir, best_epoch):
+        ## Checkpoint
+        checkpoint_path = os.path.join(save_train_dir, "dis.ckpt")
+
+        logging.info("restore model from best epoch %d" % best_epoch)
+        self.saver.restore(session, checkpoint_path + ("-%d" % best_epoch))
+
+        # load into the "dev" files
+        test_cost, test_accu = self.but_because_validate(session, data_dir, "dev")
+        logging.info("Final test cost: %f test accu: %f" % (test_cost, test_accu))
+
+        sys.stdout.flush()
+
+
     def cause_effect_train(self, session, because_train, because_valid, because_test,
                            curr_epoch, num_epochs, save_train_dir):
         tic = time.time()
@@ -324,7 +352,7 @@ class SequenceClassifier(object):
                                                                                               epoch_toc - epoch_tic))
 
             # use accuracy to guide this part, instead of loss
-            if len(previous_losses) > 2 and valid_accu < max(valid_accus):
+            if len(previous_losses) >= 1 and valid_accu < max(valid_accus):
                 lr *= FLAGS.learning_rate_decay
                 logging.info("Annealing learning rate at epoch {} to {}".format(epoch, lr))
                 session.run(self.learning_rate_decay_op)
@@ -337,7 +365,7 @@ class SequenceClassifier(object):
                 self.saver.save(session, checkpoint_path, global_step=epoch)
 
         logging.info("restore model from best epoch %d" % best_epoch)
-        logging.info("best validation accuracy: %d" % valid_accus[best_epoch])
+        logging.info("best validation accuracy: %d" % valid_accus[best_epoch-1])
         self.saver.restore(session, checkpoint_path + ("-%d" % best_epoch))
 
         # after training, we test this thing
@@ -416,7 +444,7 @@ class SequenceClassifier(object):
             #     session.run(self.learning_rate_decay_op)
 
             # use accuracy to guide this part, instead of loss
-            if len(previous_losses) > 2 and valid_accu < max(valid_accus):
+            if len(previous_losses) >= 1 and valid_accu < max(valid_accus):
                 lr *= FLAGS.learning_rate_decay
                 logging.info("Annealing learning rate at epoch {} to {}".format(epoch, lr))
                 session.run(self.learning_rate_decay_op)
@@ -430,7 +458,7 @@ class SequenceClassifier(object):
 
 
         logging.info("restore model from best epoch %d" % best_epoch)
-        logging.info("best validation accuracy: %d" % valid_accus[best_epoch])
+        logging.info("best validation accuracy: %d" % valid_accus[best_epoch-1])
         self.saver.restore(session, checkpoint_path + ("-%d" % best_epoch))
 
         # after training, we test this thing

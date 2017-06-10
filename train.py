@@ -49,6 +49,7 @@ def main(_):
     but_valid = pjoin("data", FLAGS.dataset, "valid_BUT.ids.txt")
     because_valid = pjoin("data", FLAGS.dataset, "valid_BECAUSE.ids.txt")
 
+    # in dev setting, these would be dev
     but_test = pjoin("data", FLAGS.dataset, "test_BUT.ids.txt")
     because_test = pjoin("data", FLAGS.dataset, "test_BECAUSE.ids.txt")
 
@@ -72,13 +73,20 @@ def main(_):
         if FLAGS.restore_checkpoint is not None:
             model_saver.restore(session, FLAGS.restore_checkpoint)
 
-        if FLAGS.task == "but":
-            sc.but_because_train(session, but_train, because_train, but_valid,
-                                         because_valid, but_test, because_test,
-                                         0, FLAGS.epochs, FLAGS.run_dir, data_dir)
+        if not FLAGS.dev:
+            if FLAGS.task == "but":
+                sc.but_because_train(session, but_train, because_train, but_valid,
+                                             because_valid, but_test, because_test,
+                                             0, FLAGS.epochs, FLAGS.run_dir, data_dir)
+            else:
+                sc.cause_effect_train(session, because_train, because_valid,because_test,
+                                                   0, FLAGS.epochs, FLAGS.run_dir)
         else:
-            sc.cause_effect_train(session, because_train, because_valid,because_test,
-                                               0, FLAGS.epochs, FLAGS.run_dir)
+            if FLAGS.task == "but":
+                sc.but_because_dev_test(session, data_dir, FLAGS.run_dir, FLAGS.best_epoch)
+            else:
+                sc.cause_effect_dev_test(session, because_test, FLAGS.run_dir, FLAGS.best_epoch)
+
 
 if __name__ == "__main__":
     tf.app.run()

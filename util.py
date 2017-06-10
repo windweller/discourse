@@ -316,10 +316,12 @@ def padded(tokens, batch_pad=0):
 
 # data_dir, split, vocab, batch_size
 if __name__ == '__main__':
-    print(next(but_detector_pair_iter(
-        "data/ptb/",
-        "train",
-        {"because": 10, "but": 5, "of": 3},
-        20
-    )))
+	print(next(cause_effect_pair_iter("data/ptb/train_BECAUSE.ids.txt",
+								      {"because": 10, "but": 5, "of": 3}, 20)))
+    # print(next(but_detector_pair_iter(
+    #     "data/ptb/",
+    #     "train",
+    #     {"because": 10, "but": 5, "of": 3},
+    #     20
+    # )))
 

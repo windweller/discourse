@@ -7,6 +7,7 @@ import logging
 
 import tensorflow as tf
 import numpy as np
+import data
 
 from os.path import join as pjoin
 from tensorflow.python.ops import rnn_cell
@@ -38,7 +39,9 @@ tf.app.flags.DEFINE_string("task", "but", "choose the task: but/cause")
 tf.app.flags.DEFINE_string("embed_path", "", "Path to the trimmed GLoVe embedding")
 tf.app.flags.DEFINE_string("restore_checkpoint", None, "checkpoint file to restore model parameters from")
 tf.app.flags.DEFINE_boolean("dev", False, "if flag true, will run on dev dataset in a pure testing mode")
+tf.app.flags.DEFINE_boolean("correct_example", False, "if flag false, will print error, true will print out success")
 tf.app.flags.DEFINE_integer("best_epoch", 1, "enter the best epoch to use")
+tf.app.flags.DEFINE_integer("num_examples", 30, "enter the best epoch to use")
 
 logging.basicConfig(level=logging.INFO)
 
@@ -50,7 +53,6 @@ def get_optimizer(opt):
     else:
         assert (False)
     return optfn
-
 
 class Encoder(object):
     def __init__(self, size, num_layers):
@@ -105,7 +107,7 @@ class CNNEncoder(object):
 
 
 class SequenceClassifier(object):
-    def __init__(self, encoder, flags, vocab_size, vocab, embed_path, task, optimizer="adam", is_training=True):
+    def __init__(self, encoder, flags, vocab_size, vocab, rev_vocab, embed_path, task, optimizer="adam", is_training=True):
         # task: ["but", "cause"]
 
         batch_size = flags.batch_size
@@ -113,6 +115,7 @@ class SequenceClassifier(object):
         self.encoder = encoder
         self.embed_path = embed_path
         self.vocab = vocab
+        self.rev_vocab = rev_vocab
         self.vocab_size = vocab_size
         self.flags = flags
         self.label_size = 2
@@ -216,18 +219,53 @@ class SequenceClassifier(object):
 
         return outputs[0], outputs[1]
 
-    def but_because_validate(self, session, data_dir, split):
+    def extract_sent(self, positions, sent):
+        list_sent = sent.tolist()
+        extracted_sent = []
+        for i in range(sent.shape[0]):
+            if positions[i]:
+                extracted_sent.append(list_sent[i])
+        return extracted_sent
+
+    def but_because_validate(self, session, data_dir, split, dev=False):
         valid_costs, valid_accus = [], []
+        valid_logits, valid_labels = [], []
+        valid_sent1, valid_sent2 = [], []
         for because_tokens, because_mask, but_tokens, \
             but_mask, labels in but_detector_pair_iter(data_dir, split, self.vocab,
-                                                       self.flags.batch_size):
+                                                       self.flags.batch_size, shuffle=False):
             cost, logits = self.test(session, because_tokens, because_mask, but_tokens, but_mask, labels)
             valid_costs.append(cost)
             accu = np.mean(np.argmax(logits, axis=1) == labels)
+
+            preds = np.argmax(logits, axis=1)
+
+            if FLAGS.correct_example:
+                positions = preds == labels
+            else:
+                positions = preds != labels
+
+            # wrong_preds = np.extract(positions, preds)
+            # print(wrong_preds)
+            # print(np.extract(positions, labels))
+            #
+            # print()
+            # print(preds.tolist())
+            # print(list(labels))
+
+            valid_logits.extend(np.extract(positions, preds).tolist())
+            valid_labels.extend(np.extract(positions, labels).tolist())
+            valid_sent1.extend(self.detokenize_batch(self.extract_sent(positions, because_tokens)))
+            valid_sent2.extend(self.detokenize_batch(self.extract_sent(positions, but_tokens)))
+
             valid_accus.append(accu)
 
         valid_accu = sum(valid_accus) / float(len(valid_accus))
         valid_cost = sum(valid_costs) / float(len(valid_costs))
+
+        if dev:
+            return valid_cost, valid_accu, valid_logits, valid_labels, valid_sent1, valid_sent2
+
         return valid_cost, valid_accu
 
     def setup_cause_effect(self):
@@ -250,18 +288,47 @@ class SequenceClassifier(object):
         self.logits = rnn_cell._linear([seqA_c_vec, seqB_c_vec, persA_B_mul, persA_B_sub, persA_B_avg],
                                        self.label_size, bias=True)
 
-    def cause_effect_validate(self, session, because_valid):
+    def detokenize_batch(self, sent):
+        # sent: (N, sentence_padded_length)
+        def detok_sent(sent):
+            outsent = ''
+            for t in sent:
+                if t > 0:  # only take out pad, but not unk
+                    outsent += self.rev_vocab[t] + " "
+            return outsent
+        return [detok_sent(s) for s in sent]
+
+    def cause_effect_validate(self, session, because_valid, dev=False):
         valid_costs, valid_accus = [], []
+        valid_logits, valid_labels = [], []
+        valid_sent1, valid_sent2 = [], []
         for cause_tokens, cause_mask, effect_tokens, \
             effect_mask, labels in cause_effect_pair_iter(because_valid, self.vocab,
-                                                       self.flags.batch_size):
+                                                       self.flags.batch_size, shuffle=False):
             cost, logits = self.test(session, cause_tokens, cause_mask, effect_tokens, effect_mask, labels)
             valid_costs.append(cost)
             accu = np.mean(np.argmax(logits, axis=1) == labels)
+
+            preds = np.argmax(logits, axis=1)
+
+            if FLAGS.correct_example:
+                positions = preds == labels
+            else:
+                positions = preds != labels
+
+            valid_logits.extend(np.extract(positions, preds).tolist())
+            valid_labels.extend(np.extract(positions, labels).tolist())
+            valid_sent1.extend(self.detokenize_batch(self.extract_sent(positions, cause_tokens)))
+            valid_sent2.extend(self.detokenize_batch(self.extract_sent(positions, effect_tokens)))
+
             valid_accus.append(accu)
 
         valid_accu = sum(valid_accus) / float(len(valid_accus))
         valid_cost = sum(valid_costs) / float(len(valid_costs))
+
+        if dev:
+            return valid_cost, valid_accu, valid_logits, valid_labels, valid_sent1, valid_sent2
+
         return valid_cost, valid_accu
 
     def cause_effect_dev_test(self, session, because_dev, save_train_dir, best_epoch):
@@ -271,8 +338,15 @@ class SequenceClassifier(object):
         logging.info("restore model from best epoch %d" % best_epoch)
         self.saver.restore(session, checkpoint_path + ("-%d" % best_epoch))
 
-        test_cost, test_accu = self.cause_effect_validate(session, because_dev)
-        logging.info("Final test cost: %f test accu: %f" % (test_cost, test_accu))
+        test_cost, test_accu, test_logits, test_labels, valid_sent1, valid_sent2 = self.cause_effect_validate(session, because_dev, dev=True)
+        logging.info("Final dev cost: %f dev accu: %f" % (test_cost, test_accu))
+
+        examples = 0
+        for pair in zip(test_logits, test_labels, valid_sent1, valid_sent2):
+            print("true label: {}, predicted: {}, sent1: {}, sent2: {}".format(pair[1], pair[0], pair[2], pair[3]))
+            examples += 1
+            if examples >= FLAGS.num_examples:
+                break
 
         sys.stdout.flush()
 
@@ -284,8 +358,16 @@ class SequenceClassifier(object):
         self.saver.restore(session, checkpoint_path + ("-%d" % best_epoch))
 
         # load into the "dev" files
-        test_cost, test_accu = self.but_because_validate(session, data_dir, "dev")
-        logging.info("Final test cost: %f test accu: %f" % (test_cost, test_accu))
+        test_cost, test_accu, test_logits, test_labels, valid_sent1, valid_sent2 = self.but_because_validate(session, data_dir, "valid", dev=True)
+
+        logging.info("Final dev cost: %f dev accu: %f" % (test_cost, test_accu))
+
+        examples = 0
+        for pair in zip(test_logits, test_labels, valid_sent1, valid_sent2):
+            print("true label: {}, predicted: {}, sent1: {}, sent2: {}".format(pair[1], pair[0], pair[2], pair[3]))
+            examples += 1
+            if examples >= FLAGS.num_examples:
+                break
 
         sys.stdout.flush()
 

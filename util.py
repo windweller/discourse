@@ -17,6 +17,8 @@ import data
 np.random.seed(123)
 
 FLAGS = tf.app.flags.FLAGS
+
+
 # tf.flags.DEFINE_integer("max_seq_len", 35, "cut off sentence after this of words")
 
 def tokenize(string):
@@ -35,6 +37,8 @@ cause and effect: load in one file
 2 pair_iter, one for each task
 but wrap both in one if i have time with a flag
 """
+
+
 # def pair_iter(fnamex, fnamex2, batch_size, num_layers, sort_and_shuffle=True):
 #     fdx, fdx2 = open(fnamex), open(fnamex2)
 #     batches = []
@@ -136,11 +140,11 @@ def but_detector_pair_iter(data_dir, split, vocab, batch_size, shuffle=True):
 
     return
 
+
 # save as pickle file
 # list of lists
 def but_detector_data_precache(data_dir, split, vocab,
                                batch_size, cache_filename, shuffle=True):
-
     batches = []
 
     fname_because = pjoin(data_dir, split + "_BECAUSE.ids.txt")
@@ -169,16 +173,16 @@ def but_detector_data_precache(data_dir, split, vocab,
             # grab sentence chunk before 'because'
             x1_because_tokens = because_tokens[:index_of_because]
             # second chunk should not start with 'of'
-            if (of_id in because_tokens) and (because_tokens.index(of_id) == index_of_because +1):
-                because_start_of_next_chunk = index_of_because+2
+            if (of_id in because_tokens) and (because_tokens.index(of_id) == index_of_because + 1):
+                because_start_of_next_chunk = index_of_because + 2
             else:
-                because_start_of_next_chunk = index_of_because+1
+                because_start_of_next_chunk = index_of_because + 1
             x2_because_tokens = because_tokens[because_start_of_next_chunk:]
 
             # grab sentence chunks for 'but'
             index_of_but = but_tokens.index(but_id)
             x1_but_tokens = but_tokens[:index_of_but]
-            x2_but_tokens = but_tokens[index_of_but+1:]
+            x2_but_tokens = but_tokens[index_of_but + 1:]
 
             # exclude sentences that are too long
             if len(x1_because_tokens) <= FLAGS.max_seq_len \
@@ -194,7 +198,7 @@ def but_detector_data_precache(data_dir, split, vocab,
                 line_pairs += new_pairs;
 
         line_because, line_but = fd_because.readline(), fd_but.readline()
-        
+
     if shuffle:
         np.random.shuffle(line_pairs)
 
@@ -207,9 +211,10 @@ def but_detector_data_precache(data_dir, split, vocab,
     if shuffle:
         np.random.shuffle(batches)
 
-    pickle.dump( batches, open( cache_filename, "wb" ) )
+    pickle.dump(batches, open(cache_filename, "wb"))
 
     return batches
+
 
 def cause_effect_pair_iter(fname_because, vocab, batch_size, shuffle=True):
     """Create batches of inputs for but/because classifier.
@@ -251,6 +256,7 @@ def cause_effect_pair_iter(fname_because, vocab, batch_size, shuffle=True):
 
     return
 
+
 def cause_effect_refill(batches, fd_because, vocab, batch_size,
                         shuffle=True):
     """Mutates batches list to fill with tuples of sentence chunks and class id
@@ -280,17 +286,20 @@ def cause_effect_refill(batches, fd_because, vocab, batch_size,
 
             if of_id in because_tokens:
                 index_of_of = because_tokens.index(of_id)
-                if index_of_of == index_of_because+1:
-                    cause_tokens = because_tokens[index_of_because+2:]
+                if index_of_of == index_of_because + 1:
+                    cause_tokens = because_tokens[index_of_because + 2:]
                 else:
-                    cause_tokens = because_tokens[index_of_because+1:]
+                    cause_tokens = because_tokens[index_of_because + 1:]
             else:
-                cause_tokens = because_tokens[index_of_because+1:]
+                cause_tokens = because_tokens[index_of_because + 1:]
 
         # exclude sentences that are too long
-        if len(effect_tokens) <= FLAGS.max_seq_len \
-                and len(cause_tokens) <= FLAGS.max_seq_len:
+        if len(cause_tokens) <= FLAGS.max_seq_len and \
+            FLAGS.max_seq_len >= len(effect_tokens) > 0:
             # 0 is incorrect, 1 is correct
+            if effect_tokens[-1] == 4:
+                effect_tokens = effect_tokens[:-1]
+
             if np.random.randint(0, 2):
                 line_pairs.append((cause_tokens, effect_tokens, 0))
             else:
@@ -301,7 +310,7 @@ def cause_effect_refill(batches, fd_because, vocab, batch_size,
             break
 
         line = fd_because.readline()
-        
+
     if shuffle:
         np.random.shuffle(line_pairs)
 
@@ -318,18 +327,17 @@ def cause_effect_refill(batches, fd_because, vocab, batch_size,
 
 
 def padded(tokens, batch_pad=0):
-  maxlen = max(map(lambda x: len(x), tokens)) if batch_pad == 0 else batch_pad
-  return map(lambda token_list: token_list + [data.PAD_ID] * (maxlen - len(token_list)), tokens)
+    maxlen = max(map(lambda x: len(x), tokens)) if batch_pad == 0 else batch_pad
+    return map(lambda token_list: token_list + [data.PAD_ID] * (maxlen - len(token_list)), tokens)
 
 
 # data_dir, split, vocab, batch_size
 if __name__ == '__main__':
-	print(next(cause_effect_pair_iter("data/ptb/train_BECAUSE.ids.txt",
-								      {"because": 10, "but": 5, "of": 3}, 20)))
+    print(next(cause_effect_pair_iter("data/ptb/train_BECAUSE.ids.txt",
+                                      {"because": 10, "but": 5, "of": 3}, 20)))
     # print(next(but_detector_pair_iter(
     #     "data/ptb/",
     #     "train",
     #     {"because": 10, "but": 5, "of": 3},
     #     20
     # )))
-

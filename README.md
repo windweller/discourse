@@ -7,3 +7,15 @@ To preprocess the data and generate files of BECAUSE and BUT, use:
 `python data_gen.py `
 
 To generate the ids files with glove indices, download desired pretrained [GloVe](https://nlp.stanford.edu/projects/glove/) vectors and use `python data.py`.
+
+## Running Instructions
+
+```
+python train.py --run_dir wikitext_run_cause --task cause --epochs 3 --print_every 100 --dataset wikitext-103
+```
+
+## Examining Result
+
+```
+python train.py --best_epoch 3 --run_dir ptb_run_but --dev True --correct_example True
+```

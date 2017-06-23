@@ -49,9 +49,9 @@ this gets passed into pair_iter...
 def setup_args():
     parser = argparse.ArgumentParser()
     code_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)))
-    vocab_dir = os.path.join("data", "dev")
+    vocab_dir = os.path.join("data", "winograd")
     glove_dir = os.path.join("data", "glove.6B")
-    source_dir = os.path.join("data", "dev")
+    source_dir = os.path.join("data", "winograd")
     parser.add_argument("--source_dir", default=source_dir)
     parser.add_argument("--glove_dir", default=glove_dir)
     parser.add_argument("--vocab_dir", default=vocab_dir)
@@ -121,11 +121,14 @@ def process_glove(args, vocab_list, save_path, size=4e5, random_init=True):
                     idx = vocab_list.index(word.upper())
                     glove[idx, :] = vector
                     found += 1
+                if word.lower() in vocab_list:
+                    idx = vocab_list.index(word.lower())
+                    glove[idx, :] = vector
+                    found += 1
 
         print("{}/{} of word vocab have corresponding vectors in {}".format(found, len(vocab_list), glove_path))
         np.savez_compressed(save_path, glove=glove)
         print("saved trimmed glove matrix at: {}".format(save_path))
-
 
 def create_vocabulary(vocabulary_path, data_paths, tokenizer=None):
     if gfile.Exists(vocabulary_path):

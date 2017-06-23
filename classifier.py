@@ -40,6 +40,7 @@ tf.app.flags.DEFINE_string("embed_path", "", "Path to the trimmed GLoVe embeddin
 tf.app.flags.DEFINE_string("restore_checkpoint", None, "checkpoint file to restore model parameters from")
 tf.app.flags.DEFINE_boolean("dev", False, "if flag true, will run on dev dataset in a pure testing mode")
 tf.app.flags.DEFINE_boolean("correct_example", False, "if flag false, will print error, true will print out success")
+tf.app.flags.DEFINE_boolean("winograd", False, "run on winograd challenges")
 tf.app.flags.DEFINE_integer("best_epoch", 1, "enter the best epoch to use")
 tf.app.flags.DEFINE_integer("num_examples", 30, "enter the best epoch to use")
 
@@ -227,6 +228,59 @@ class SequenceClassifier(object):
                 extracted_sent.append(list_sent[i])
         return extracted_sent
 
+    def but_because_validate_winograd(self, session, data_dir, split):
+        # this is always "dev"
+        valid_costs, valid_accus, valid_wino_accus = [], [], []
+        valid_logits, valid_labels = [], []
+        valid_sent1, valid_sent2 = [], []
+        valid_winograd_sent1, valid_winograd_sent2 = [], []
+
+        for because_tokens, because_mask, but_tokens, \
+            but_mask, labels in but_detector_pair_iter(data_dir, split, self.vocab,
+                                                       self.flags.batch_size, shuffle=False):
+            cost, logits = self.test(session, because_tokens, because_mask, but_tokens, but_mask, labels)
+            valid_costs.append(cost)
+            accu = np.mean(np.argmax(logits, axis=1) == labels)
+
+            preds = np.argmax(logits, axis=1)
+            winograd_preds = logits[:, 1]  # extract value on because
+
+            wino_correct = 0
+            positions = np.array([False] * because_tokens.shape[0])
+            for i in range(0, because_tokens.shape[0]-1, 2):
+                # print(i, i+1)
+                # print(winograd_preds[i], winograd_preds[i+1])
+                wino_correct += winograd_preds[i] < winograd_preds[i+1]  # this is wrong
+                positions[i] = True  # mark correct examples
+
+            if FLAGS.correct_example:
+                valid_winograd_sent1.append(self.detokenize_batch(self.extract_sent(positions, because_tokens)))
+            else:
+                valid_winograd_sent1.append(self.detokenize_batch(self.extract_sent(np.invert(positions), because_tokens)))
+
+            winograd_accu = wino_correct / float(because_tokens.shape[0] / 2.)
+
+            if FLAGS.correct_example:
+                positions = preds == labels
+            else:
+                positions = preds != labels
+
+            valid_logits.extend(np.extract(positions, preds).tolist())
+            valid_labels.extend(np.extract(positions, labels).tolist())
+            valid_sent1.extend(self.detokenize_batch(self.extract_sent(positions, because_tokens)))
+            valid_sent2.extend(self.detokenize_batch(self.extract_sent(positions, but_tokens)))
+
+            valid_accus.append(accu)
+            valid_wino_accus.append(winograd_accu)
+
+            print(winograd_preds)
+
+        valid_accu = sum(valid_accus) / float(len(valid_accus))
+        valid_cost = sum(valid_costs) / float(len(valid_costs))
+        valid_wino_accu = sum(valid_wino_accus) / float(len(valid_wino_accus))
+
+        return valid_cost, valid_accu, valid_logits, valid_labels, valid_wino_accu, valid_sent1, valid_sent2, valid_winograd_sent1, valid_winograd_sent2
+
     def but_because_validate(self, session, data_dir, split, dev=False):
         valid_costs, valid_accus = [], []
         valid_logits, valid_labels = [], []
@@ -248,7 +302,7 @@ class SequenceClassifier(object):
             # wrong_preds = np.extract(positions, preds)
             # print(wrong_preds)
             # print(np.extract(positions, labels))
-            #
+
             # print()
             # print(preds.tolist())
             # print(list(labels))
@@ -358,19 +412,34 @@ class SequenceClassifier(object):
         self.saver.restore(session, checkpoint_path + ("-%d" % best_epoch))
 
         # load into the "dev" files
-        test_cost, test_accu, test_logits, test_labels, valid_sent1, valid_sent2 = self.but_because_validate(session, data_dir, "valid", dev=True)
+        if not FLAGS.winograd:
+            test_cost, test_accu, test_logits, test_labels, valid_sent1, valid_sent2 = self.but_because_validate(session, data_dir, "valid", dev=True)
 
-        logging.info("Final dev cost: %f dev accu: %f" % (test_cost, test_accu))
+            logging.info("Final dev cost: %f dev accu: %f" % (test_cost, test_accu))
 
-        examples = 0
-        for pair in zip(test_logits, test_labels, valid_sent1, valid_sent2):
-            print("true label: {}, predicted: {}, sent1: {}, sent2: {}".format(pair[1], pair[0], pair[2], pair[3]))
-            examples += 1
-            if examples >= FLAGS.num_examples:
-                break
+            examples = 0
+            for pair in zip(test_logits, test_labels, valid_sent1, valid_sent2):
+                print("true label: {}, predicted: {}, sent1: {}, sent2: {}".format(pair[1], pair[0], pair[2], pair[3]))
+                examples += 1
+                if examples >= FLAGS.num_examples:
+                    break
+        else:
+            test_cost, test_accu, test_logits, test_labels, \
+            valid_wino_accu, valid_sent1, \
+            valid_sent2, valid_winograd_sent1, \
+            valid_winograd_sent2 = self.but_because_validate_winograd(session, data_dir, "valid")
+
+            logging.info("Final dev cost: %f dev accu: %f" % (test_cost, test_accu))
+            logging.info("Winograd accu: %f" % (valid_wino_accu))
+
+            examples = 0
+            for pair in zip(test_logits, test_labels, valid_sent1, valid_sent2):
+                print("true label: {}, predicted: {}, sent1: {}, sent2: {}".format(pair[1], pair[0], pair[2], pair[3]))
+                examples += 1
+                if examples >= FLAGS.num_examples:
+                    break
 
         sys.stdout.flush()
-
 
     def cause_effect_train(self, session, because_train, because_valid, because_test,
                            curr_epoch, num_epochs, save_train_dir):

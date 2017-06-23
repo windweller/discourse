@@ -19,6 +19,7 @@ root = tree.getroot()
 n_pairs = 0
 
 sentences = {"correct": [], "incorrect": []}
+all_sentences = []
 
 # for each schema pair of sentences
 for schema in root:
@@ -40,7 +41,7 @@ for schema in root:
 		answers_elements = schema.find('answers').findall("answer")
 		answers = [e.text.strip() for e in answers_elements]
 
-		for version in sentences.keys():
+		for version in ["correct", "incorrect"]:
 			if version == "correct":
 				index = correct_index
 			else:
@@ -50,6 +51,8 @@ for schema in root:
 			sentence = " ".join([start, noun_phrase, end])
 			sentences[version].append(sentence)
 
+			all_sentences.append(sentence)
+
 # print(sentences["correct"])
 # print(len(sentences["correct"]))
 
@@ -57,3 +60,7 @@ for version in ["correct", "incorrect"]:
 	filename = "winograd_" + version.upper() + ".txt"
 	filepath = os.path.join(data_dir, filename)
 	open(filepath, "w").write("\n".join(sentences[version]))
+
+filepath = os.path.join(data_dir, "winograd.txt")
+open(filepath, "w").write("\n".join(all_sentences))
+

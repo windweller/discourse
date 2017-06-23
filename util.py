@@ -131,9 +131,7 @@ def winnograd_batches(data_dir, split, vocab, batch_size, cache_filename,
 
             # exclude sentences that are too long
             if len(x1_because_tokens) <= FLAGS.max_seq_len \
-                    and len(x2_because_tokens) <= FLAGS.max_seq_len \
-                    and len(x1_but_tokens) <= FLAGS.max_seq_len \
-                    and len(x2_but_tokens) <= FLAGS.max_seq_len:
+                    and len(x2_because_tokens) <= FLAGS.max_seq_len:
                 new_pairs = [
                     (x1_because_tokens, x2_because_tokens, 0, winograd_label)
                 ];
@@ -151,9 +149,9 @@ def winnograd_batches(data_dir, split, vocab, batch_size, cache_filename,
 
     for batch_start in xrange(0, len(line_pairs), batch_size):
         batch_end = batch_start + batch_size
-        x1_batch, x2_batch, y_batch = zip(*line_pairs[batch_start:batch_end])
+        x1_batch, x2_batch, y_batch, winnograd_labels_batch = zip(*line_pairs[batch_start:batch_end])
 
-        batches.append((x1_batch, x2_batch, y_batch))
+        batches.append((x1_batch, x2_batch, y_batch, winnograd_labels_batch))
 
     if shuffle:
         np.random.shuffle(batches)
@@ -175,7 +173,7 @@ def winograd_pair_iter(data_dir, vocab, batch_size, shuffle=True):
 
     """
 
-    cache_filename = pjoin(data_dir, split + "_" + str(batch_size) + ".pkl")
+    cache_filename = pjoin(data_dir, "valid_" + str(batch_size) + ".pkl")
     ## if file exists,
     if os.path.isfile(cache_filename):
         logging.info("restoring old batches")
@@ -450,11 +448,10 @@ def padded(tokens, batch_pad=0):
 
 # data_dir, split, vocab, batch_size
 if __name__ == '__main__':
-    print(next(cause_effect_pair_iter("data/ptb/train_BECAUSE.ids.txt",
-                                      {"because": 10, "but": 5, "of": 3}, 20)))
-    # print(next(but_detector_pair_iter(
-    #     "data/ptb/",
-    #     "train",
-    #     {"because": 10, "but": 5, "of": 3},
-    #     20
-    # )))
+    # print(next(cause_effect_pair_iter("data/ptb/train_BECAUSE.ids.txt",
+    #                                   {"because": 10, "but": 5, "of": 3}, 20)))
+    print(next(winograd_pair_iter(
+        "data/ptb/",
+        {"because": 10, "but": 5, "of": 3},
+        20
+    )))

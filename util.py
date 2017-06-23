@@ -135,12 +135,9 @@ def winnograd_batches(data_dir, split, vocab, batch_size, cache_filename,
                 new_pairs = [
                     (x1_because_tokens, x2_because_tokens, 0, winograd_label)
                 ];
-                if shuffle:
-                    np.random.shuffle(new_pairs);
                 line_pairs += new_pairs;
 
         line_because = fd_because.readline()
-
         # switch off between correct and incorrect
         winograd_label = 1-winograd_label
 

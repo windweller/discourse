@@ -65,15 +65,15 @@ def main(_):
 
         with tf.variable_scope("model", reuse=None, initializer=initializer):
             encoder = Encoder(size=FLAGS.state_size, num_layers=FLAGS.layers)
-            sc = SequenceClassifier(encoder, FLAGS, vocab_size, vocab, embed_path, task=FLAGS.task)
+            sc = SequenceClassifier(encoder, FLAGS, vocab_size, vocab, rev_vocab, embed_path, task=FLAGS.task)
 
         model_saver = tf.train.Saver(max_to_keep=FLAGS.epochs)
-        tf.global_variables_initializer().run()
 
         if FLAGS.restore_checkpoint is not None:
             model_saver.restore(session, FLAGS.restore_checkpoint)
 
         if not FLAGS.dev:
+            tf.global_variables_initializer().run()
             if FLAGS.task == "but":
                 sc.but_because_train(session, but_train, because_train, but_valid,
                                              because_valid, but_test, because_test,
@@ -85,8 +85,7 @@ def main(_):
             if FLAGS.task == "but":
                 sc.but_because_dev_test(session, data_dir, FLAGS.run_dir, FLAGS.best_epoch)
             else:
-                sc.cause_effect_dev_test(session, because_test, FLAGS.run_dir, FLAGS.best_epoch)
-
+                sc.cause_effect_dev_test(session, because_valid, FLAGS.run_dir, FLAGS.best_epoch)
 
 if __name__ == "__main__":
     tf.app.run()

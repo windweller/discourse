@@ -19,3 +19,9 @@ python train.py --run_dir wikitext_run_cause --task cause --epochs 3 --print_eve
 ```
 python train.py --best_epoch 3 --run_dir ptb_run_but --dev True --correct_example True
 ```
+
+## Winograd Scheme
+
+```
+python train.py --best_epoch 1 --run_dir wiki_run_but --dev True --winograd True --dataset winograd
+```

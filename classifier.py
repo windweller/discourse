@@ -243,8 +243,9 @@ class SequenceClassifier(object):
             accu = np.mean(np.argmax(logits, axis=1) == labels)
 
             preds = np.argmax(logits, axis=1)
-            winograd_preds = logits[:, 1]  # extract value on because
 
+            winograd_num_preds = logits[:, 1]  # original
+            winograd_preds = (np.exp(logits) / np.sum(np.exp(logits), axis=1).reshape(logits.shape[0], 1))[:, 1]  # doing softmax
             wino_correct = 0
             positions = np.array([False] * because_tokens.shape[0])
             for i in range(0, because_tokens.shape[0]-1, 2):
@@ -273,7 +274,9 @@ class SequenceClassifier(object):
             valid_accus.append(accu)
             valid_wino_accus.append(winograd_accu)
 
+            print(winograd_num_preds)
             print(winograd_preds)
+
 
         valid_accu = sum(valid_accus) / float(len(valid_accus))
         valid_cost = sum(valid_costs) / float(len(valid_costs))

@@ -129,11 +129,13 @@ def winnograd_batches(data_dir, split, vocab, batch_size, cache_filename,
                 because_start_of_next_chunk = index_of_because + 1
             x2_because_tokens = because_tokens[because_start_of_next_chunk:]
 
+            sentence = " ".join([rev_vocab[w] for w in because_tokens])
+
             # exclude sentences that are too long
             if len(x1_because_tokens) <= FLAGS.max_seq_len \
                     and len(x2_because_tokens) <= FLAGS.max_seq_len:
                 new_pairs = [
-                    (x1_because_tokens, x2_because_tokens, 0, winograd_label)
+                    (x1_because_tokens, x2_because_tokens, 0, winograd_label, sentence)
                 ];
                 line_pairs += new_pairs;
 
@@ -146,9 +148,9 @@ def winnograd_batches(data_dir, split, vocab, batch_size, cache_filename,
 
     for batch_start in xrange(0, len(line_pairs), batch_size):
         batch_end = batch_start + batch_size
-        x1_batch, x2_batch, y_batch, winnograd_labels_batch = zip(*line_pairs[batch_start:batch_end])
+        x1_batch, x2_batch, y_batch, winnograd_labels_batch, line_because_batch = zip(*line_pairs[batch_start:batch_end])
 
-        batches.append((x1_batch, x2_batch, y_batch, winnograd_labels_batch))
+        batches.append((x1_batch, x2_batch, y_batch, winnograd_labels_batch, line_because_batch))
 
     if shuffle:
         np.random.shuffle(batches)
@@ -186,7 +188,7 @@ def winograd_pair_iter(data_dir, vocab, batch_size, shuffle=True):
             # stopping condition, when batches is empty
             break
 
-        x_tokens, x2_tokens, y, winograd_label = batches.pop(0)
+        x_tokens, x2_tokens, y, winograd_label, line_because = batches.pop(0)
         # pad sentence chunks
         x_padded, x2_padded = padded(x_tokens), padded(x2_tokens)
 
@@ -202,7 +204,7 @@ def winograd_pair_iter(data_dir, vocab, batch_size, shuffle=True):
         target_class = y
 
         yield (source_tokens, source_mask, source2_tokens, source2_mask,
-               target_class, winograd_label)
+               target_class, winograd_label, line_because)
 
     return
 

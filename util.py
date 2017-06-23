@@ -94,6 +94,118 @@ but wrap both in one if i have time with a flag
 #         random.shuffle(batches)
 #     return
 
+
+# save as pickle file
+# list of lists
+def winnograd_batches(data_dir, split, vocab, batch_size, cache_filename, 
+                      shuffle=True):
+    batches = []
+
+    fname_because = pjoin(data_dir, split + "_BECAUSE.ids.txt")
+    fd_because = open(fname_because)
+
+    line_pairs = []
+
+    line_because = fd_because.readline()
+    winograd_label = 0
+
+    while line_because:
+        because_tokens = tokenize(line_because)
+
+        because_id = vocab["because"]
+        of_id = vocab["of"]
+
+        # check if the discourse relations are even in the sentences
+        # (they're supposed to be, but apparently they're not, in practice??!)
+        # idunno why this is.
+        if because_id in because_tokens:
+            index_of_because = because_tokens.index(because_id)
+            # grab sentence chunk before 'because'
+            x1_because_tokens = because_tokens[:index_of_because]
+            # second chunk should not start with 'of'
+            if (of_id in because_tokens) and (because_tokens.index(of_id) == index_of_because + 1):
+                because_start_of_next_chunk = index_of_because + 2
+            else:
+                because_start_of_next_chunk = index_of_because + 1
+            x2_because_tokens = because_tokens[because_start_of_next_chunk:]
+
+            # exclude sentences that are too long
+            if len(x1_because_tokens) <= FLAGS.max_seq_len \
+                    and len(x2_because_tokens) <= FLAGS.max_seq_len:
+                new_pairs = [
+                    (x1_because_tokens, x2_because_tokens, 0, winograd_label)
+                ];
+                line_pairs += new_pairs;
+
+        line_because = fd_because.readline()
+        # switch off between correct and incorrect
+        winograd_label = 1-winograd_label
+
+    if shuffle:
+        np.random.shuffle(line_pairs)
+
+    for batch_start in xrange(0, len(line_pairs), batch_size):
+        batch_end = batch_start + batch_size
+        x1_batch, x2_batch, y_batch, winnograd_labels_batch = zip(*line_pairs[batch_start:batch_end])
+
+        batches.append((x1_batch, x2_batch, y_batch, winnograd_labels_batch))
+
+    if shuffle:
+        np.random.shuffle(batches)
+
+    pickle.dump(batches, open(cache_filename, "wb"))
+
+    return batches
+
+def winograd_pair_iter(data_dir, vocab, batch_size, shuffle=True):
+    """
+    Create batches of inputs for but/because classifier, but getting its
+    predictions for Winograd schema sentences
+
+    Keyword arguments:
+    data_dir -- data directory
+    vocab -- a dict from words to their ids in vocab
+    batch_size -- number of sentences per batch
+    shuffle -- we don't want to shuffle the validation and test sets.
+
+    """
+
+    cache_filename = pjoin(data_dir, "valid_" + str(batch_size) + ".pkl")
+    ## if file exists,
+    if os.path.isfile(cache_filename):
+        logging.info("restoring old batches")
+        batches = pickle.load(open(cache_filename, 'rb'))
+    else:
+        ## fill up batches from pickle file, or make pickle file if necessary
+        logging.info("generate new batches")
+        batches = winnograd_batches(data_dir, "valid", vocab, batch_size,
+                                    cache_filename, shuffle=shuffle)
+
+    while True:
+        if len(batches) == 0:
+            # stopping condition, when batches is empty
+            break
+
+        x_tokens, x2_tokens, y, winograd_label = batches.pop(0)
+        # pad sentence chunks
+        x_padded, x2_padded = padded(x_tokens), padded(x2_tokens)
+
+        # first part of sentence (before discourse marker)
+        source_tokens = np.array(x_padded)
+        source_mask = (source_tokens != data.PAD_ID).astype(np.int32)
+
+        # second part of sentence (after discourse marker)
+        source2_tokens = np.array(x2_padded)
+        source2_mask = (source2_tokens != data.PAD_ID).astype(np.int32)
+
+        # class ID for this sentence (either 0 for because or 1 for but)
+        target_class = y
+
+        yield (source_tokens, source_mask, source2_tokens, source2_mask,
+               target_class, winograd_label)
+
+    return
+
 def but_detector_pair_iter(data_dir, split, vocab, batch_size, shuffle=True):
     """Create batches of inputs for but/because classifier.
 
@@ -333,11 +445,10 @@ def padded(tokens, batch_pad=0):
 
 # data_dir, split, vocab, batch_size
 if __name__ == '__main__':
-    print(next(cause_effect_pair_iter("data/ptb/train_BECAUSE.ids.txt",
-                                      {"because": 10, "but": 5, "of": 3}, 20)))
-    # print(next(but_detector_pair_iter(
-    #     "data/ptb/",
-    #     "train",
-    #     {"because": 10, "but": 5, "of": 3},
-    #     20
-    # )))
+    # print(next(cause_effect_pair_iter("data/ptb/train_BECAUSE.ids.txt",
+    #                                   {"because": 10, "but": 5, "of": 3}, 20)))
+    print(next(winograd_pair_iter(
+        "data/ptb/",
+        {"because": 10, "but": 5, "of": 3},
+        20
+    )))

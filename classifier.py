@@ -235,10 +235,13 @@ class SequenceClassifier(object):
         valid_sent1, valid_sent2 = [], []
         valid_winograd_sent1, valid_winograd_sent2 = [], []
 
-        for because_tokens, because_mask, but_tokens, \
-            but_mask, labels in but_detector_pair_iter(data_dir, split, self.vocab,
-                                                       self.flags.batch_size, shuffle=False):
-            cost, logits = self.test(session, because_tokens, because_mask, but_tokens, but_mask, labels)
+        for component1_tokens, component1_mask, component2_tokens, \
+            component2_mask, labels, winograd_labels in winograd_pair_iter(
+                    data_dir, self.vocab,
+                    self.flags.batch_size, shuffle=False):
+            cost, logits = self.test(
+                    session, component1_tokens, component1_mask,
+                    component2_tokens, component2_mask, labels)
             valid_costs.append(cost)
             accu = np.mean(np.argmax(logits, axis=1) == labels)
 

@@ -34,6 +34,11 @@ for schema in root:
 	start = schema.find('text').find("txt1").text.strip()
 	end = schema.find('text').find("txt2").text.strip()
 
+	start = re.sub("\n", " ", start)
+	end = re.sub("\n", " ", end)
+	start = re.sub("  ", " ", start)
+	end = re.sub("  ", " ", end)
+
 	original_sentence = " ".join([start, pronoun, end])
 
 	if "because" in original_sentence.split():
@@ -41,7 +46,7 @@ for schema in root:
 		answers_elements = schema.find('answers').findall("answer")
 		answers = [e.text.strip() for e in answers_elements]
 
-		for version in ["correct", "incorrect"]:
+		for version in ["incorrect", "correct"]:
 			if version == "correct":
 				index = correct_index
 			else:

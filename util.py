@@ -18,12 +18,16 @@ np.random.seed(123)
 
 FLAGS = tf.app.flags.FLAGS
 
-
-# tf.flags.DEFINE_integer("max_seq_len", 35, "cut off sentence after this of words")
-
+## fix me
 def tokenize(string):
     return [int(s) for s in string.split()]
 
+def get_label(marker):
+    assert marker in ["because", "but"]
+    if marker=="because":
+        return 0
+    else:
+        return 1
 
 """
 fnamex: e.g. train_BECAUSE.ids.txt
@@ -38,404 +42,161 @@ cause and effect: load in one file
 but wrap both in one if i have time with a flag
 """
 
+def get_training_tuple(tokens, task, marker, vocab, rev_vocab,
+                       winograd_label=None):
+    assert(marker=="because" or marker=="but")
 
-# def pair_iter(fnamex, fnamex2, batch_size, num_layers, sort_and_shuffle=True):
-#     fdx, fdx2 = open(fnamex), open(fnamex2)
-#     batches = []
-#
-#     while True:
-#         if len(batches) == 0:
-#             refill(batches, fdx, fdx2, fdy, batch_size, sort_and_shuffle=sort_and_shuffle)
-#         if len(batches) == 0:
-#             break
-#
-#         x_tokens, x2_tokens, y_tokens = batches.pop(0)
-#         y_tokens = add_sos(y_tokens)
-#         x_padded, x2_padded, y_padded = padded(x_tokens, num_layers, question_len), \
-#                                         padded(x2_tokens, num_layers, context_len), \
-#                                         padded(y_tokens, 1)
-#
-#         source_tokens = np.array(x_padded).T
-#         source_mask = (source_tokens != qa_data.PAD_ID).astype(np.int32)
-#         source2_tokens = np.array(x2_padded).T
-#         source2_mask = (source2_tokens != qa_data.PAD_ID).astype(np.int32)
-#         target_tokens = np.array(y_padded).T  # (time_step, batch_size)
-#         target_mask = (target_tokens != qa_data.PAD_ID).astype(np.int32)
-#
-#         yield (source_tokens, source_mask, source2_tokens, source2_mask, target_tokens, target_mask)
-#
-#     return
+    # check if the discourse relations are even in the sentences
+    # (they're supposed to be, but apparently they're not, in practice??!)
+    # idunno why this is.
+    if not vocab[marker] in tokens:
+        return None
 
+    marker_index = tokens.index(vocab[marker])
+    previous_sentence_tokens = tokens[:marker_index]
+    next_sentence_tokens = tokens[marker_index+1:]
 
-# def refill(batches, fd_because, fd_but, batch_size, sort_and_shuffle=True):
-#     # context_len restricts samples smaller than context_len
-#     line_pairs = []
-#     linex, linex2, liney = fdx.readline(), fdx2.readline(), fdy.readline()
+    if marker=="because":
+        # exclude "of" from next_sentence for because
+        if next_sentence_tokens[0] == vocab["of"]:
+            next_sentence_tokens = next_sentence_tokens[1:]
 
-#     while linex and linex2 and liney:
-#         x_tokens, x2_tokens, y_tokens = tokenize(linex), tokenize(linex2), tokenize(liney)
+    # exclude sentences that are too long
+    if len(previous_sentence_tokens) > FLAGS.max_seq_len \
+            or len(next_sentence_tokens) > FLAGS.max_seq_len:
+        return None
 
-#         if len(x_tokens) < FLAGS.question_len and len(y_tokens) < FLAGS.max_seq_len \
-#                 and len(x2_tokens) <= FLAGS.max_seq_len:
-#             line_pairs.append((x_tokens, x2_tokens, y_tokens))
-#         if len(line_pairs) == batch_size * 160:
-#             break
-#         linex, linex2, liney = fdx.readline(), fdx2.readline(), fdy.readline()
+    training_example = []
 
-#     if sort_and_shuffle:
-#         line_pairs = sorted(line_pairs, key=lambda e: len(e[0]))
+    if task=="cause_effect":
+        effect_tokens = previous_sentence_tokens
+        cause_tokens = next_sentence_tokens
+        if np.random.randint(0, 2):
+            training_example += [effect_tokens, cause_tokens, 0]
+        else:
+            training_example += [cause_tokens, effect_tokens, 1]
+    else:
+        training_example += [previous_sentence_tokens, next_sentence_tokens,
+                             get_label(marker)]
 
-#     for batch_start in xrange(0, len(line_pairs), batch_size):
-#         x_batch, x2_batch, y_batch = zip(*line_pairs[batch_start:batch_start + batch_size])
+    if task=="winograd":
+        # winograd task gets winograd labels
+        training_example.append(winograd_label)
+    else:
+        training_example.append(None)
 
-#         batches.append((x_batch, x2_batch, y_batch))
+    text = " ".join([rev_vocab[t] for t in tokens])
+    training_example.append(text)
 
-#     if sort_and_shuffle:
-#         random.shuffle(batches)
-#     return
+    return tuple(training_example)
 
+def build_batches(task, data_dir, split, vocab, rev_vocab, batch_size,
+                  shuffle, cache):
 
-# save as pickle file
-# list of lists
-def winnograd_batches(data_dir, split, vocab, batch_size, cache_filename, 
-                      shuffle=True):
-    batches = []
-
+    # build dictionary of files to look at, based on task
+    fds = {}
     fname_because = pjoin(data_dir, split + "_BECAUSE.ids.txt")
-    fd_because = open(fname_because)
+    fname_but = pjoin(data_dir, split + "_BUT.ids.txt")
+    fds["because"] = open(fname_because)
+    if task=="but_because":
+        fds["but"] = open(fname_but)
 
-    line_pairs = []
+    # read lines from relevant files
+    lines = {marker: fds[marker].readline() for marker in fds.keys()}
 
-    line_because = fd_because.readline()
-    winograd_label = 0
+    all_training_tuples = []
+    if task=="winograd":
+        winograd_label = 0
+    else:
+        winograd_label = None
 
-    while line_because:
-        because_tokens = tokenize(line_because)
+    while all(lines.values()):
+        matched_tuples = []
 
-        because_id = vocab["because"]
-        of_id = vocab["of"]
+        for marker in lines.keys():
+            tokens = tokenize(lines[marker])
+            
+            training_tuple = get_training_tuple(tokens=tokens, task=task,
+                                                marker=marker, vocab=vocab,
+                                                rev_vocab=rev_vocab,
+                                                winograd_label=winograd_label)
 
-        # check if the discourse relations are even in the sentences
-        # (they're supposed to be, but apparently they're not, in practice??!)
-        # idunno why this is.
-        if because_id in because_tokens:
-            index_of_because = because_tokens.index(because_id)
-            # grab sentence chunk before 'because'
-            x1_because_tokens = because_tokens[:index_of_because]
-            # second chunk should not start with 'of'
-            if (of_id in because_tokens) and (because_tokens.index(of_id) == index_of_because + 1):
-                because_start_of_next_chunk = index_of_because + 2
-            else:
-                because_start_of_next_chunk = index_of_because + 1
-            x2_because_tokens = because_tokens[because_start_of_next_chunk:]
+            if training_tuple: matched_tuples.append(training_tuple)
 
-            sentence = " ".join([rev_vocab[w] for w in because_tokens])
+        # get rid of both training examples, if we're trying to match
+        # (e.g.) the number of but and because sentences
+        if all(matched_tuples): all_training_tuples += matched_tuples
 
-            # exclude sentences that are too long
-            if len(x1_because_tokens) <= FLAGS.max_seq_len \
-                    and len(x2_because_tokens) <= FLAGS.max_seq_len:
-                new_pairs = [
-                    (x1_because_tokens, x2_because_tokens, 0, winograd_label, sentence)
-                ];
-                line_pairs += new_pairs;
-
-        line_because = fd_because.readline()
-        # switch off between correct and incorrect
-        winograd_label = 1-winograd_label
+        if task=="winograd":
+            winograd_label = 1-winograd_label
+        lines = {marker: fds[marker].readline() for marker in fds.keys()}
 
     if shuffle:
-        np.random.shuffle(line_pairs)
+        np.random.shuffle(all_training_tuples)
 
-    for batch_start in xrange(0, len(line_pairs), batch_size):
+    batches = []
+
+    for batch_start in xrange(0, len(all_training_tuples), batch_size):
         batch_end = batch_start + batch_size
-        x1_batch, x2_batch, y_batch, winnograd_labels_batch, line_because_batch = zip(*line_pairs[batch_start:batch_end])
-
-        batches.append((x1_batch, x2_batch, y_batch, winnograd_labels_batch, line_because_batch))
+        batch = zip(*all_training_tuples[batch_start:batch_end])
+        batches.append(batch)
 
     if shuffle:
         np.random.shuffle(batches)
 
-    pickle.dump(batches, open(cache_filename, "wb"))
+    if cache:
+        cache_filename = pjoin(data_dir, split + "_" + str(batch_size) + ".pkl")
+        pickle.dump(batches, open(cache_filename, "wb"))
 
     return batches
 
-def winograd_pair_iter(data_dir, vocab, batch_size, shuffle=True):
-    """
-    Create batches of inputs for but/because classifier, but getting its
-    predictions for Winograd schema sentences
-
-    Keyword arguments:
-    data_dir -- data directory
-    vocab -- a dict from words to their ids in vocab
-    batch_size -- number of sentences per batch
-    shuffle -- we don't want to shuffle the validation and test sets.
-
-    """
-
-    cache_filename = pjoin(data_dir, "valid_" + str(batch_size) + ".pkl")
-    ## if file exists,
-    if os.path.isfile(cache_filename):
-        logging.info("restoring old batches")
-        batches = pickle.load(open(cache_filename, 'rb'))
-    else:
-        ## fill up batches from pickle file, or make pickle file if necessary
-        logging.info("generate new batches")
-        batches = winnograd_batches(data_dir, "valid", vocab, batch_size,
-                                    cache_filename, shuffle=shuffle)
-
-    while True:
-        if len(batches) == 0:
-            # stopping condition, when batches is empty
-            break
-
-        x_tokens, x2_tokens, y, winograd_label, line_because = batches.pop(0)
-        # pad sentence chunks
-        x_padded, x2_padded = padded(x_tokens), padded(x2_tokens)
-
-        # first part of sentence (before discourse marker)
-        source_tokens = np.array(x_padded)
-        source_mask = (source_tokens != data.PAD_ID).astype(np.int32)
-
-        # second part of sentence (after discourse marker)
-        source2_tokens = np.array(x2_padded)
-        source2_mask = (source2_tokens != data.PAD_ID).astype(np.int32)
-
-        # class ID for this sentence (either 0 for because or 1 for but)
-        target_class = y
-
-        yield (source_tokens, source_mask, source2_tokens, source2_mask,
-               target_class, winograd_label, line_because)
-
-    return
-
-def but_detector_pair_iter(data_dir, split, vocab, batch_size, shuffle=True):
-    """Create batches of inputs for but/because classifier.
+def pair_iter(task, data_dir, split, vocab, rev_vocab, batch_size,
+              shuffle=True, cache=False):
+    """Iterator to get batches of inputs for models
 
     Keyword arguments:
     data_dir -- data directory
     split -- train, valid, or test
     vocab -- a dict from words to their ids in vocab
+    rev_vocab -- a dict from ids to words
     batch_size -- number of sentences per batch
     shuffle -- we don't want to shuffle the validation and test sets.
-
+    cache -- sometimes we want to cache files so that random shuffle is the same
     """
 
-    cache_filename = pjoin(data_dir, split + "_" + str(batch_size) + ".pkl")
-    ## if file exists,
-    if os.path.isfile(cache_filename):
-        logging.info("restoring old batches")
-        batches = pickle.load(open(cache_filename, 'rb'))
-    else:
-        ## fill up batches from pickle file, or make pickle file if necessary
-        logging.info("generate new batches")
-        batches = but_detector_data_precache(data_dir, split, vocab, batch_size,
-                                             cache_filename, shuffle=shuffle)
+    assert(task in ["winograd", "but_because", "cause_effect"])
+    assert(split in ["train", "valid", "test"])
 
+    if cache:
+        cache_filename = pjoin(data_dir, split + "_" + str(batch_size) + ".pkl")
+        if os.path.isfile(cache_filename):
+            logging.info("restoring old batches")
+            batches = pickle.load(open(cache_filename, 'rb'))
+    if not cache or not (os.path.isfile(cache_filename)):
+        logging.info("generate new batches")
+        batches = build_batches(task=task, data_dir=data_dir, split=split,
+                                vocab=vocab, rev_vocab=rev_vocab,
+                                batch_size = batch_size,
+                                shuffle=shuffle, cache=cache)
     while True:
         if len(batches) == 0:
             # stopping condition, when batches is empty
             break
 
-        x_tokens, x2_tokens, y = batches.pop(0)
+        s1_tokens, s2_tokens, y, winograd_label, text = batches.pop(0)
+
         # pad sentence chunks
-        x_padded, x2_padded = padded(x_tokens), padded(x2_tokens)
+        s1_padded, s2_padded = padded(s1_tokens), padded(s2_tokens)
 
-        # first part of sentence (before discourse marker)
-        source_tokens = np.array(x_padded)
-        source_mask = (source_tokens != data.PAD_ID).astype(np.int32)
-        # second part of sentence (after discourse marker)
-        source2_tokens = np.array(x2_padded)
-        source2_mask = (source2_tokens != data.PAD_ID).astype(np.int32)
-        # class ID for this sentence (either 0 for because or 1 for but)
-        target_class = y
+        # first sentence (e.g. before discourse marker)
+        s1_tokens = np.array(s1_padded)
+        s1_mask = (s1_tokens != data.PAD_ID).astype(np.int32)
 
-        yield (source_tokens, source_mask, source2_tokens, source2_mask,
-               target_class)
+        # second sentence (e.g. after discourse marker)
+        s2_tokens = np.array(s2_padded)
+        s2_mask = (s2_tokens != data.PAD_ID).astype(np.int32)
 
-    return
-
-
-# save as pickle file
-# list of lists
-def but_detector_data_precache(data_dir, split, vocab,
-                               batch_size, cache_filename, shuffle=True):
-    batches = []
-
-    fname_because = pjoin(data_dir, split + "_BECAUSE.ids.txt")
-    fname_but = pjoin(data_dir, split + "_BUT.ids.txt")
-
-    fd_because, fd_but = open(fname_because), open(fname_but)
-
-    line_pairs = []
-    discourse_markers = ["because", "but"]
-
-    line_because = fd_because.readline()
-    line_but = fd_but.readline()
-
-    while line_because and line_but:
-        because_tokens, but_tokens = tokenize(line_because), tokenize(line_but)
-
-        because_id = vocab["because"]
-        of_id = vocab["of"]
-        but_id = vocab["but"]
-
-        # check if the discourse relations are even in the sentences
-        # (they're supposed to be, but apparently they're not, in practice??!)
-        # idunno why this is.
-        if because_id in because_tokens and but_id in but_tokens:
-            index_of_because = because_tokens.index(because_id)
-            # grab sentence chunk before 'because'
-            x1_because_tokens = because_tokens[:index_of_because]
-            # second chunk should not start with 'of'
-            if (of_id in because_tokens) and (because_tokens.index(of_id) == index_of_because + 1):
-                because_start_of_next_chunk = index_of_because + 2
-            else:
-                because_start_of_next_chunk = index_of_because + 1
-            x2_because_tokens = because_tokens[because_start_of_next_chunk:]
-
-            # grab sentence chunks for 'but'
-            index_of_but = but_tokens.index(but_id)
-            x1_but_tokens = but_tokens[:index_of_but]
-            x2_but_tokens = but_tokens[index_of_but + 1:]
-
-            # exclude sentences that are too long
-            if len(x1_because_tokens) <= FLAGS.max_seq_len \
-                    and len(x2_because_tokens) <= FLAGS.max_seq_len \
-                    and len(x1_but_tokens) <= FLAGS.max_seq_len \
-                    and len(x2_but_tokens) <= FLAGS.max_seq_len:
-                new_pairs = [
-                    (x1_because_tokens, x2_because_tokens, 0),
-                    (x1_but_tokens, x2_but_tokens, 1)
-                ];
-                if shuffle:
-                    np.random.shuffle(new_pairs);
-                line_pairs += new_pairs;
-
-        line_because, line_but = fd_because.readline(), fd_but.readline()
-
-    if shuffle:
-        np.random.shuffle(line_pairs)
-
-    for batch_start in xrange(0, len(line_pairs), batch_size):
-        batch_end = batch_start + batch_size
-        x1_batch, x2_batch, y_batch = zip(*line_pairs[batch_start:batch_end])
-
-        batches.append((x1_batch, x2_batch, y_batch))
-
-    if shuffle:
-        np.random.shuffle(batches)
-
-    pickle.dump(batches, open(cache_filename, "wb"))
-
-    return batches
-
-
-def cause_effect_pair_iter(fname_because, vocab, batch_size, shuffle=True):
-    """Create batches of inputs for but/because classifier.
-
-    Keyword arguments:
-    fname_because -- name of "because" data file (e.g. train_BECAUSE.ids.txt)
-    vocab -- a dict from words to their ids in vocab
-    batch_size -- number of sentences per batch
-    shuffle -- flag to shuffle the examples completely
-
-    """
-    fd_because = open(fname_because)
-    batches = []
-
-    while True:
-        if len(batches) == 0:
-            # initialize patches
-            cause_effect_refill(batches, fd_because, vocab,
-                                batch_size, shuffle=shuffle)
-        if len(batches) == 0:
-            # stopping condition, when batches is empty even after refill
-            break
-
-        x_tokens, x2_tokens, y = batches.pop(0)
-        # pad sentence chunks
-        x_padded, x2_padded = padded(x_tokens), padded(x2_tokens)
-
-        # first part of sentence (before discourse marker)
-        source_tokens = np.array(x_padded)
-        source_mask = (source_tokens != data.PAD_ID).astype(np.int32)
-        # second part of sentence (after discourse marker)
-        source2_tokens = np.array(x2_padded)
-        source2_mask = (source2_tokens != data.PAD_ID).astype(np.int32)
-        # class ID for this sentence (either 0 for because or 1 for but)
-        target_class = y
-
-        yield (source_tokens, source_mask, source2_tokens, source2_mask,
-               target_class)
-
-    return
-
-
-def cause_effect_refill(batches, fd_because, vocab, batch_size,
-                        shuffle=True):
-    """Mutates batches list to fill with tuples of sentence chunks and class id
-
-    Keyword arguments:
-    batches -- the batches list to mutate
-    fd_because -- loaded "because" sentences
-    vocab -- a dict from words to their ids in vocab
-    fd_but -- loaded "but" sentences
-    batch_size -- number of sentences per batch
-    shuffle -- don't shuffle valdiation and test sets
-
-    """
-    line_pairs = []
-
-    line = fd_because.readline()
-
-    while line:
-        because_tokens = tokenize(line)
-
-        because_id = vocab["because"]
-        of_id = vocab["of"]
-
-        if because_id in because_tokens:
-            index_of_because = because_tokens.index(because_id)
-            effect_tokens = because_tokens[:index_of_because]
-
-            if of_id in because_tokens:
-                index_of_of = because_tokens.index(of_id)
-                if index_of_of == index_of_because + 1:
-                    cause_tokens = because_tokens[index_of_because + 2:]
-                else:
-                    cause_tokens = because_tokens[index_of_because + 1:]
-            else:
-                cause_tokens = because_tokens[index_of_because + 1:]
-
-        # exclude sentences that are too long
-        if len(cause_tokens) <= FLAGS.max_seq_len and \
-            FLAGS.max_seq_len >= len(effect_tokens) > 0:
-            # 0 is incorrect, 1 is correct
-            if effect_tokens[-1] == 4:
-                effect_tokens = effect_tokens[:-1]
-
-            if np.random.randint(0, 2):
-                line_pairs.append((cause_tokens, effect_tokens, 0))
-            else:
-                line_pairs.append((effect_tokens, cause_tokens, 1))
-
-        # only grab 160 batches at once
-        if len(line_pairs) == batch_size * 5:
-            break
-
-        line = fd_because.readline()
-
-    if shuffle:
-        np.random.shuffle(line_pairs)
-
-    for batch_start in xrange(0, len(line_pairs), batch_size):
-        batch_end = batch_start + batch_size
-        x1_batch, x2_batch, y_batch = zip(*line_pairs[batch_start:batch_end])
-
-        batches.append((x1_batch, x2_batch, y_batch))
-
-    if shuffle:
-        np.random.shuffle(batches)
+        yield (s1_tokens, s1_mask, s2_tokens, s2_mask, y, winograd_label, text)
 
     return
 

@@ -213,4 +213,5 @@ if __name__ == '__main__':
     for partial_fname in partial_fnames:
         data_path = pjoin(args.source_dir, partial_fname + ".txt")
         ids_path = pjoin(args.source_dir, partial_fname + ".ids.txt")
-        data_to_token_ids(data_path, ids_path, vocab_path)
+        if os.path.isfile(data_path):
+            data_to_token_ids(data_path, ids_path, vocab_path)

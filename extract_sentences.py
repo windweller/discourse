@@ -31,7 +31,7 @@ def make_filename(split, marker, s, data_dir):
 def text_filenames(data_dir):
   return [make_filename(split, marker, s, data_dir) \
                       for s in [0,1] \
-                      for marker in ["because", "but"] \
+                      for marker in discourse_markers \
                       for split in ["train", "valid", "test"]]
 
 ## PTB
@@ -52,7 +52,7 @@ if not os.path.isfile("data/ptb/ptb.valid.txt"):
 
 # check if text files already exist
 if all([os.path.isfile(f) for f in text_filenames("data/ptb/")]):
-  print("PTB but/because text files already exist. " +
+  print("PTB text files already exist. " +
         "Delete them if you want to rerun.")
 else:
   for split in ["train", "valid", "test"]:
@@ -105,7 +105,7 @@ def collapse_numbers(s):
 
 # check if text files already exist
 if all([os.path.isfile(f) for f in text_filenames("data/wikitext-103/")]):
-  print("Wikitext-103 but/because text files already exist. " +
+  print("Wikitext-103 text files already exist. " +
         "Delete them if you want to rerun.")
 else:
   num_sentences = 0

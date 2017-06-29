@@ -42,19 +42,15 @@ cause and effect: load in one file
 but wrap both in one if i have time with a flag
 """
 
-def get_training_tuple(tokens, task, marker, vocab, rev_vocab,
-                       winograd_label=None):
+def get_training_tuple(tokens1, tokens2, task, marker, vocab,
+                       rev_vocab, winograd_label=None):
+
     assert(marker=="because" or marker=="but")
 
-    # check if the discourse relations are even in the sentences
-    # (they're supposed to be, but apparently they're not, in practice??!)
-    # idunno why this is.
-    if not vocab[marker] in tokens:
-        return None
+    previous_sentence_tokens = tokens1
+    next_sentence_tokens = tokens2
 
-    marker_index = tokens.index(vocab[marker])
-    previous_sentence_tokens = tokens[:marker_index]
-    next_sentence_tokens = tokens[marker_index+1:]
+    tokens = tokens1 + [vocab[marker]] + tokens2
 
     if marker=="because":
         # exclude "of" from next_sentence for because
@@ -82,8 +78,6 @@ def get_training_tuple(tokens, task, marker, vocab, rev_vocab,
     if task=="winograd":
         # winograd task gets winograd labels
         training_example.append(winograd_label)
-    else:
-        training_example.append(None)
 
     text = " ".join([rev_vocab[t] for t in tokens])
     training_example.append(text)
@@ -95,14 +89,21 @@ def build_batches(task, data_dir, split, vocab, rev_vocab, batch_size,
 
     # build dictionary of files to look at, based on task
     fds = {}
-    fname_because = pjoin(data_dir, split + "_BECAUSE.ids.txt")
-    fname_but = pjoin(data_dir, split + "_BUT.ids.txt")
-    fds["because"] = open(fname_because)
+    fname_because_s1 = pjoin(data_dir, split + "_BECAUSE_S1.ids.txt")
+    fname_but_s1 = pjoin(data_dir, split + "_BUT_S1.ids.txt")
+    fname_because_s2 = pjoin(data_dir, split + "_BECAUSE_S2.ids.txt")
+    fname_but_s2 = pjoin(data_dir, split + "_BUT_S2.ids.txt")
+
+    discourse_markers = ["but", "because"]
+
+    fds["because1"] = open(fname_because_s1)
+    fds["because2"] = open(fname_because_s2)
     if task=="but_because":
-        fds["but"] = open(fname_but)
+        fds["but1"] = open(fname_but_s1)
+        fds["but2"] = open(fname_but_s2)
 
     # read lines from relevant files
-    lines = {marker: fds[marker].readline() for marker in fds.keys()}
+    lines = {filetag: fds[filetag].readline() for filetag in fds.keys()}
 
     all_training_tuples = []
     if task=="winograd":
@@ -113,10 +114,12 @@ def build_batches(task, data_dir, split, vocab, rev_vocab, batch_size,
     while all(lines.values()):
         matched_tuples = []
 
-        for marker in lines.keys():
-            tokens = tokenize(lines[marker])
+        for marker in discourse_markers:
+            tokens1 = tokenize(lines[marker + "1"])
+            tokens2 = tokenize(lines[marker + "2"])
             
-            training_tuple = get_training_tuple(tokens=tokens, task=task,
+            training_tuple = get_training_tuple(tokens1=tokens1,
+                                                tokens2=tokens2, task=task,
                                                 marker=marker, vocab=vocab,
                                                 rev_vocab=rev_vocab,
                                                 winograd_label=winograd_label)
@@ -129,7 +132,8 @@ def build_batches(task, data_dir, split, vocab, rev_vocab, batch_size,
 
         if task=="winograd":
             winograd_label = 1-winograd_label
-        lines = {marker: fds[marker].readline() for marker in fds.keys()}
+
+        lines = {filetag: fds[filetag].readline() for filetag in fds.keys()}
 
     if shuffle:
         np.random.shuffle(all_training_tuples)
@@ -183,7 +187,10 @@ def pair_iter(task, data_dir, split, vocab, rev_vocab, batch_size,
             # stopping condition, when batches is empty
             break
 
-        s1_tokens, s2_tokens, y, winograd_label, text = batches.pop(0)
+        if task=="winograd":
+            s1_tokens, s2_tokens, y, winograd_label, text = batches.pop(0)
+        else:
+            s1_tokens, s2_tokens, y, text = batches.pop(0)
 
         # pad sentence chunks
         s1_padded, s2_padded = padded(s1_tokens), padded(s2_tokens)
@@ -196,7 +203,10 @@ def pair_iter(task, data_dir, split, vocab, rev_vocab, batch_size,
         s2_tokens = np.array(s2_padded)
         s2_mask = (s2_tokens != data.PAD_ID).astype(np.int32)
 
-        yield (s1_tokens, s1_mask, s2_tokens, s2_mask, y, winograd_label, text)
+        if task=="winograd":
+            yield (s1_tokens, s1_mask, s2_tokens, s2_mask, y, winograd_label, text)
+        else:
+            yield (s1_tokens, s1_mask, s2_tokens, s2_mask, y, text)
 
     return
 
@@ -208,10 +218,25 @@ def padded(tokens, batch_pad=0):
 
 # data_dir, split, vocab, batch_size
 if __name__ == '__main__':
-    # print(next(cause_effect_pair_iter("data/ptb/train_BECAUSE.ids.txt",
-    #                                   {"because": 10, "but": 5, "of": 3}, 20)))
-    print(next(winograd_pair_iter(
-        "data/ptb/",
-        {"because": 10, "but": 5, "of": 3},
-        20
-    )))
+
+    tf.flags.DEFINE_integer("max_seq_len", 35, "cut off sentence after this of words")
+
+    from tensorflow.python.platform import gfile
+    def initialize_vocabulary(vocabulary_path):
+        # map vocab to word embeddings
+        if gfile.Exists(vocabulary_path):
+            rev_vocab = []
+            with gfile.GFile(vocabulary_path, mode="r") as f:
+                rev_vocab.extend(f.readlines())
+            rev_vocab = [line.strip('\n') for line in rev_vocab]
+            vocab = dict([(x, y) for (y, x) in enumerate(rev_vocab)])
+            return vocab, rev_vocab
+        else:
+            raise ValueError("Vocabulary file %s not found.", vocabulary_path)
+    vocab, rev_vocab = initialize_vocabulary(pjoin("data/ptb", "vocab.dat"))
+
+    # print(next(winograd_pair_iter("data/ptb/", vocab=vocab, batch_size=10, shuffle=False)))
+    output = next(pair_iter(task="but_because", data_dir="data/ptb",
+                            split="valid", vocab=vocab, rev_vocab=rev_vocab,
+                            batch_size=10, shuffle=True, cache=False))
+    print(output)

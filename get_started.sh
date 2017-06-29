@@ -24,6 +24,9 @@ python data.py --source_dir data/ptb --glove_dir data/glove.6B \
 python data.py --source_dir data/wikitext-103 --glove_dir data/glove.6B \
 	--vocab_dir data/wikitext-103 --glove_dim 100
 
+python data.py --source_dir data/winograd --glove_dir data/glove.6B \
+	--vocab_dir data/winograd --glove_dim 100
+
 
 
 # # wget 

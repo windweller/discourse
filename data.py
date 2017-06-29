@@ -103,7 +103,7 @@ def process_glove(args, vocab_list, save_path, size=4e5, random_init=True):
             os.path.basename(save_path))
         print(wikipath)
         # fix me!
-        print("RERUN FOR WIKITEXT FIRST!!")
+        print("TO DO: RERUN FOR WIKITEXT FIRST!!")
         # stop
     if gfile.Exists(save_path + ".npz"):
         print("Glove file already exists at %s" % (save_path + ".npz"))

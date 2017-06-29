@@ -9,19 +9,30 @@ E.g.:
 """
 
 import re
+import os
 
 discourse_markers = ["but", "because"]
 
 def indices(lst, element):
-    # https://stackoverflow.com/a/18669080
-    result = []
-    offset = -1
-    while True:
-        try:
-            offset = lst.index(element, offset+1)
-        except ValueError:
-            return result
-        result.append(offset)
+  # https://stackoverflow.com/a/18669080
+  result = []
+  offset = -1
+  while True:
+    try:
+      offset = lst.index(element, offset+1)
+    except ValueError:
+      return result
+    result.append(offset)
+
+def make_filename(split, marker, s, data_dir):
+  return os.path.join(data_dir,
+         split + "_" + marker.upper() + "_S" + str(s+1) + ".txt")
+
+def text_filenames(data_dir):
+  return [make_filename(split, marker, s, data_dir) \
+                      for s in [0,1] \
+                      for marker in ["because", "but"] \
+                      for split in ["train", "valid", "test"]]
 
 ## PTB
 # Given a corpus where each line is a sentence, find examples with given
@@ -29,7 +40,22 @@ def indices(lst, element):
 
 num_sentences = 0
 
-for split in ["train", "valid", "test"]:
+# download ptb if it doesn't exist
+# fix me
+if not os.path.isfile("data/ptb/ptb.test.txt"):
+  # download it
+  None
+if not os.path.isfile("data/ptb/ptb.train.txt"):
+  None
+if not os.path.isfile("data/ptb/ptb.valid.txt"):
+  None
+
+# check if text files already exist
+if all([os.path.isfile(f) for f in text_filenames("data/ptb/")]):
+  print("PTB but/because text files already exist. " +
+        "Delete them if you want to rerun.")
+else:
+  for split in ["train", "valid", "test"]:
 
     sentences = {m: [] for m in discourse_markers}
 
@@ -38,29 +64,27 @@ for split in ["train", "valid", "test"]:
     line = fd.readline().strip()
     previous_line = ""
     while line:
-        words = line.split()
-        for marker in discourse_markers:
-            for i in indices(words, marker):
-                if marker!="because" and i==0:
-                    sentences[marker].append((previous_line, line))
-                else:
-                    before = " ".join(words[:i])
-                    after = " ".join(words[i+1:])
-                    sentences[marker].append((before, after))
+      words = line.split()
+      for marker in discourse_markers:
+        for i in indices(words, marker):
+          if marker!="because" and i==0:
+            sentences[marker].append((previous_line, line))
+          else:
+            before = " ".join(words[:i])
+            after = " ".join(words[i+1:])
+            sentences[marker].append((before, after))
 
-        previous_line = line
-        line = fd.readline().strip()
-        num_sentences += 1
+      previous_line = line
+      line = fd.readline().strip()
+      num_sentences += 1
     fd.close()
 
     for marker in discourse_markers:
-        for s in [0, 1]:
-            savepath = "".join(["data/ptb/", split, "_",
-                                marker.upper(), "_S", str(s+1), ".txt"])
-            w = open(savepath, "w")
-            w.write("\n".join([pair[s] for pair in sentences[marker]]))
-            w.close()
-
+      for s in [0, 1]:
+        savepath = make_filename(split, marker, s, "data/ptb/")
+        w = open(savepath, "w")
+        w.write("\n".join([pair[s] for pair in sentences[marker]]))
+        w.close()
 
 ## Wikitext 103
 
@@ -69,14 +93,24 @@ STRIP_PUNCTUATION = False
 
 
 def collapse_numbers(s):
-    if COLLAPSE_NUMBERS:
-        return re.sub("([^ ]*)\d([^ ]*)", "\1N\2", s)
-    else:
-        return s
+  if COLLAPSE_NUMBERS:
+    return re.sub("([^ ]*)\d([^ ]*)", "\1N\2", s)
+  else:
+    return s
 
-num_sentences = 0
+# download wikitext if it doesn't exist
+# wiki.test.tokens
+# wiki.train.tokens
+# wiki.valid.tokens
 
-for split in ["train", "valid", "test"]:
+# check if text files already exist
+if all([os.path.isfile(f) for f in text_filenames("data/wikitext-103/")]):
+  print("Wikitext-103 but/because text files already exist. " +
+        "Delete them if you want to rerun.")
+else:
+  num_sentences = 0
+
+  for split in ["train", "valid", "test"]:
 
     sentences = {m: [] for m in discourse_markers}
 
@@ -85,67 +119,75 @@ for split in ["train", "valid", "test"]:
     line = fd.readline()
     previous_line = ""
     while line:
-        line_words = line.split()
-        if len(line_words) > 0:
-            if line_words[0] == "=":
-                previous_line = ""
-            else:
-                doc_sentences = " ".join(line_words).split(" . ")
-                for s in doc_sentences:
-                    words = collapse_numbers(s).split()
+      line_words = line.split()
+      if len(line_words) > 0:
+        if line_words[0] == "=":
+          previous_line = ""
+        else:
+          doc_sentences = " ".join(line_words).split(" . ")
+          for s in doc_sentences:
+            words = collapse_numbers(s).split()
 
-                    if STRIP_PUNCTUATION:
-                        words_to_exclude = ["@-@", ".", "\"", ",", ":", "—",
-                                            "(", ")", "@,@", "@.@", ";", "'",
-                                            "–", "!", "?"]
-                        words = [w for w in words if not w in words_to_exclude]
-                    
-                    for marker in discourse_markers:
-                        for i in indices(words, marker):
-                            if marker!="because" and i==0:
-                                sentences[marker].append((previous_line, line))
-                            else:
-                                before = " ".join(words[:i])
-                                after = " ".join(words[i+1:])
-                                sentences[marker].append((before, after))
+            if STRIP_PUNCTUATION:
+              words_to_exclude = ["@-@", ".", "\"", ",", ":",
+                                  "—", "(", ")", "@,@", "@.@",
+                                  ";", "'", "–", "!", "?"]
+              words = [w for w in words if not w in words_to_exclude]
+            
+            for marker in discourse_markers:
+              for i in indices(words, marker):
+                if marker!="because" and i==0:
+                  sentences[marker].append((previous_line, line))
+                else:
+                  before = " ".join(words[:i])
+                  after = " ".join(words[i+1:])
+                  sentences[marker].append((before, after))
 
-        previous_line = line
-        line = fd.readline()
-        num_sentences += 1
+      previous_line = line
+      line = fd.readline()
+      num_sentences += 1
     fd.close()
 
     for marker in discourse_markers:
-        for s in [0, 1]:
-            savepath = "".join(["data/wikitext-103/", split, "_",
-                                marker.upper(), "_S", str(s+1), ".txt"])
-            w = open(savepath, "w")
-            w.write("\n".join([pair[s] for pair in sentences[marker]]))
-            w.close()
+      for s in [0, 1]:
+        savepath = make_filename(split, marker, s, "data/wikitext-103/")
+        w = open(savepath, "w")
+        w.write("\n".join([pair[s] for pair in sentences[marker]]))
+        w.close()
 
 
 ## Winograd
 # http://www.cs.nyu.edu/faculty/davise/papers/WinogradSchemas/WSCollection.xml
 
-import xml.etree.ElementTree as ET
-import os
+# download winograd if it doesn't exist
 
-tree = ET.parse('data/winograd/WSCollection.xml')
-root = tree.getroot()
+# check if text files already exist
+if all([os.path.isfile(f) for f in ["data/winograd/valid_BECAUSE_S1.txt",
+                                    "data/winograd/valid_BECAUSE_S2.txt"]]):
+  print("Winograd text files already exist. " +
+        "Delete them if you want to rerun.")
+else:
 
-def tokenize_like_wikitext(s):
+  import xml.etree.ElementTree as ET
+  import os
+
+  tree = ET.parse('data/winograd/WSCollection.xml')
+  root = tree.getroot()
+
+  def tokenize_like_wikitext(s):
     patterns = [("\.", " ."), (";", " ;"), ("'", " '"), (",", " ,"),
                 (" \"", " \" "), ("\" ", " \" "), ("\!", " !")]
     for pattern, replacement in patterns:
-        s = re.sub(pattern, replacement, s)
+      s = re.sub(pattern, replacement, s)
     return s.split()
 
-n_pairs = 0
+  n_pairs = 0
 
-sentences = {"correct": [], "incorrect": []}
-all_sentences = []
+  sentences = {"correct": [], "incorrect": []}
+  all_sentences = []
 
-# for each schema pair of sentences
-for schema in root:
+  # for each schema pair of sentences
+  for schema in root:
 
     # get correct answer
     correct_answer_text = schema.find('correctAnswer').text
@@ -167,26 +209,26 @@ for schema in root:
     words = tokenize_like_wikitext(original_sentence)
     # print(" ".join(words))
     if "because" in words:
-        because_index = words.index("because")
+      because_index = words.index("because")
 
-        answers_elements = schema.find('answers').findall("answer")
-        answers = [e.text.strip() for e in answers_elements]
+      answers_elements = schema.find('answers').findall("answer")
+      answers = [e.text.strip() for e in answers_elements]
 
-        for version in ["incorrect", "correct"]:
-            if version == "correct":
-                index = correct_index
-            else:
-                index = 1-correct_index
+      for version in ["incorrect", "correct"]:
+        if version == "correct":
+          index = correct_index
+        else:
+          index = 1-correct_index
 
-            noun_phrase = answers[index]
-            sentence = " ".join([start, noun_phrase, end])
+        noun_phrase = answers[index]
+        sentence = " ".join([start, noun_phrase, end])
 
-            before = " ".join(words[:because_index])
-            after = " ".join(words[because_index+1:])
-            sentence_pair = (before, after)
-            all_sentences.append(sentence_pair)
+        before = " ".join(words[:because_index])
+        after = " ".join(words[because_index+1:])
+        sentence_pair = (before, after)
+        all_sentences.append(sentence_pair)
 
-for s in [0, 1]:
+  for s in [0, 1]:
     filepath = "data/winograd/valid_BECAUSE_S" + str(s+1) + ".txt"
     open(filepath, "w").write("\n".join([pair[s] for pair in all_sentences]))
 

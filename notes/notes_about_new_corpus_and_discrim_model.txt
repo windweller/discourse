@@ -1,0 +1,73 @@
+notes with noah about new corpus and discriminative model
+=========================================================
+
+train a discriminative model on discourse markers
+and then evaluate sentence vectors on various tasks
+
+knowing only:
+* which words are sentence connectives
+* and very weak dependency parses
+
+we can maybe train a really good representation
+
+
+1. train on discourse markers
+-----------------------------
+
+how do we pick which discourse markers?
+* use penn discourse treebank for inspiration,
+  looking at the *realized* discourse markers
+* corenlp marks because with some syntactice label (IN?)
+  maybe we could use that
+
+start with a big set of discourse markers
+then we can run versions with different subsets,
+maybe lumping together some subsets that are lump-able
+(e.g. according to hobbes or the other more modern paper)
+
+so first, continue with the model architecture we have,
+(class paper at bigger scale)
+but extend it to more labels
+and reimplement in pytorch
+
+we might upgrade the components,
+(look at facebook paper for inspiration)
+
+we already have:
+* bidirectional rnn encoder
+* discriminator uses u+v, u-v, etc.
+
+
+2. evaluate sentence vectors
+----------------------------
+
+extend evaluation with
+"how useful are these sentence vectors for other tasks?"
+
+other tasks: SNLI, skip thought, facebook, etc.
+
+can we nail SNLI having trained on discourse?
+
+hard step involves re-doing the corpus and the series of experiments
+
+
+later: generative models
+------------------------
+
+separately interesting to ask about generative models.
+
+be able to model a raw corpus
+
+
+notes for re-implementing in pytorch
+------------------------------------
+
+facebook paper is already in pytorch,
+so look at what they did
+they have training and work on pytorch a lot
+it will probably run faster and better
+pay attention to trainng regime and inizialization
+(implement it without looking first, just for a learning exercise)
+
+before or after or in parallel, make the corpus
+

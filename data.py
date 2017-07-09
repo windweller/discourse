@@ -99,6 +99,16 @@ def process_glove(args, vocab_list, save_path, size=4e5, random_init=True):
     :param vocab_list: [vocab]
     :return:
     """
+    if os.path.basename(os.path.dirname(save_path))=="winograd":
+        # for winograd, steal npz from wikitext
+        wikipath = pjoin(
+            os.path.dirname(os.path.dirname(save_path)),
+            "wikitext-103",
+            os.path.basename(save_path))
+        print(wikipath)
+        # fix me!
+        print("TO DO: RERUN FOR WIKITEXT FIRST!!")
+        # stop
     if gfile.Exists(save_path + ".npz"):
         print("Glove file already exists at %s" % (save_path + ".npz"))
     else:
@@ -141,19 +151,20 @@ def create_vocabulary(vocabulary_path, data_paths, tokenizer=None):
         print("Creating vocabulary %s from data %s" % (vocabulary_path, str(data_paths)))
         vocab = {}
         for path in data_paths:
-            with open(path, mode="rb") as f:
-                counter = 0
-                for line in f:
-                    counter += 1
-                    if counter % 100000 == 0:
-                        print("processing line %d" % counter)
-                    tokens = tokenizer(line) if tokenizer else basic_tokenizer(line)
-                    for w in tokens:
-                        if not w in _START_VOCAB:
-                            if w in vocab:
-                                vocab[w] += 1
-                            else:
-                                vocab[w] = 1
+            if os.path.isfile(path):
+                with open(path, mode="rb") as f:
+                    counter = 0
+                    for line in f:
+                        counter += 1
+                        if counter % 100000 == 0:
+                            print("processing line %d" % counter)
+                        tokens = tokenizer(line) if tokenizer else basic_tokenizer(line)
+                        for w in tokens:
+                            if not w in _START_VOCAB:
+                                if w in vocab:
+                                    vocab[w] += 1
+                                else:
+                                    vocab[w] = 1
         vocab_list = _START_VOCAB + sorted(vocab, key=vocab.get, reverse=True)
         print("Vocabulary size: %d" % len(vocab_list))
         with gfile.GFile(vocabulary_path, mode="wb") as vocab_file:
@@ -192,9 +203,12 @@ if __name__ == '__main__':
 
     vocab_path = pjoin(args.vocab_dir, "vocab.dat")
 
-    partial_fnames = ["test_BECAUSE", "test_BUT",
-                      "train_BECAUSE", "train_BUT",
-                      "valid_BECAUSE", "valid_BUT"]
+    partial_fnames = ["test_BECAUSE_S1", "test_BUT_S1",
+                      "train_BECAUSE_S1", "train_BUT_S1",
+                      "valid_BECAUSE_S1", "valid_BUT_S1",
+                      "test_BECAUSE_S2", "test_BUT_S2",
+                      "train_BECAUSE_S2", "train_BUT_S2",
+                      "valid_BECAUSE_S2", "valid_BUT_S2"]
 
     data_fnames = [partial_fname + ".txt" for partial_fname in partial_fnames]
     data_paths = [pjoin(args.source_dir, fname) for fname in data_fnames]
@@ -206,7 +220,7 @@ if __name__ == '__main__':
     # ======== Trim Distributed Word Representation =======
     # If you use other word representations, you should change the code below
 
-    process_glove(args, rev_vocab, args.source_dir + "/glove.trimmed.{}".format(args.glove_dim),
+    process_glove(args, rev_vocab, pjoin(args.source_dir, "glove.trimmed.{}".format(args.glove_dim)),
                   random_init=args.random_init)
 
     # ======== Creating Dataset =========
@@ -217,4 +231,6 @@ if __name__ == '__main__':
     for partial_fname in partial_fnames:
         data_path = pjoin(args.source_dir, partial_fname + ".txt")
         ids_path = pjoin(args.source_dir, partial_fname + ".ids.txt")
-        data_to_token_ids(data_path, ids_path, vocab_path, tokenizer=None) # nltk.word_tokenize
+
+        if os.path.isfile(data_path):
+            data_to_token_ids(data_path, ids_path, vocab_path)

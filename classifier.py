@@ -14,7 +14,7 @@ from tensorflow.python.ops import rnn_cell
 from tensorflow.python.ops.rnn_cell import DropoutWrapper
 from tensorflow.python.ops import variable_scope as vs
 
-from util import but_detector_pair_iter, cause_effect_pair_iter, winograd_pair_iter
+from util import pair_iter
 
 FLAGS = tf.app.flags.FLAGS
 
@@ -235,13 +235,16 @@ class SequenceClassifier(object):
         valid_sent1, valid_sent2 = [], []
         valid_winograd_sent1, valid_winograd_sent2 = [], []
 
-        for sent1_tokens, component1_mask, sent2_tokens, \
-            component2_mask, labels, winograd_labels in winograd_pair_iter(
-                    data_dir, self.vocab,
-                    self.flags.batch_size, shuffle=False):
+
+        for s1_tokens, s1_mask, s2_tokens, s2_mask, labels, winograd_labels, \
+                text in pair_iter(task="winograd", data_dir=data_dir,
+                                  split="valid", vocab=self.vocab,
+                                  rev_vocab = self.rev_vocab,
+                                  batch_size = self.flags.batch_size,
+                                  shuffle=True, cache=False):
             cost, logits = self.test(
-                    session, sent1_tokens, component1_mask,
-                    sent2_tokens, component2_mask, labels)
+                    session, s1_tokens, s1_mask,
+                    s2_tokens, s2_mask, labels)
             valid_costs.append(cost)
             accu = np.mean(np.argmax(logits, axis=1) == labels)
 
@@ -251,19 +254,19 @@ class SequenceClassifier(object):
             winograd_preds = (np.exp(logits) / np.sum(np.exp(logits), axis=1).reshape(logits.shape[0], 1))[:, 1]  # doing softmax
 
             wino_correct = 0
-            positions = np.array([False] * sent1_tokens.shape[0])
-            for i in range(0, sent1_tokens.shape[0]-1, 2):
+            positions = np.array([False] * s1_tokens.shape[0])
+            for i in range(0, s1_tokens.shape[0]-1, 2):
                 # print(i, i+1)
                 # print(winograd_preds[i], winograd_preds[i+1])
                 wino_correct += winograd_preds[i] < winograd_preds[i+1]  # this is wrong
                 positions[i] = True  # mark correct examples
 
             if FLAGS.correct_example:
-                valid_winograd_sent1.append(self.detokenize_batch(self.extract_sent(positions, sent1_tokens)))
+                valid_winograd_sent1.append(self.detokenize_batch(self.extract_sent(positions, s1_tokens)))
             else:
-                valid_winograd_sent1.append(self.detokenize_batch(self.extract_sent(np.invert(positions), sent1_tokens)))
+                valid_winograd_sent1.append(self.detokenize_batch(self.extract_sent(np.invert(positions), s1_tokens)))
 
-            winograd_accu = wino_correct / float(sent1_tokens.shape[0] / 2.)
+            winograd_accu = wino_correct / float(s1_tokens.shape[0] / 2.)
 
             if FLAGS.correct_example:
                 positions = preds == labels
@@ -272,8 +275,8 @@ class SequenceClassifier(object):
 
             valid_logits.extend(np.extract(positions, preds).tolist())
             valid_labels.extend(np.extract(positions, labels).tolist())
-            valid_sent1.extend(self.detokenize_batch(self.extract_sent(positions, sent1_tokens)))
-            valid_sent2.extend(self.detokenize_batch(self.extract_sent(positions, sent2_tokens)))
+            valid_sent1.extend(self.detokenize_batch(self.extract_sent(positions, s1_tokens)))
+            valid_sent2.extend(self.detokenize_batch(self.extract_sent(positions, s2_tokens)))
 
             valid_accus.append(accu)
             valid_wino_accus.append(winograd_accu)
@@ -292,9 +295,13 @@ class SequenceClassifier(object):
         valid_costs, valid_accus = [], []
         valid_logits, valid_labels = [], []
         valid_sent1, valid_sent2 = [], []
+
         for because_tokens, because_mask, but_tokens, \
-            but_mask, labels in but_detector_pair_iter(data_dir, split, self.vocab,
-                                                       self.flags.batch_size, shuffle=False):
+                but_mask, labels, text in pair_iter(
+                        task="but_because", data_dir=data_dir, split=split,
+                        vocab=self.vocab, rev_vocab=self.rev_vocab,
+                        batch_size=self.flags.batch_size, shuffle=False,
+                        cache=False):
             cost, logits = self.test(session, because_tokens, because_mask, but_tokens, but_mask, labels)
             valid_costs.append(cost)
             accu = np.mean(np.argmax(logits, axis=1) == labels)
@@ -359,13 +366,17 @@ class SequenceClassifier(object):
             return outsent
         return [detok_sent(s) for s in sent]
 
-    def cause_effect_validate(self, session, because_valid, dev=False):
+    def cause_effect_validate(self, session, data_dir, split, dev=False):
         valid_costs, valid_accus = [], []
         valid_logits, valid_labels = [], []
         valid_sent1, valid_sent2 = [], []
+
         for cause_tokens, cause_mask, effect_tokens, \
-            effect_mask, labels in cause_effect_pair_iter(because_valid, self.vocab,
-                                                       self.flags.batch_size, shuffle=False):
+            effect_mask, labels, text in pair_iter(
+                    task="cause_effect", data_dir=data_dir, split=split,
+                    vocab=self.vocab, rev_vocab=self.rev_vocab,
+                    batch_size=self.flags.batch_size, shuffle=False,
+                    cache=False):
             cost, logits = self.test(session, cause_tokens, cause_mask, effect_tokens, effect_mask, labels)
             valid_costs.append(cost)
             accu = np.mean(np.argmax(logits, axis=1) == labels)
@@ -392,14 +403,17 @@ class SequenceClassifier(object):
 
         return valid_cost, valid_accu
 
-    def cause_effect_dev_test(self, session, because_dev, save_train_dir, best_epoch):
+    def cause_effect_dev_test(self, session, data_dir, because_dev,
+                              save_train_dir, best_epoch):
         ## Checkpoint
         checkpoint_path = os.path.join(save_train_dir, "dis.ckpt")
 
         logging.info("restore model from best epoch %d" % best_epoch)
         self.saver.restore(session, checkpoint_path + ("-%d" % best_epoch))
 
-        test_cost, test_accu, test_logits, test_labels, valid_sent1, valid_sent2 = self.cause_effect_validate(session, because_dev, dev=True)
+        test_cost, test_accu, test_logits, test_labels, \
+                valid_sent1, valid_sent2 = self.cause_effect_validate(
+                        session, data_dir, "valid", dev=True)
         logging.info("Final dev cost: %f dev accu: %f" % (test_cost, test_accu))
 
         examples = 0
@@ -448,7 +462,8 @@ class SequenceClassifier(object):
 
         sys.stdout.flush()
 
-    def cause_effect_train(self, session, because_train, because_valid, because_test,
+    def cause_effect_train(self, session, data_dir, because_train,
+                           because_valid, because_test,
                            curr_epoch, num_epochs, save_train_dir):
         tic = time.time()
         params = tf.trainable_variables()
@@ -471,7 +486,11 @@ class SequenceClassifier(object):
             ## Train
             epoch_tic = time.time()
             for cause_tokens, cause_mask, effect_tokens, \
-                effect_mask, labels in cause_effect_pair_iter(because_train, self.vocab, self.flags.batch_size):
+                effect_mask, labels, text in pair_iter(
+                        task="cause_effect", data_dir=data_dir, split="train",
+                        vocab=self.vocab, rev_vocab=self.rev_vocab,
+                        batch_size=self.flags.batch_size, shuffle=True,
+                        cache=False):
                 # Get a batch and make a step.
                 tic = time.time()
 
@@ -502,7 +521,7 @@ class SequenceClassifier(object):
             checkpoint_path = os.path.join(save_train_dir, "dis.ckpt")
 
             ## Validate
-            valid_cost, valid_accu = self.cause_effect_validate(session, because_valid)
+            valid_cost, valid_accu = self.cause_effect_validate(session, data_dir, "valid")
             valid_accus.append(valid_accu)
 
             logging.info("Epoch %d Validation cost: %f validation accu: %f epoch time: %f" % (epoch, valid_cost,
@@ -528,7 +547,7 @@ class SequenceClassifier(object):
 
         # after training, we test this thing
         ## Test
-        test_cost, test_accu = self.cause_effect_validate(session, because_test)
+        test_cost, test_accu = self.cause_effect_validate(session, data_dir, "test")
         logging.info("Final test cost: %f test accu: %f" % (test_cost, test_accu))
 
         sys.stdout.flush()
@@ -557,8 +576,11 @@ class SequenceClassifier(object):
             ## Train
             epoch_tic = time.time()
             for because_tokens, because_mask, but_tokens, \
-                but_mask, labels in but_detector_pair_iter(data_dir, "train", self.vocab,
-                                                                     self.flags.batch_size):
+                but_mask, labels, text in pair_iter(
+                        task="but_because", data_dir=data_dir, split="train",
+                        vocab=self.vocab, rev_vocab=self.rev_vocab,
+                        batch_size=self.flags.batch_size, shuffle=True,
+                        cache=False):
                 # Get a batch and make a step.
                 tic = time.time()
 

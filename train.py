@@ -79,13 +79,13 @@ def main(_):
                                              because_valid, but_test, because_test,
                                              0, FLAGS.epochs, FLAGS.run_dir, data_dir)
             else:
-                sc.cause_effect_train(session, because_train, because_valid,because_test,
+                sc.cause_effect_train(session, data_dir, because_train, because_valid,because_test,
                                                    0, FLAGS.epochs, FLAGS.run_dir)
         else:
             if FLAGS.task == "but":
                 sc.but_because_dev_test(session, data_dir, FLAGS.run_dir, FLAGS.best_epoch)
             else:
-                sc.cause_effect_dev_test(session, because_valid, FLAGS.run_dir, FLAGS.best_epoch)
+                sc.cause_effect_dev_test(session, data_dir, because_valid, FLAGS.run_dir, FLAGS.best_epoch)
 
 if __name__ == "__main__":
     tf.app.run()

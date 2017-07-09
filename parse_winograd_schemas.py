@@ -13,7 +13,7 @@ import xml.etree.ElementTree as ET
 import re
 import os
 
-tree = ET.parse('data/WSCollection.xml')
+tree = ET.parse('data/winograd/WSCollection.xml')
 root = tree.getroot()
 
 n_pairs = 0
@@ -61,11 +61,11 @@ for schema in root:
 # print(sentences["correct"])
 # print(len(sentences["correct"]))
 
-for version in ["correct", "incorrect"]:
-	filename = "winograd_" + version.upper() + ".txt"
-	filepath = os.path.join(data_dir, filename)
-	open(filepath, "w").write("\n".join(sentences[version]))
+# for version in ["correct", "incorrect"]:
+# 	filename = "winograd_" + version.upper() + ".txt"
+# 	filepath = os.path.join(data_dir, "winograd", filename)
+# 	open(filepath, "w").write("\n".join(sentences[version]))
 
-filepath = os.path.join(data_dir, "winograd.txt")
+filepath = os.path.join(data_dir, "winograd", "valid_BECAUSE.txt")
 open(filepath, "w").write("\n".join(all_sentences))
 

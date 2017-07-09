@@ -1,7 +1,3 @@
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-
 import numpy as np
 from six.moves import xrange
 import tensorflow as tf
@@ -9,14 +5,14 @@ import tensorflow as tf
 import pickle
 import os
 import sys
+sys.path.insert(0, '..')
+
 import logging
 from os.path import join as pjoin
 
 import data
 
 np.random.seed(123)
-
-FLAGS = tf.app.flags.FLAGS
 
 ## fix me
 def tokenize(string):
@@ -42,8 +38,8 @@ cause and effect: load in one file
 but wrap both in one if i have time with a flag
 """
 
-def get_training_tuple(tokens1, tokens2, task, marker, vocab,
-                       rev_vocab, winograd_label=None):
+def get_training_tuple(tokens1, tokens2, task, marker, vocab, rev_vocab,
+                       max_seq_len, winograd_label=None):
 
     assert(marker=="because" or marker=="but")
 
@@ -58,8 +54,8 @@ def get_training_tuple(tokens1, tokens2, task, marker, vocab,
             next_sentence_tokens = next_sentence_tokens[1:]
 
     # exclude sentences that are too long
-    if len(previous_sentence_tokens) > FLAGS.max_seq_len \
-            or len(next_sentence_tokens) > FLAGS.max_seq_len:
+    if len(previous_sentence_tokens) > max_seq_len \
+            or len(next_sentence_tokens) > max_seq_len:
         return None
 
     training_example = []
@@ -85,7 +81,7 @@ def get_training_tuple(tokens1, tokens2, task, marker, vocab,
     return tuple(training_example)
 
 def build_batches(task, data_dir, split, vocab, rev_vocab, batch_size,
-                  shuffle, cache):
+                  max_seq_len, shuffle, cache):
 
     # build dictionary of files to look at, based on task
     fds = {}
@@ -122,6 +118,7 @@ def build_batches(task, data_dir, split, vocab, rev_vocab, batch_size,
                                                 tokens2=tokens2, task=task,
                                                 marker=marker, vocab=vocab,
                                                 rev_vocab=rev_vocab,
+                                                max_seq_len=max_seq_len,
                                                 winograd_label=winograd_label)
 
             if training_tuple: matched_tuples.append(training_tuple)
@@ -154,7 +151,7 @@ def build_batches(task, data_dir, split, vocab, rev_vocab, batch_size,
 
     return batches
 
-def pair_iter(task, data_dir, split, vocab, rev_vocab, batch_size,
+def pair_iter(task, data_dir, split, vocab, rev_vocab, batch_size, max_seq_len,
               shuffle=True, cache=False):
     """Iterator to get batches of inputs for models
 
@@ -181,6 +178,7 @@ def pair_iter(task, data_dir, split, vocab, rev_vocab, batch_size,
         batches = build_batches(task=task, data_dir=data_dir, split=split,
                                 vocab=vocab, rev_vocab=rev_vocab,
                                 batch_size = batch_size,
+                                max_seq_len=max_seq_len,
                                 shuffle=shuffle, cache=cache)
     while True:
         if len(batches) == 0:
@@ -219,8 +217,6 @@ def padded(tokens, batch_pad=0):
 # data_dir, split, vocab, batch_size
 if __name__ == '__main__':
 
-    tf.flags.DEFINE_integer("max_seq_len", 35, "cut off sentence after this of words")
-
     from tensorflow.python.platform import gfile
     def initialize_vocabulary(vocabulary_path):
         # map vocab to word embeddings
@@ -238,5 +234,6 @@ if __name__ == '__main__':
     # print(next(winograd_pair_iter("data/ptb/", vocab=vocab, batch_size=10, shuffle=False)))
     output = next(pair_iter(task="but_because", data_dir="data/ptb",
                             split="valid", vocab=vocab, rev_vocab=rev_vocab,
+                            max_seq_len=max_seq_len,
                             batch_size=10, shuffle=True, cache=False))
     print(output)

@@ -18,21 +18,13 @@ else
 	cd ..
 fi
 
+python extract_sentences.py
+
 python data.py --source_dir data/ptb --glove_dir data/glove.6B \
 	--vocab_dir data/ptb --glove_dim 100
 
 python data.py --source_dir data/wikitext-103 --glove_dir data/glove.6B \
 	--vocab_dir data/wikitext-103 --glove_dim 100
 
-
-
-# # wget 
-# # mv $GLOVE_DIR.zip $DATA_DIR
-# # unzip $DATA_DIR/$GLOVE_DIR.zip
-
-# # python data.py --source_dir $DATA_DIR --glove_dir
-
-# # python2 $CODE_DIR/preprocessing/dwr.py
-
-# # # Data processing for TensorFlow
-# # python2 $CODE_DIR/qa_data.py --glove_dim 100
+python data.py --source_dir data/winograd --glove_dir data/glove.6B \
+	--vocab_dir data/winograd --glove_dim 100

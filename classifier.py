@@ -235,6 +235,7 @@ class SequenceClassifier(object):
         valid_sent1, valid_sent2 = [], []
         valid_winograd_sent1, valid_winograd_sent2 = [], []
 
+
         for s1_tokens, s1_mask, s2_tokens, s2_mask, labels, winograd_labels, \
                 text in pair_iter(task="winograd", data_dir=data_dir,
                                   split="valid", vocab=self.vocab,
@@ -248,22 +249,24 @@ class SequenceClassifier(object):
             accu = np.mean(np.argmax(logits, axis=1) == labels)
 
             preds = np.argmax(logits, axis=1)
-            winograd_preds = logits[:, 1]  # extract value on because
+
+            # winograd_preds = logits[:, 1]  # original
+            winograd_preds = (np.exp(logits) / np.sum(np.exp(logits), axis=1).reshape(logits.shape[0], 1))[:, 1]  # doing softmax
 
             wino_correct = 0
-            positions = np.array([False] * because_tokens.shape[0])
-            for i in range(0, because_tokens.shape[0]-1, 2):
+            positions = np.array([False] * s1_tokens.shape[0])
+            for i in range(0, s1_tokens.shape[0]-1, 2):
                 # print(i, i+1)
                 # print(winograd_preds[i], winograd_preds[i+1])
                 wino_correct += winograd_preds[i] < winograd_preds[i+1]  # this is wrong
                 positions[i] = True  # mark correct examples
 
             if FLAGS.correct_example:
-                valid_winograd_sent1.append(self.detokenize_batch(self.extract_sent(positions, because_tokens)))
+                valid_winograd_sent1.append(self.detokenize_batch(self.extract_sent(positions, s1_tokens)))
             else:
-                valid_winograd_sent1.append(self.detokenize_batch(self.extract_sent(np.invert(positions), because_tokens)))
+                valid_winograd_sent1.append(self.detokenize_batch(self.extract_sent(np.invert(positions), s1_tokens)))
 
-            winograd_accu = wino_correct / float(because_tokens.shape[0] / 2.)
+            winograd_accu = wino_correct / float(s1_tokens.shape[0] / 2.)
 
             if FLAGS.correct_example:
                 positions = preds == labels
@@ -272,13 +275,15 @@ class SequenceClassifier(object):
 
             valid_logits.extend(np.extract(positions, preds).tolist())
             valid_labels.extend(np.extract(positions, labels).tolist())
-            valid_sent1.extend(self.detokenize_batch(self.extract_sent(positions, because_tokens)))
-            valid_sent2.extend(self.detokenize_batch(self.extract_sent(positions, but_tokens)))
+            valid_sent1.extend(self.detokenize_batch(self.extract_sent(positions, s1_tokens)))
+            valid_sent2.extend(self.detokenize_batch(self.extract_sent(positions, s2_tokens)))
 
             valid_accus.append(accu)
             valid_wino_accus.append(winograd_accu)
 
             print(winograd_preds)
+            print(winograd_labels)
+            # print(winograd_preds)
 
         valid_accu = sum(valid_accus) / float(len(valid_accus))
         valid_cost = sum(valid_costs) / float(len(valid_costs))

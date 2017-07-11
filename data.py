@@ -8,6 +8,8 @@ import re
 import sys
 import tarfile
 import argparse
+import nltk
+import string
 
 from six.moves import urllib
 
@@ -62,8 +64,10 @@ def setup_args():
 
 def basic_tokenizer(sentence):
     words = []
-    for space_separated_fragment in sentence.strip().split():
+    # this is stripping punctuations
+    for space_separated_fragment in ("".join(c for c in sentence if c not in string.punctuation)).split():
         words.extend(re.split(" ", space_separated_fragment))
+
     return [w for w in words if w]
 
 
@@ -209,7 +213,7 @@ if __name__ == '__main__':
     data_fnames = [partial_fname + ".txt" for partial_fname in partial_fnames]
     data_paths = [pjoin(args.source_dir, fname) for fname in data_fnames]
 
-    create_vocabulary(vocab_path, data_paths)
+    create_vocabulary(vocab_path, data_paths, tokenizer=None) # nltk.word_tokenize
 
     vocab, rev_vocab = initialize_vocabulary(pjoin(args.vocab_dir, "vocab.dat"))
 
@@ -227,5 +231,6 @@ if __name__ == '__main__':
     for partial_fname in partial_fnames:
         data_path = pjoin(args.source_dir, partial_fname + ".txt")
         ids_path = pjoin(args.source_dir, partial_fname + ".ids.txt")
+
         if os.path.isfile(data_path):
             data_to_token_ids(data_path, ids_path, vocab_path)

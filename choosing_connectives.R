@@ -8,7 +8,7 @@ library(dplyr)
 library(tidyr)
 library(ggplot2)
 total = 18459
-df = read.csv("discourse_connectives_from_ptb.csv",
+df = read.csv("discourse_connectives_from_pdtb.csv",
               col.names = c("connective", "freq")) %>%
   mutate(percent = freq/total*100) %>%
   mutate(connective = factor(connective, levels=connective[order(freq)]))

@@ -19,3 +19,10 @@ python train.py --run_dir wikitext_run_cause --task cause --epochs 3 --print_eve
 ```
 python train.py --best_epoch 3 --run_dir ptb_run_but --dev True --correct_example True
 ```
+
+## Input format for models
+
+* `{split}_S1.txt` - first part of sentence (e.g. before discourse marker), 1 sentence per line, space separated words
+* `{split}_S2.txt` - second part of sentence (e.g. after discourse marker), 1 sentence per line, space separated words
+* `{split}_Y.txt` - labels for 1 sentence per line (possibly multiple columns per line)
+

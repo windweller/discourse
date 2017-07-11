@@ -13,44 +13,207 @@ import os
 import json
 
 # instead, and then, even though*, although*, furthermore, 
+# candidate list on slack, vote on them
+# grab the most frequent of those from papers we read.
 
-discourse_markers = ["but", "because", "furthermore", "therefore"]
+# regex for words
+# depparse
+# search for dep patterns we're looking for
+
+# list of patterns that we're looking for
+# log which ones we ignore
+dependency_types = {
+  "after": {
+    "POS": "IN",
+    "S2": "mark", # S2 head (full S head) ---> connective
+    "S1": ["advcl"], # S2 head (full S head) ---> S1 head
+    "alternates": ["and after"],
+    "lost_alternates": ["after that"]
+  },
+  "and": {
+    "POS": "CC",
+    "S2": "cc",
+    "S1": ["conj"]
+  },
+  "but": {
+    "POS": "CC",
+    "S2": "cc",
+    "S1": ["conj"]
+  },
+  "because": {
+    "POS": "IN",
+    "S2": "mark", # S2 head (full S head) ---> connective
+    "S1": ["advcl"], # S1 head ---> S2 head (full S head)
+    "alternates": ["just because", "only because"], # fix me (????)
+    "lost_alternates": ["because of"]
+  },
+  "as": {
+    # e.g. "as only about 4 people showed up, 
+    #       it was more of a discussion than a formal talk"
+    "POS": "IN",
+    "S2": "mark",
+    "S1": ["advcl"]
+  },
+  "however": {
+    # "however you interpret it, the claims are wrong"
+    # uses advcl for S2, so we're resolving that ambiguity
+    "POS": "RB",
+    "S2": "advmod",
+    # different kinds of possible dependencies for S1
+    "S1": ["dep", "parataxis"]
+  },
+  "if": {
+    # e.g. "it will fall if you rest it on the table like that"
+    "POS": "IN",
+    "S2": "mark",
+    "S1": ["advcl"]
+  },
+  "when": {
+    # e.g. "when stopped by, he asked how you were"
+    "POS": "WRB",
+    "S2": "advmod",
+    "S1": ["advcl"]
+  },
+  "while": {
+    # e.g. "while he watched tv, he kept knitting the sweater"
+    "POS": "IN",
+    "S2": "mark",
+    "S1": ["advcl"]
+  }
+}
+
+# for each dicourse word, if it's the part of speech we expect and it's
+# hanging off the head word
+
+discourse_markers = dependency_types.keys()
 
 
-def extract_because():
+def parse_example(marker, sentence, previous_sentence):
 
-	data_dir = "data/ptb/"
-	parses_dir = os.path.join(data_dir, "parses/")
-	if not os.path.isdir(parses_dir):
-	  os.mkdir(parses_dir)
+  data_dir = "data/ptb/"
+  parses_dir = os.path.join(data_dir, "parses/")
+  if not os.path.isdir(parses_dir):
+    os.mkdir(parses_dir)
 
-	parse_string = '{"sentences":[{"index":0,"basicDependencies":[{"dep":"ROOT","governor":0,"governorGloss":"ROOT","dependent":2,"dependentGloss":"like"},{"dep":"nsubj","governor":2,"governorGloss":"like","dependent":1,"dependentGloss":"I"},{"dep":"dobj","governor":2,"governorGloss":"like","dependent":3,"dependentGloss":"her"},{"dep":"mark","governor":7,"governorGloss":"nice","dependent":4,"dependentGloss":"because"},{"dep":"nsubj","governor":7,"governorGloss":"nice","dependent":5,"dependentGloss":"she"},{"dep":"cop","governor":7,"governorGloss":"nice","dependent":6,"dependentGloss":"is"},{"dep":"advcl","governor":2,"governorGloss":"like","dependent":7,"dependentGloss":"nice"}],"enhancedDependencies":[{"dep":"ROOT","governor":0,"governorGloss":"ROOT","dependent":2,"dependentGloss":"like"},{"dep":"nsubj","governor":2,"governorGloss":"like","dependent":1,"dependentGloss":"I"},{"dep":"dobj","governor":2,"governorGloss":"like","dependent":3,"dependentGloss":"her"},{"dep":"mark","governor":7,"governorGloss":"nice","dependent":4,"dependentGloss":"because"},{"dep":"nsubj","governor":7,"governorGloss":"nice","dependent":5,"dependentGloss":"she"},{"dep":"cop","governor":7,"governorGloss":"nice","dependent":6,"dependentGloss":"is"},{"dep":"advcl:because","governor":2,"governorGloss":"like","dependent":7,"dependentGloss":"nice"}],"enhancedPlusPlusDependencies":[{"dep":"ROOT","governor":0,"governorGloss":"ROOT","dependent":2,"dependentGloss":"like"},{"dep":"nsubj","governor":2,"governorGloss":"like","dependent":1,"dependentGloss":"I"},{"dep":"dobj","governor":2,"governorGloss":"like","dependent":3,"dependentGloss":"her"},{"dep":"mark","governor":7,"governorGloss":"nice","dependent":4,"dependentGloss":"because"},{"dep":"nsubj","governor":7,"governorGloss":"nice","dependent":5,"dependentGloss":"she"},{"dep":"cop","governor":7,"governorGloss":"nice","dependent":6,"dependentGloss":"is"},{"dep":"advcl:because","governor":2,"governorGloss":"like","dependent":7,"dependentGloss":"nice"}],"tokens":[{"index":1,"word":"I","originalText":"I","characterOffsetBegin":0,"characterOffsetEnd":1,"pos":"PRP","before":"","after":" "},{"index":2,"word":"like","originalText":"like","characterOffsetBegin":2,"characterOffsetEnd":6,"pos":"VBP","before":" ","after":" "},{"index":3,"word":"her","originalText":"her","characterOffsetBegin":7,"characterOffsetEnd":10,"pos":"PRP$","before":" ","after":" "},{"index":4,"word":"because","originalText":"because","characterOffsetBegin":11,"characterOffsetEnd":18,"pos":"IN","before":" ","after":" "},{"index":5,"word":"she","originalText":"she","characterOffsetBegin":19,"characterOffsetEnd":22,"pos":"PRP","before":" ","after":" "},{"index":6,"word":"is","originalText":"is","characterOffsetBegin":23,"characterOffsetEnd":25,"pos":"VBZ","before":" ","after":" "},{"index":7,"word":"nice","originalText":"nice","characterOffsetBegin":26,"characterOffsetEnd":30,"pos":"JJ","before":" ","after":""}]}]}'
+  # fix me (take sentence as input)
+  sentence = "i like her because she is nice"
+  parse_string = '{"sentences":[{"index":0,"basicDependencies":[{"dep":"ROOT","governor":0,"governorGloss":"ROOT","dependent":2,"dependentGloss":"like"},{"dep":"nsubj","governor":2,"governorGloss":"like","dependent":1,"dependentGloss":"I"},{"dep":"dobj","governor":2,"governorGloss":"like","dependent":3,"dependentGloss":"her"},{"dep":"mark","governor":7,"governorGloss":"nice","dependent":4,"dependentGloss":"because"},{"dep":"nsubj","governor":7,"governorGloss":"nice","dependent":5,"dependentGloss":"she"},{"dep":"cop","governor":7,"governorGloss":"nice","dependent":6,"dependentGloss":"is"},{"dep":"advcl","governor":2,"governorGloss":"like","dependent":7,"dependentGloss":"nice"}],"enhancedDependencies":[{"dep":"ROOT","governor":0,"governorGloss":"ROOT","dependent":2,"dependentGloss":"like"},{"dep":"nsubj","governor":2,"governorGloss":"like","dependent":1,"dependentGloss":"I"},{"dep":"dobj","governor":2,"governorGloss":"like","dependent":3,"dependentGloss":"her"},{"dep":"mark","governor":7,"governorGloss":"nice","dependent":4,"dependentGloss":"because"},{"dep":"nsubj","governor":7,"governorGloss":"nice","dependent":5,"dependentGloss":"she"},{"dep":"cop","governor":7,"governorGloss":"nice","dependent":6,"dependentGloss":"is"},{"dep":"advcl:because","governor":2,"governorGloss":"like","dependent":7,"dependentGloss":"nice"}],"enhancedPlusPlusDependencies":[{"dep":"ROOT","governor":0,"governorGloss":"ROOT","dependent":2,"dependentGloss":"like"},{"dep":"nsubj","governor":2,"governorGloss":"like","dependent":1,"dependentGloss":"I"},{"dep":"dobj","governor":2,"governorGloss":"like","dependent":3,"dependentGloss":"her"},{"dep":"mark","governor":7,"governorGloss":"nice","dependent":4,"dependentGloss":"because"},{"dep":"nsubj","governor":7,"governorGloss":"nice","dependent":5,"dependentGloss":"she"},{"dep":"cop","governor":7,"governorGloss":"nice","dependent":6,"dependentGloss":"is"},{"dep":"advcl:because","governor":2,"governorGloss":"like","dependent":7,"dependentGloss":"nice"}],"tokens":[{"index":1,"word":"I","originalText":"I","characterOffsetBegin":0,"characterOffsetEnd":1,"pos":"PRP","before":"","after":" "},{"index":2,"word":"like","originalText":"like","characterOffsetBegin":2,"characterOffsetEnd":6,"pos":"VBP","before":" ","after":" "},{"index":3,"word":"her","originalText":"her","characterOffsetBegin":7,"characterOffsetEnd":10,"pos":"PRP$","before":" ","after":" "},{"index":4,"word":"because","originalText":"because","characterOffsetBegin":11,"characterOffsetEnd":18,"pos":"IN","before":" ","after":" "},{"index":5,"word":"she","originalText":"she","characterOffsetBegin":19,"characterOffsetEnd":22,"pos":"PRP","before":" ","after":" "},{"index":6,"word":"is","originalText":"is","characterOffsetBegin":23,"characterOffsetEnd":25,"pos":"VBZ","before":" ","after":" "},{"index":7,"word":"nice","originalText":"nice","characterOffsetBegin":26,"characterOffsetEnd":30,"pos":"JJ","before":" ","after":""}]}]}'
 
-	parse = json.loads(parse_string)
+  parse = json.loads(parse_string)
 
-	because_dependency_types = {
-	  "cause": "mark",
-	  "effect": "advcl"
-	}
+  class Sentence():
+    def __init__(self, json_sentence):
+      self.json = json_sentence
+      self.dependencies = json_sentence["basicDependencies"]
+      self.tokens = json_sentence["tokens"]
+    def pairs(self, discourse_marker):
+      None
+    def index(self, word):
+      return [t["word"] for t in self.tokens].index(word) + 1
+    def token(self, index):
+      return self.tokens[index-1]
+    def word(self, index):
+      return self.token(index)["word"]
+    def find_parents(self, index, filter_types=False):
+      deps = self.find_deps(index, dir="parents", filter_types=filter_types)
+      return [d["governor"] for d in deps]
+    def find_children(self, index, filter_types=False):
+      deps = self.find_deps(index, dir="children", filter_types=filter_types)
+      return [d["dependent"] for d in deps]
+    def find_deps(self, index, dir=None, filter_types=False):
+      deps = []
+      if dir=="parents" or dir==None:
+        deps += [d for d in sentence.dependencies if d['dependent']==index]
+      if dir=="children" or dir==None:
+        deps += [d for d in sentence.dependencies if d['governor']==index]
+      if filter_types:
+        return [d for d in deps if d["dep"] in filter_types]
+      else:
+        return deps
+    def find_dep_types(self, index, dir=None, filter_types=False):
+      deps = self.find_deps(index, dir=dir, filter_types=filter_types)
+      return [d["dep"] for d in deps]
+    def string(self):
+      return " ".join([t["word"] for t in self.tokens])
+    def get_subordinate_indices(self, acc, explore, exclude_indices=[]):
 
-	class Sentence():
-	  def __init__(self, json_sentence):
-	    self.json = json_sentence
-	    self.dependencies = json_sentence["basicDependencies"]
-	    self.tokens = json_sentence["tokens"]
-	  def pairs(self, discourse_marker):
-	    None
-	  def index(self, word):
-	    return [t["word"] for t in self.tokens].index(word) + 1
-	  def token(self, index):
-	    return self.tokens[index-1]
-	  def word(self, index):
-	    return self.token(index)["word"]
+      children = [c for i in explore for c in sentence.find_children(i) if not c in exclude_indices]
+      if len(children)==0:
+        return acc
+      else:
+        return self.get_subordinate_indices(
+          acc=acc + children,
+          explore=children,
+          exclude_indices=exclude_indices
+        )
 
-	sentence = Sentence(parse["sentences"][0])
-	# sentence.pairs("because")
+    def get_phrase_from_head(self, head_index, exclude_indices=[]):
+      # fix me
 
-	print(sentence.index("because"))
+      # given an index,
+      # grab every word that's a child of it in the dependency graph
+      subordinates = self.get_subordinate_indices(
+        acc=[head_index],
+        explore=[head_index],
+        exclude_indices=exclude_indices
+      )
+      subordinates.sort()
+
+      subordinate_phrase = " ".join([sentence.word(i) for i in subordinates])
+
+      # optionally exclude some indices and their children
+      
+      # make a string from this to return
+      return subordinate_phrase
+
+  sentence = Sentence(parse["sentences"][0])
+
+  marker_index = sentence.index(marker)
+  dep_patterns = dependency_types[marker]
+
+  # Look for S2
+  sentence.find_deps("parents")
+  possible_s2_head_indices = sentence.find_parents(
+    marker_index,
+    filter_types=[dep_patterns["S2"]]
+  )
+  if len(possible_s2_head_indices)==1:
+    # Record S2
+    s2_head_index = possible_s2_head_indices[0]
+    s2 = sentence.get_phrase_from_head(
+      s2_head_index,
+      exclude_indices=[marker_index]
+    )
+
+    # Look for S1
+    possible_s1_dependency_types = sentence.find_dep_types(
+      s2_head_index,
+      dir="parents"
+    )
+    if any([t in possible_s1_dependency_types for t in dep_patterns["S1"]]):
+      possible_s1_head_indices = sentence.find_parents(
+        s2_head_index,
+        filter_types=dep_patterns["S1"]
+      )
+      if len(possible_s1_head_indices)==1:
+        # if S1 found, record S1
+        s1_head_index = possible_s1_head_indices[0]
+        s1 = sentence.get_phrase_from_head(
+          s1_head_index,
+          exclude_indices=[s2_head_index]
+        )
+        return (s1, s2, marker)
+      else:
+        # if no S1 found, record previous sentence as S1
+        s1 = previous_sentence
+
+    # if S2 found, return example tuple
+    return (s1, s2, marker)
+
+  else:
+    # if no S2 found, print out sentence and return None
+    print("NO MATCH: " + sentence)
+    return None
 
 
 def indices(lst, element):
@@ -286,11 +449,8 @@ def winograd():
       filepath = "data/winograd/valid_BECAUSE_S" + str(s+1) + ".txt"
       open(filepath, "w").write("\n".join([pair[s] for pair in all_sentences]))
 
-extract_because()
+print(parse_example("because", "sentence", "S1"))
 
-# dependencies = 
-# print([d for d in dependencies if d['dependentGloss']=="because"])
-# print([d for d in dependencies if d['governor']==4])
 
 # for line in corpus:
   # regex search for discourse marker

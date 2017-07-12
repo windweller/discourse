@@ -15,5 +15,8 @@ df = read.csv("discourse_connectives_from_pdtb.csv",
 
 most_frequent = df %>% filter(percent>=2) %>% select(connective, percent)
 
-print(most_frequent, row.names=F)
-nrow(most_frequent)
+favorite_markers = c("after", "also", "as", "because", "for example", "however", "if", "when", "while", "then")
+favorites = df %>% filter(connective %in% favorite_markers)
+
+print(favorites %>% select(-freq), row.names=F)
+nrow(favorites)

@@ -14,6 +14,12 @@ import json
 import pickle
 import requests
 
+def collapse_numbers(s):
+  if COLLAPSE_NUMBERS:
+    return re.sub("([^ ]*)\d([^ ]*)", "\1N\2", s)
+  else:
+    return s
+
 # instead, and then, even though*, although*, furthermore, 
 # candidate list on slack, vote on them
 # grab the most frequent of those from papers we read.
@@ -174,7 +180,7 @@ def parse_example(marker, parse_string, current_sentence, previous_sentence):
 
   parse = json.loads(parse_string)
 
-  print(current_sentence)
+  # print(current_sentence)
 
   class Sentence():
     def __init__(self, json_sentence):
@@ -246,13 +252,16 @@ def parse_example(marker, parse_string, current_sentence, previous_sentence):
 
   sentence = Sentence(parse["sentences"][0])
 
-  possible_marker_indices = sentence.indices(marker)
-
   marker_index = sentence.indices(marker)[0] # fix me!!!
   dep_patterns = dependency_types[marker]
 
+  possible_marker_indices = sentence.indices(marker)
+  possible_s2_head_indices = [p for marker_index in possible_marker_indices for p in sentence.find_parents(
+    marker_index,
+    filter_types=[dep_patterns["S2"]]
+  )]
+
   # Look for S2
-  sentence.find_deps("parents")
   possible_s2_head_indices = sentence.find_parents(
     marker_index,
     filter_types=[dep_patterns["S2"]]
@@ -319,67 +328,85 @@ def write_example_file(data_dir, split, label, element_list):
   w.close()
 
 
-def ptb():
+def parse_data_directory(data_tag, tag2, extension, collapse_nums=False, strip_punctuation=False):
   ## PTB
   # Given a corpus where each line is a sentence, find examples with given
   # discourse markers.
+
+  data_dir = "data/" + data_tag + "/"
 
   num_sentences = 0
 
   # download ptb if it doesn't exist
   # fix me
-  if not os.path.isfile("data/ptb/ptb.test.txt"):
+  if not os.path.isfile(data_dir + tag2 + ".test." + extension):
     # download it
     None
-  if not os.path.isfile("data/ptb/ptb.train.txt"):
+  if not os.path.isfile(data_dir + tag2 + ".train." + extension):
     None
-  if not os.path.isfile("data/ptb/ptb.valid.txt"):
+  if not os.path.isfile(data_dir + tag2 + ".valid." + extension):
     None
 
   # check if text files already exist
-  if all([os.path.isfile(f) for f in text_filenames("data/ptb/")]):
-    print("PTB text files already exist. " +
+  if all([os.path.isfile(f) for f in text_filenames(data_dir)]):
+    print("text files in " + data_dir + " already exist. " +
           "Delete them if you want to rerun.")
   else:
-    for split in ["train", "valid"#, "test"
-    ]:
+    for split in ["train", "valid", "test"]:
 
-      examples = []
+      s1s = []
+      s2s = []
+      labels = []
 
-      datapath = "data/ptb/ptb." + split + ".txt"
+      datapath = data_dir + tag2 + "." + split + "." + extension
       fd = open(datapath)
       line = fd.readline()
       previous_line = ""
       while line:
-        pattern = " (" + "|".join(discourse_markers) + ") "
-        m = re.match(pattern, line)
-        if m:
-          parse_string = get_parse(line)
-          for marker in m.groups():
-            example_tuple = parse_example(marker, parse_string, line, previous_line)
-            examples.append(example_tuple)
+        if len(line) > 0:
+          if data_dir=="data/wikitext-103" and line_words[0] == "=":
+            previous_line = ""
+          else:
+            if data_dir=="data/wikitext-103":
+              doc_sentences = line.split(" . ")
+            else:
+              doc_sentences = [line]
+            for s in doc_sentences:
+              if collapse_nums:
+                words = collapse_numbers(s)
+
+              if strip_punctuation:
+                words_to_exclude = ["@-@", ".", "\"", ",", ":",
+                                    "—", "(", ")", "@,@", "@.@",
+                                    ";", "'", "–", "!", "?"]
+                s = " ".join([w for w in s.split() if not w in words_to_exclude])
+
+              pattern = " (" + "|".join(discourse_markers) + ") "
+              m = re.match(pattern, s)
+              if m:
+                parse_string = get_parse(s)
+                for marker in m.groups():
+                  example_tuple = parse_example(marker, parse_string, s, previous_line)
+                  if example_tuple:
+                    s1, s2, label = example_tuple
+                    s1s.append(s1.strip())
+                    s2s.append(s2.strip())
+                    labels.append(label.strip())
+              previous_line = s
 
         previous_line = line
         line = fd.readline()
         num_sentences += 1
       fd.close()
 
-      s1, s2, labels = zip(*examples)
-
-      write_example_file("data/ptb/", split, "S1", s1)
-      write_example_file("data/ptb/", split, "S2", s2)
-      write_example_file("data/ptb/", split, "labels", labels)
+      write_example_file(data_dir, split, "S1", s1s)
+      write_example_file(data_dir, split, "S2", s2s)
+      write_example_file(data_dir, split, "labels", labels)
 
 
 ## Wikitext 103
 
-def wikitext(COLLAPSE_NUMBERS=False, STRIP_PUNCTUATION=False):
-
-  def collapse_numbers(s):
-    if COLLAPSE_NUMBERS:
-      return re.sub("([^ ]*)\d([^ ]*)", "\1N\2", s)
-    else:
-      return s
+def wikitext():
 
   # download wikitext if it doesn't exist
   # wiki.test.tokens
@@ -511,7 +538,8 @@ def winograd():
       open(filepath, "w").write("\n".join([pair[s] for pair in all_sentences]))
 
 
-ptb()
+parse_data_directory("ptb", "ptb", "txt")
+parse_data_directory("wikitext-103", "wiki", "tokens")
 pickle.dump(cached_parses, open("cached_parses.dat", "wb"))
 
 # for line in corpus:

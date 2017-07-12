@@ -11,6 +11,8 @@ E.g.:
 import re
 import os
 import json
+import pickle
+import requests
 
 # instead, and then, even though*, although*, furthermore, 
 # candidate list on slack, vote on them
@@ -24,16 +26,68 @@ import json
 # log which ones we ignore
 dependency_types = {
   "after": {
+     # this will collect some verbal noun phrases
+     # if we want to exclude them, we can on the basis of the head being a VBG
     "POS": "IN",
     "S2": "mark", # S2 head (full S head) ---> connective
-    "S1": ["advcl"], # S2 head (full S head) ---> S1 head
-    "alternates": ["and after"],
-    "lost_alternates": ["after that"]
+    "S1": ["advcl"]#, # S2 head (full S head) ---> S1 head
+    # # fix me! (i'm not using alternates and lost alternates)
+    # "alternates": ["and after"],
+    # "lost_alternates": ["after that"]
+  },
+  "also": {
+    # e.g. "i also like ice cream"
+    #      "i like ice cream also"
+    # definitely want sentence initial
+    # if "also" appears with other discourse markers, exclude it
+    "POS": "RB",
+    "S2": "advmod",
+    "S1": ["dep", "parataxis"]
+  },
+  "although": {
+    "POS": "IN",
+    "S2": "mark",
+    "S1": ["advcl"]
   },
   "and": {
     "POS": "CC",
     "S2": "cc",
     "S1": ["conj"]
+  },
+  "then": {
+    "POS": "RB",
+    "S2": "advmod",
+    "S1": ["dep", "parataxis"] # previous sentence is always S1
+  },
+  "for example": {
+    "POS": {"for": "IN", "example": "NN"},
+    "S2": "nmod",
+    "S1": ["dep", "parataxis"]
+  },
+  "before": {
+    "POS": "IN",
+    "S2": "mark",
+    "S1": ["advcl"]
+  },
+  "meanwhile": {
+    "POS": "RB",
+    "S2": "advmod",
+    "S1": ["parataxis", "dep"]
+  },
+  "so": {
+    "POS": "RB",
+    "S2": "advmod",
+    "S1": ["dep", "parataxis"]
+  },
+  "still": {
+    "POS": "RB",
+    "S2": "advmod",
+    "S1": ["parataxis", "dep"]
+  },
+  "though": {
+    "POS": "RB",
+    "S2": "advmod",
+    "S1": ["parataxis", "dep"]
   },
   "but": {
     "POS": "CC",
@@ -82,34 +136,58 @@ dependency_types = {
   }
 }
 
+def get_indices(lst, element):
+  # https://stackoverflow.com/a/18669080
+  result = []
+  offset = -1
+  while True:
+    try:
+      offset = lst.index(element, offset+1)
+    except ValueError:
+      return result
+    result.append(offset)
+
 # for each dicourse word, if it's the part of speech we expect and it's
 # hanging off the head word
 
 discourse_markers = dependency_types.keys()
 
+cached_parses = {}
+if os.path.isfile("cached_parses.dat"):
+  cached_parses = pickle.load(open("cached_parses.dat", "rb"))
 
-def parse_example(marker, sentence, previous_sentence):
+def get_parse(sentence):
+  sentence_tag = re.sub("[^A-z]", "", sentence)
+  if sentence_tag in cached_parses:
+    parse_string = cached_parses[sentence_tag]
+  else:
+    url = "http://localhost:12345?properties={annotators:'tokenize,ssplit,pos,depparse'}"
+    data = sentence
+    parse_string = requests.post(url, data=data).text
+    cached_parses[sentence_tag] = parse_string
+  return parse_string
 
-  data_dir = "data/ptb/"
-  parses_dir = os.path.join(data_dir, "parses/")
-  if not os.path.isdir(parses_dir):
-    os.mkdir(parses_dir)
+def parse_example(marker, parse_string, current_sentence, previous_sentence):
 
   # fix me (take sentence as input)
-  sentence = "i like her because she is nice"
-  parse_string = '{"sentences":[{"index":0,"basicDependencies":[{"dep":"ROOT","governor":0,"governorGloss":"ROOT","dependent":2,"dependentGloss":"like"},{"dep":"nsubj","governor":2,"governorGloss":"like","dependent":1,"dependentGloss":"I"},{"dep":"dobj","governor":2,"governorGloss":"like","dependent":3,"dependentGloss":"her"},{"dep":"mark","governor":7,"governorGloss":"nice","dependent":4,"dependentGloss":"because"},{"dep":"nsubj","governor":7,"governorGloss":"nice","dependent":5,"dependentGloss":"she"},{"dep":"cop","governor":7,"governorGloss":"nice","dependent":6,"dependentGloss":"is"},{"dep":"advcl","governor":2,"governorGloss":"like","dependent":7,"dependentGloss":"nice"}],"enhancedDependencies":[{"dep":"ROOT","governor":0,"governorGloss":"ROOT","dependent":2,"dependentGloss":"like"},{"dep":"nsubj","governor":2,"governorGloss":"like","dependent":1,"dependentGloss":"I"},{"dep":"dobj","governor":2,"governorGloss":"like","dependent":3,"dependentGloss":"her"},{"dep":"mark","governor":7,"governorGloss":"nice","dependent":4,"dependentGloss":"because"},{"dep":"nsubj","governor":7,"governorGloss":"nice","dependent":5,"dependentGloss":"she"},{"dep":"cop","governor":7,"governorGloss":"nice","dependent":6,"dependentGloss":"is"},{"dep":"advcl:because","governor":2,"governorGloss":"like","dependent":7,"dependentGloss":"nice"}],"enhancedPlusPlusDependencies":[{"dep":"ROOT","governor":0,"governorGloss":"ROOT","dependent":2,"dependentGloss":"like"},{"dep":"nsubj","governor":2,"governorGloss":"like","dependent":1,"dependentGloss":"I"},{"dep":"dobj","governor":2,"governorGloss":"like","dependent":3,"dependentGloss":"her"},{"dep":"mark","governor":7,"governorGloss":"nice","dependent":4,"dependentGloss":"because"},{"dep":"nsubj","governor":7,"governorGloss":"nice","dependent":5,"dependentGloss":"she"},{"dep":"cop","governor":7,"governorGloss":"nice","dependent":6,"dependentGloss":"is"},{"dep":"advcl:because","governor":2,"governorGloss":"like","dependent":7,"dependentGloss":"nice"}],"tokens":[{"index":1,"word":"I","originalText":"I","characterOffsetBegin":0,"characterOffsetEnd":1,"pos":"PRP","before":"","after":" "},{"index":2,"word":"like","originalText":"like","characterOffsetBegin":2,"characterOffsetEnd":6,"pos":"VBP","before":" ","after":" "},{"index":3,"word":"her","originalText":"her","characterOffsetBegin":7,"characterOffsetEnd":10,"pos":"PRP$","before":" ","after":" "},{"index":4,"word":"because","originalText":"because","characterOffsetBegin":11,"characterOffsetEnd":18,"pos":"IN","before":" ","after":" "},{"index":5,"word":"she","originalText":"she","characterOffsetBegin":19,"characterOffsetEnd":22,"pos":"PRP","before":" ","after":" "},{"index":6,"word":"is","originalText":"is","characterOffsetBegin":23,"characterOffsetEnd":25,"pos":"VBZ","before":" ","after":" "},{"index":7,"word":"nice","originalText":"nice","characterOffsetBegin":26,"characterOffsetEnd":30,"pos":"JJ","before":" ","after":""}]}]}'
+  # sentence = "i like her because she is nice"
 
   parse = json.loads(parse_string)
+
+  print(current_sentence)
 
   class Sentence():
     def __init__(self, json_sentence):
       self.json = json_sentence
       self.dependencies = json_sentence["basicDependencies"]
       self.tokens = json_sentence["tokens"]
-    def pairs(self, discourse_marker):
-      None
-    def index(self, word):
-      return [t["word"] for t in self.tokens].index(word) + 1
+    def indices(self, word):
+      if len(word.split(" ")) > 1:
+        words = word.split(" ")
+        indices = [i for lst in [self.indices(w) for w in words] for i in lst]
+        return indices
+      else:
+        return [i+1 for i in get_indices([t["word"] for t in self.tokens], word)]
     def token(self, index):
       return self.tokens[index-1]
     def word(self, index):
@@ -168,7 +246,9 @@ def parse_example(marker, sentence, previous_sentence):
 
   sentence = Sentence(parse["sentences"][0])
 
-  marker_index = sentence.index(marker)
+  possible_marker_indices = sentence.indices(marker)
+
+  marker_index = sentence.indices(marker)[0] # fix me!!!
   dep_patterns = dependency_types[marker]
 
   # Look for S2
@@ -206,26 +286,18 @@ def parse_example(marker, sentence, previous_sentence):
       else:
         # if no S1 found, record previous sentence as S1
         s1 = previous_sentence
+    else:
+      # if no S1 found, record previous sentence as S1
+      s1 = previous_sentence
 
     # if S2 found, return example tuple
     return (s1, s2, marker)
 
   else:
     # if no S2 found, print out sentence and return None
-    print("NO MATCH: " + sentence)
+    print("NO MATCH: " + current_sentence)
     return None
 
-
-def indices(lst, element):
-  # https://stackoverflow.com/a/18669080
-  result = []
-  offset = -1
-  while True:
-    try:
-      offset = lst.index(element, offset+1)
-    except ValueError:
-      return result
-    result.append(offset)
 
 
 def make_filename(split, marker, s, data_dir):
@@ -238,21 +310,6 @@ def text_filenames(data_dir):
                       for label in ["S1", "S2", "labels"] \
                       for split in ["train", "valid", "test"]]
 
-
-def get_examples_from_words(marker, words, line, previous_line):
-  example_list = []
-  # fix me to deal with multiword discourse markers
-  for i in indices(words, marker):
-    if marker=="because" and i==0:
-      # fix me to use dependency parse
-      None
-    elif i==0:
-      example_list.append((previous_line, line, marker))
-    else:
-      before = " ".join(words[:i])
-      after = " ".join(words[i+1:])
-      example_list.append((before, after, marker))
-  return example_list
 
 
 def write_example_file(data_dir, split, label, element_list):
@@ -284,22 +341,26 @@ def ptb():
     print("PTB text files already exist. " +
           "Delete them if you want to rerun.")
   else:
-    for split in ["train", "valid", "test"]:
+    for split in ["train", "valid"#, "test"
+    ]:
 
       examples = []
 
       datapath = "data/ptb/ptb." + split + ".txt"
       fd = open(datapath)
-      line = fd.readline().strip()
+      line = fd.readline()
       previous_line = ""
       while line:
-        words = line.split()
-        for marker in discourse_markers:
-          example_list = get_examples_from_words(marker, words, line, previous_line)
-          examples += example_list
+        pattern = " (" + "|".join(discourse_markers) + ") "
+        m = re.match(pattern, line)
+        if m:
+          parse_string = get_parse(line)
+          for marker in m.groups():
+            example_tuple = parse_example(marker, parse_string, line, previous_line)
+            examples.append(example_tuple)
 
         previous_line = line
-        line = fd.readline().strip()
+        line = fd.readline()
         num_sentences += 1
       fd.close()
 
@@ -449,8 +510,9 @@ def winograd():
       filepath = "data/winograd/valid_BECAUSE_S" + str(s+1) + ".txt"
       open(filepath, "w").write("\n".join([pair[s] for pair in all_sentences]))
 
-print(parse_example("because", "sentence", "S1"))
 
+ptb()
+pickle.dump(cached_parses, open("cached_parses.dat", "wb"))
 
 # for line in corpus:
   # regex search for discourse marker

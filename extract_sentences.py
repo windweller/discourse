@@ -14,6 +14,10 @@ import json
 import pickle
 import requests
 
+import sys
+reload(sys)
+sys.setdefaultencoding('utf8')
+
 def collapse_numbers(s):
   if COLLAPSE_NUMBERS:
     return re.sub("([^ ]*)\d([^ ]*)", "\1N\2", s)
@@ -252,20 +256,16 @@ def parse_example(marker, parse_string, current_sentence, previous_sentence):
 
   sentence = Sentence(parse["sentences"][0])
 
-  marker_index = sentence.indices(marker)[0] # fix me!!!
+  # marker_index = sentence.indices(marker)[0] # fix me!!!
   dep_patterns = dependency_types[marker]
 
+
+  # Look for S2
   possible_marker_indices = sentence.indices(marker)
   possible_s2_head_indices = [p for marker_index in possible_marker_indices for p in sentence.find_parents(
     marker_index,
     filter_types=[dep_patterns["S2"]]
   )]
-
-  # Look for S2
-  possible_s2_head_indices = sentence.find_parents(
-    marker_index,
-    filter_types=[dep_patterns["S2"]]
-  )
   if len(possible_s2_head_indices)==1:
     # Record S2
     s2_head_index = possible_s2_head_indices[0]
@@ -304,7 +304,6 @@ def parse_example(marker, parse_string, current_sentence, previous_sentence):
 
   else:
     # if no S2 found, print out sentence and return None
-    print("NO MATCH: " + current_sentence)
     return None
 
 
@@ -332,10 +331,11 @@ def parse_data_directory(data_tag, tag2, extension, collapse_nums=False, strip_p
   ## PTB
   # Given a corpus where each line is a sentence, find examples with given
   # discourse markers.
-
   data_dir = "data/" + data_tag + "/"
 
   num_sentences = 0
+
+  unparsed = []
 
   # download ptb if it doesn't exist
   # fix me
@@ -363,15 +363,18 @@ def parse_data_directory(data_tag, tag2, extension, collapse_nums=False, strip_p
       line = fd.readline()
       previous_line = ""
       while line:
-        if len(line) > 0:
-          if data_dir=="data/wikitext-103" and line_words[0] == "=":
+        line = re.sub("\n", "", line)
+        line_words = line.strip().split()
+        if len(line_words) > 0:
+          if data_dir=="data/wikitext-103/" and line_words[0] == "=":
             previous_line = ""
           else:
-            if data_dir=="data/wikitext-103":
+            if data_dir=="data/wikitext-103/":
               doc_sentences = line.split(" . ")
             else:
               doc_sentences = [line]
             for s in doc_sentences:
+              s = s.strip()
               if collapse_nums:
                 words = collapse_numbers(s)
 
@@ -381,7 +384,7 @@ def parse_data_directory(data_tag, tag2, extension, collapse_nums=False, strip_p
                                     ";", "'", "–", "!", "?"]
                 s = " ".join([w for w in s.split() if not w in words_to_exclude])
 
-              pattern = " (" + "|".join(discourse_markers) + ") "
+              pattern = ".* (" + "|".join(discourse_markers) + ") .*"
               m = re.match(pattern, s)
               if m:
                 parse_string = get_parse(s)
@@ -392,6 +395,9 @@ def parse_data_directory(data_tag, tag2, extension, collapse_nums=False, strip_p
                     s1s.append(s1.strip())
                     s2s.append(s2.strip())
                     labels.append(label.strip())
+                  else:
+                    unparsed.append((s, marker))
+                    print("NO MATCH: " + s)
               previous_line = s
 
         previous_line = line

@@ -36,6 +36,86 @@ import sys
 reload(sys)
 sys.setdefaultencoding('utf8')
 
+
+"""
+Positive dependency parse patterns we're looking for
+
+S1 - [list] a set of accepted dependencies from
+   the first to second sentence
+   S1 head ---> S2 head (full S head)
+
+S2 - [string] the single kind of dependency
+   for the marker to have with the second sentence
+   S2 head (full S head) ---> connective
+
+POS - [string] accepted part of speech for marker
+    (not using this yet: fix me!)
+"""
+dependency_types = {
+  "after": {
+     # this will collect some verbal noun phrases
+     # if we want to exclude them, we can on the basis of the head being a VBG
+    "POS": "IN",
+    "S2": "mark", # S2 head (full S head) ---> connective
+    "S1": ["advcl"]#, # S2 head (full S head) ---> S1 head
+    # # fix me! (i'm not using alternates and lost alternates)
+    # "alternates": ["and after"],
+    # "lost_alternates": ["after that"]
+  },
+  "although": {
+    "POS": "IN",
+    "S2": "mark",
+    "S1": ["advcl"]
+  },
+  "before": {
+    "POS": "IN",
+    "S2": "mark",
+    "S1": ["advcl"]
+  },
+  "so": {
+    "POS": "IN",
+    "S2": "mark",
+    "S1": ["advcl"]
+  },
+  "still": {
+    "POS": "RB",
+    "S2": "advmod",
+    "S1": ["parataxis", "dep"]
+  },
+  "though": {
+    "POS": "IN",
+    "S2": "mark",
+    "S1": ["advcl"]
+  },
+  "because": {
+    "POS": "IN",
+    "S2": "mark", # S2 head (full S head) ---> connective
+    "S1": ["advcl"], # S1 head ---> S2 head (full S head)
+    # "alternates": ["just because", "only because"], # fix me (????)
+    # "lost_alternates": ["because of"]
+  },
+  "however": {
+    # "however you interpret it, the claims are wrong"
+    # uses advcl for S2, so we're resolving that ambiguity
+    "POS": "RB",
+    "S2": "advmod",
+    # different kinds of possible dependencies for S1
+    "S1": ["dep", "parataxis"]
+  },
+  "if": {
+    # e.g. "it will fall if you rest it on the table like that"
+    "POS": "IN",
+    "S2": "mark",
+    "S1": ["advcl"]
+  },
+  "while": {
+    # e.g. "while he watched tv, he kept knitting the sweater"
+    "POS": "IN",
+    "S2": "mark",
+    "S1": ["advcl"]
+  }
+}
+
 """
 Parse a particular corpus
 tags implemented so far: "ptb" and "wiki" (wikitext-103)
@@ -102,26 +182,32 @@ def get_pairs_from_files(data_dir, corpus_files):
             s = None
             while line:
                 line = f.readline()
-                # extract all sentences from that line
-                sentences = line.strip().split(" . ")
-                while len(sentences)>0:
-                    # and for each sentence and its previous sentence
-                    prev_s, s = s, sentences.pop()
-                    # first determine via regex whether a depparse is necessary
-                    markers, depparse_required = search_sentence_for_marker(s)
-                    # (run depparse if necessary)
-                    parse = None
-                    if depparse_required:
-                        parse = get_parse(s)
-                    # then for each marker in the sentence,
-                    for marker in markers:
-                        # add to that list of pairs
-                        pairs[marker].append(extract_pairs_from_sentence(
-                            current_sentence = s,
-                            marker = marker,
-                            previous_sentence = prev_s,
-                            parse = parse
-                        ))
+                words = line.split()
+                if len(words)==0 or words[0]=="=":
+                    s = None
+                else:
+                    # extract all sentences from that line
+                    sentences = line.strip().split(" . ")
+                    while len(sentences)>0:
+                        # and for each sentence and its previous sentence
+                        prev_s, s = s, sentences.pop()
+                        # first determine via regex whether a depparse is necessary
+                        markers, depparse_required = search_sentence_for_marker(s)
+                        # (run depparse if necessary)
+                        parse = None
+                        if depparse_required:
+                            parse = get_parse(s)
+                        # then for each marker in the sentence,
+                        for marker in markers:
+                            # add to that list of pairs
+                            pair_for_marker = extract_pairs_from_sentence(
+                                current_sentence = s,
+                                marker = marker,
+                                previous_sentence = prev_s,
+                                parse = parse
+                            )
+                            if pair_for_marker:
+                                pairs[marker.lower()].append(pair_for_marker)
     return pairs
 
 
@@ -192,6 +278,16 @@ def search_sentence_for_marker(sentence_string):
 
 
 """
+POS-tag string as if it's a sentence
+and see if it has a verb that could plausibly be the predicate.
+"""
+def has_verb(string):
+    parse = get_parse(string, depparse=False)
+    # fix me!
+    return True
+
+
+"""
 Given a sentence (and possibly its parse and previous sentence)
 and a particular discourse marker,
 find all valid S1, S2 pairs for that discourse marker
@@ -209,12 +305,18 @@ def extract_pairs_from_sentence(
         parse = parse
     )
     if S1 and S2:
-        None
         # check that both s1 and s2 have verbs that could be the predicate
-    else:
-        return None
-
-    return [("s1", "s2", "label")]
+        S1_valid = has_verb(S1)
+        S2_valid = has_verb(S2)
+        if S1_valid and S2_valid:
+            return (S1, S2)
+        else:
+            if S2_valid and marker=="meanwhile":
+                S1 = previous_sentence
+                S2 = re.sub(" ?meanwhile ?", " ", current_sentence).strip()
+                return (S1, S2)
+    
+    return None
 
 
 """
@@ -304,11 +406,38 @@ def search_for_S2_S1_order(marker, parse):
 use corenlp server (see https://github.com/erindb/corenlp-ec2-startup)
 to parse sentences: tokens, dependency parse
 """
-def get_parse(sentence):
-  url = "http://localhost:12345?properties={annotators:'tokenize,ssplit,pos,depparse'}"
-  data = sentence
-  parse_string = requests.post(url, data=data).text
-  return parse_string
+def get_parse(sentence, depparse=True):
+    sentence = re.sub(" 't ", "'t ", sentence)
+    if depparse:
+        url = "http://localhost:12345?properties={annotators:'tokenize,ssplit,pos,depparse'}"
+    else:
+        url = "http://localhost:12345?properties={annotators:'tokenize,ssplit,pos'}"
+    data = sentence
+    parse_string = requests.post(url, data=data).text
+    return parse_string
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -328,132 +457,6 @@ def get_indices(lst, element):
     result.append(offset)
 
 
-"""
-Dependency parse patterns we're looking for
-
-S1 - [list] a set of accepted dependencies from
-   the first to second sentence
-   S1 head ---> S2 head (full S head)
-
-S2 - [string] the single kind of dependency
-   for the marker to have with the second sentence
-   S2 head (full S head) ---> connective
-
-POS - [string] accepted part of speech for marker
-    (not using this yet: fix me!)
-"""
-dependency_types = {
-  "after": {
-     # this will collect some verbal noun phrases
-     # if we want to exclude them, we can on the basis of the head being a VBG
-    "POS": "IN",
-    "S2": "mark", # S2 head (full S head) ---> connective
-    "S1": ["advcl"]#, # S2 head (full S head) ---> S1 head
-    # # fix me! (i'm not using alternates and lost alternates)
-    # "alternates": ["and after"],
-    # "lost_alternates": ["after that"]
-  },
-  "also": {
-    # e.g. "i also like ice cream"
-    #      "i like ice cream also"
-    # definitely want sentence initial
-    # fix me!!!
-    # if "also" appears with other discourse markers, exclude it
-    "POS": "RB",
-    "S2": "advmod",
-    "S1": ["dep", "parataxis"]
-  },
-  "although": {
-    "POS": "IN",
-    "S2": "mark",
-    "S1": ["advcl"]
-  },
-  "and": {
-    "POS": "CC",
-    "S2": "cc",
-    "S1": ["conj"]
-  },
-  "then": {
-    "POS": "RB",
-    "S2": "advmod",
-    "S1": ["dep", "parataxis"] # previous sentence is always S1
-  },
-  "for example": {
-    "POS": {"for": "IN", "example": "NN"},
-    "S2": "nmod",
-    "S1": ["dep", "parataxis"]
-  },
-  "before": {
-    "POS": "IN",
-    "S2": "mark",
-    "S1": ["advcl"]
-  },
-  "meanwhile": {
-    "POS": "RB",
-    "S2": "advmod",
-    "S1": ["parataxis", "dep"]
-  },
-  "so": {
-    "POS": "IN",
-    "S2": "mark",
-    "S1": ["advcl"]
-  },
-  "still": {
-    "POS": "RB",
-    "S2": "advmod",
-    "S1": ["parataxis", "dep"]
-  },
-  "though": {
-    "POS": "IN",
-    "S2": "mark",
-    "S1": ["advcl"]
-  },
-  "but": {
-    "POS": "CC",
-    "S2": "cc",
-    "S1": ["conj"]
-  },
-  "because": {
-    "POS": "IN",
-    "S2": "mark", # S2 head (full S head) ---> connective
-    "S1": ["advcl"], # S1 head ---> S2 head (full S head)
-    # "alternates": ["just because", "only because"], # fix me (????)
-    # "lost_alternates": ["because of"]
-  },
-  "as": {
-    # e.g. "as only about 4 people showed up, 
-    #       it was more of a discussion than a formal talk"
-    "POS": "IN",
-    "S2": "mark",
-    "S1": ["advcl"]
-  },
-  "however": {
-    # "however you interpret it, the claims are wrong"
-    # uses advcl for S2, so we're resolving that ambiguity
-    "POS": "RB",
-    "S2": "advmod",
-    # different kinds of possible dependencies for S1
-    "S1": ["dep", "parataxis"]
-  },
-  "if": {
-    # e.g. "it will fall if you rest it on the table like that"
-    "POS": "IN",
-    "S2": "mark",
-    "S1": ["advcl"]
-  },
-  "when": {
-    # e.g. "when stopped by, he asked how you were"
-    "POS": "WRB",
-    "S2": "advmod",
-    "S1": ["advcl"]
-  },
-  "while": {
-    # e.g. "while he watched tv, he kept knitting the sweater"
-    "POS": "IN",
-    "S2": "mark",
-    "S1": ["advcl"]
-  }
-}
 
 discourse_markers = dependency_types.keys()
 

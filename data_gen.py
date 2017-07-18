@@ -283,8 +283,8 @@ and see if it has a verb that could plausibly be the predicate.
 """
 def has_verb(string):
     parse = get_parse(string, depparse=False)
-    # fix me!
-    return True
+    tokens = json.loads(parse)["sentences"][0]["tokens"]
+    return any([re.match("V(?!(BG|BN))", t["pos"]) for t in tokens])
 
 
 """

@@ -13,24 +13,35 @@ library(ggplot2)
 #     value=readLines(paste("data/ptb/", split, "_", variable, ".txt", sep=""), warn=F)))
 # }))
 
-df = do.call(rbind, lapply(c("train", "valid"), function(split) {
+df = do.call(rbind, lapply(c("train"#, "valid"
+                             ), function(split) {
   variables = c("S1", "S2", "labels")
   splitdf = do.call(cbind, lapply(variables, function(variable) {
     return(readLines(paste("data/ptb/", split, "_", variable, ".txt", sep=""), warn=F))
   }))
+  splitdf = splitdf %>% as.data.frame 
   colnames(splitdf) = variables
-  splitdf = splitdf %>% as.data.frame
+  splitdf = splitdf %>% mutate(split=split)
   return(splitdf)
 }))
 
-df %>% filter(labels!="and") %>%
+df %>%
   ggplot(., aes(x=labels)) +
   geom_bar(stat="count") +
   theme(axis.text.x=element_text(angle=90, hjust=1))
 
-df %>% filter(labels!="and") %>% nrow
-
 df = df %>% filter(labels!="and") %>%
   mutate(full_sentence = paste(S1, "   ", labels, "   ", S2))
+n_but = nrow(df %>% filter(labels=="but" & split=="train"))
+n_but
+n_but / 1722
+n_because = nrow(df %>% filter(labels=="because" & split=="train"))
+n_because
+n_because / 1132
 
-df$full_sentence
+df %>%
+  ggplot(., aes(x=labels)) +
+  geom_bar(stat="count") +
+  theme(axis.text.x=element_text(angle=90, hjust=1))
+
+head(df$full_sentence)

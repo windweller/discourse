@@ -39,11 +39,11 @@ def get_indices(lst, element):
   result = []
   offset = -1
   while True:
-  try:
-    offset = lst.index(element, offset+1)
-  except ValueError:
-    return result
-  result.append(offset)
+    try:
+      offset = lst.index(element, offset+1)
+    except ValueError:
+      return result
+    result.append(offset)
 
 
 """
@@ -112,9 +112,9 @@ dependency_types = {
     "S1": ["parataxis", "dep"]
   },
   "so": {
-    "POS": "RB",
-    "S2": "advmod",
-    "S1": ["dep", "parataxis"]
+    "POS": "IN",
+    "S2": "mark",
+    "S1": ["advcl"]
   },
   "still": {
     "POS": "RB",
@@ -122,9 +122,9 @@ dependency_types = {
     "S1": ["parataxis", "dep"]
   },
   "though": {
-    "POS": "RB",
-    "S2": "advmod",
-    "S1": ["parataxis", "dep"]
+    "POS": "IN",
+    "S2": "mark",
+    "S1": ["advcl"]
   },
   "but": {
     "POS": "CC",
@@ -184,7 +184,7 @@ element_list - list of values for that variable
 """
 def write_example_file(data_dir, split, element_name, element_list):
   savepath = os.path.join(data_dir, split + "_" + element_name + ".txt")
-  w = io.open(savepath, mode="w", encoding="utf-8")
+  w = open(savepath, mode="w")
   w.write("\n".join(element_list))
   w.close()
 
@@ -193,11 +193,10 @@ def write_example_file(data_dir, split, element_name, element_list):
 use corenlp server (see https://github.com/erindb/corenlp-ec2-startup)
 to parse sentences: tokens, dependency parse
 """
-def get_parse(sentence):\
+def get_parse(sentence):
   url = "http://localhost:12345?properties={annotators:'tokenize,ssplit,pos,depparse'}"
   data = sentence
   parse_string = requests.post(url, data=data).text
-  cached_parses[sentence_tag] = parse_string
   return parse_string
 
 
@@ -296,6 +295,7 @@ def parse_example(marker, parse_string, current_sentence, previous_sentence):
     marker_index,
     filter_types=[dep_patterns["S2"]]
   )]
+  # print(sentence.find_deps(possible_marker_indices[0]))
   if len(possible_s2_head_indices)==1:
     # Record S2
     s2_head_index = possible_s2_head_indices[0]
@@ -338,6 +338,11 @@ def parse_example(marker, parse_string, current_sentence, previous_sentence):
 
 
 
+def text_filenames(data_dir, extension):
+  return [os.path.join(data_dir, split + "_" + label + "." + extension) \
+                      for label in ["S1", "S2", "labels"] \
+                      for split in ["train", "valid", "test"]]
+
 """
 data_tag - ptb or wikitext-103
 collapse_nums - if we want, we can collapse numbers to N
@@ -354,9 +359,9 @@ def parse_data_directory(data_tag, collapse_nums=False, strip_punctuation=False)
   """
   def collapse_numbers(s):
     if COLLAPSE_NUMBERS:
-    return re.sub("([^ ]*)\d([^ ]*)", "\1N\2", s)
+      return re.sub("([^ ]*)\d([^ ]*)", "\1N\2", s)
     else:
-    return s
+      return s
 
 
   data_dir = "data/" + data_tag + "/"
@@ -382,8 +387,9 @@ def parse_data_directory(data_tag, collapse_nums=False, strip_punctuation=False)
   if not os.path.isfile(data_dir + tag2 + ".valid." + extension):
     None
 
+
   # check if text files already exist
-  if all([os.path.isfile(f) for f in text_filenames(data_dir)]):
+  if False:#all([os.path.isfile(f) for f in text_filenames(data_dir, extension)]):
     print("text files in " + data_dir + " already exist. " +
           "Delete them if you want to rerun.")
   else:
@@ -419,17 +425,29 @@ def parse_data_directory(data_tag, collapse_nums=False, strip_punctuation=False)
                                     ";", "'", "–", "!", "?"]
                 s = " ".join([w for w in s.split() if not w in words_to_exclude])
 
-              pattern = ".* (" + "|".join(discourse_markers) + ") .*"
+              pattern = ".* (then) .*"
+              # pattern = ".* (" + "|".join(discourse_markers) + ") .*"
               m = re.match(pattern, s)
               if m:
+                s = re.sub("[Ii]n the meanwhile ", "meanwhile ", s)
                 parse_string = get_parse(s)
                 for marker in m.groups():
+                  if marker=="if":
+                    if re.match("as if", s):
+                      unparsed.append((s, marker))
+                      print("NO MATCH: " + s)
+                      continue
+                  if marker=="while":
+                    if re.match("( a|all the) while", s):
+                      unparsed.append((s, marker))
+                      print("NO MATCH: " + s)
+                      continue
                   example_tuple = parse_example(marker, parse_string, s, previous_line)
                   if example_tuple:
                     s1, s2, label = example_tuple
                     s1s.append(s1.strip())
                     s2s.append(s2.strip())
-                    labels.append(label.strip())
+                    labels.append(marker)
                   else:
                     unparsed.append((s, marker))
                     print("NO MATCH: " + s)
@@ -447,4 +465,6 @@ def parse_data_directory(data_tag, collapse_nums=False, strip_punctuation=False)
 
 if __name__ == '__main__':
   parse_data_directory("ptb")
-  parse_data_directory("wikitext-103")
+  # parse_data_directory("wikitext-103")
+  # t = parse_example("however", '{"sentences":[{"index":0,"basicDependencies":[{"dep":"ROOT","governor":0,"governorGloss":"ROOT","dependent":4,"dependentGloss":"however"},{"dep":"nsubj","governor":4,"governorGloss":"however","dependent":1,"dependentGloss":"It"},{"dep":"aux","governor":4,"governorGloss":"however","dependent":2,"dependentGloss":"did"},{"dep":"neg","governor":4,"governorGloss":"however","dependent":3,"dependentGloss":"not"},{"dep":"punct","governor":6,"governorGloss":"cover","dependent":5,"dependentGloss":","},{"dep":"dep","governor":4,"governorGloss":"however","dependent":6,"dependentGloss":"cover"},{"dep":"det","governor":8,"governorGloss":"sort","dependent":7,"dependentGloss":"any"},{"dep":"dobj","governor":6,"governorGloss":"cover","dependent":8,"dependentGloss":"sort"},{"dep":"case","governor":11,"governorGloss":"taxes","dependent":9,"dependentGloss":"of"},{"dep":"amod","governor":11,"governorGloss":"taxes","dependent":10,"dependentGloss":"local"},{"dep":"nmod","governor":8,"governorGloss":"sort","dependent":11,"dependentGloss":"taxes"},{"dep":"cc","governor":11,"governorGloss":"taxes","dependent":12,"dependentGloss":"or"},{"dep":"amod","governor":14,"governorGloss":"measures","dependent":13,"dependentGloss":"similar"},{"dep":"conj","governor":11,"governorGloss":"taxes","dependent":14,"dependentGloss":"measures"}],"enhancedDependencies":[{"dep":"ROOT","governor":0,"governorGloss":"ROOT","dependent":4,"dependentGloss":"however"},{"dep":"nsubj","governor":4,"governorGloss":"however","dependent":1,"dependentGloss":"It"},{"dep":"aux","governor":4,"governorGloss":"however","dependent":2,"dependentGloss":"did"},{"dep":"neg","governor":4,"governorGloss":"however","dependent":3,"dependentGloss":"not"},{"dep":"punct","governor":6,"governorGloss":"cover","dependent":5,"dependentGloss":","},{"dep":"dep","governor":4,"governorGloss":"however","dependent":6,"dependentGloss":"cover"},{"dep":"det","governor":8,"governorGloss":"sort","dependent":7,"dependentGloss":"any"},{"dep":"dobj","governor":6,"governorGloss":"cover","dependent":8,"dependentGloss":"sort"},{"dep":"case","governor":11,"governorGloss":"taxes","dependent":9,"dependentGloss":"of"},{"dep":"amod","governor":11,"governorGloss":"taxes","dependent":10,"dependentGloss":"local"},{"dep":"nmod:of","governor":8,"governorGloss":"sort","dependent":11,"dependentGloss":"taxes"},{"dep":"cc","governor":11,"governorGloss":"taxes","dependent":12,"dependentGloss":"or"},{"dep":"amod","governor":14,"governorGloss":"measures","dependent":13,"dependentGloss":"similar"},{"dep":"nmod:of","governor":8,"governorGloss":"sort","dependent":14,"dependentGloss":"measures"},{"dep":"conj:or","governor":11,"governorGloss":"taxes","dependent":14,"dependentGloss":"measures"}],"enhancedPlusPlusDependencies":[{"dep":"ROOT","governor":0,"governorGloss":"ROOT","dependent":4,"dependentGloss":"however"},{"dep":"nsubj","governor":4,"governorGloss":"however","dependent":1,"dependentGloss":"It"},{"dep":"aux","governor":4,"governorGloss":"however","dependent":2,"dependentGloss":"did"},{"dep":"neg","governor":4,"governorGloss":"however","dependent":3,"dependentGloss":"not"},{"dep":"punct","governor":6,"governorGloss":"cover","dependent":5,"dependentGloss":","},{"dep":"dep","governor":4,"governorGloss":"however","dependent":6,"dependentGloss":"cover"},{"dep":"det","governor":8,"governorGloss":"sort","dependent":7,"dependentGloss":"any"},{"dep":"dobj","governor":6,"governorGloss":"cover","dependent":8,"dependentGloss":"sort"},{"dep":"case","governor":11,"governorGloss":"taxes","dependent":9,"dependentGloss":"of"},{"dep":"amod","governor":11,"governorGloss":"taxes","dependent":10,"dependentGloss":"local"},{"dep":"nmod:of","governor":8,"governorGloss":"sort","dependent":11,"dependentGloss":"taxes"},{"dep":"cc","governor":11,"governorGloss":"taxes","dependent":12,"dependentGloss":"or"},{"dep":"amod","governor":14,"governorGloss":"measures","dependent":13,"dependentGloss":"similar"},{"dep":"nmod:of","governor":8,"governorGloss":"sort","dependent":14,"dependentGloss":"measures"},{"dep":"conj:or","governor":11,"governorGloss":"taxes","dependent":14,"dependentGloss":"measures"}],"tokens":[{"index":1,"word":"It","originalText":"It","characterOffsetBegin":0,"characterOffsetEnd":2,"pos":"PRP","before":"","after":" "},{"index":2,"word":"did","originalText":"did","characterOffsetBegin":3,"characterOffsetEnd":6,"pos":"VBD","before":" ","after":" "},{"index":3,"word":"not","originalText":"not","characterOffsetBegin":7,"characterOffsetEnd":10,"pos":"RB","before":" ","after":" "},{"index":4,"word":"however","originalText":"however","characterOffsetBegin":11,"characterOffsetEnd":18,"pos":"RB","before":" ","after":" "},{"index":5,"word":",","originalText":",","characterOffsetBegin":19,"characterOffsetEnd":20,"pos":",","before":" ","after":" "},{"index":6,"word":"cover","originalText":"cover","characterOffsetBegin":21,"characterOffsetEnd":26,"pos":"VB","before":" ","after":" "},{"index":7,"word":"any","originalText":"any","characterOffsetBegin":27,"characterOffsetEnd":30,"pos":"DT","before":" ","after":" "},{"index":8,"word":"sort","originalText":"sort","characterOffsetBegin":31,"characterOffsetEnd":35,"pos":"NN","before":" ","after":" "},{"index":9,"word":"of","originalText":"of","characterOffsetBegin":36,"characterOffsetEnd":38,"pos":"IN","before":" ","after":" "},{"index":10,"word":"local","originalText":"local","characterOffsetBegin":39,"characterOffsetEnd":44,"pos":"JJ","before":" ","after":" "},{"index":11,"word":"taxes","originalText":"taxes","characterOffsetBegin":45,"characterOffsetEnd":50,"pos":"NNS","before":" ","after":" "},{"index":12,"word":"or","originalText":"or","characterOffsetBegin":51,"characterOffsetEnd":53,"pos":"CC","before":" ","after":" "},{"index":13,"word":"similar","originalText":"similar","characterOffsetBegin":54,"characterOffsetEnd":61,"pos":"JJ","before":" ","after":" "},{"index":14,"word":"measures","originalText":"measures","characterOffsetBegin":62,"characterOffsetEnd":70,"pos":"NNS","before":" ","after":""}]}]}', "current", "prev")
+  # print(t)

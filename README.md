@@ -45,6 +45,20 @@ python train.py --best_epoch 1 --run_dir wiki_run_but --dev True --winograd True
 	- exports `pair_iter`
 	- should have an option to limit to a subset of labels
 
+## Extracting Sentence Pairs and Discourse Markers
+
+1. Grab all explicit discourse markers that showed up in PDTB as more than 1% of the tokens:
+	* 
+	*
+2. Of these, filter out the ones that are very poorly behaved (we can't consistently automatically extract usable pairs)
+	* and
+	* also
+	* as
+	* then (tentatively: we can revisit this later)
+3. Extraction rules for remaining discourse markers:
+	* because, although
+	* 
+
 ## To Do
 
 high priority:

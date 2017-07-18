@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """
-Corpus (PTB/Wikitext2) Pre-processing
+Corpus (e.g. PTB, Wikitext2) Pre-processing
 
 - does the split (train, test, valid) if necessary
 - tokenization if necessary
@@ -29,9 +29,291 @@ import json
 import pickle
 import requests
 
+import logging
+logging.basicConfig(level=logging.INFO)
+
 import sys
 reload(sys)
 sys.setdefaultencoding('utf8')
+
+"""
+Parse a particular corpus
+tags implemented so far: "ptb" and "wiki" (wikitext-103)
+"""
+def main():
+    # for each sentence,
+    # regex to determine if depparse is necessary
+    # (if so, depparse)
+    # extract pairs for each matched marker
+    parse_corpus("ptb")
+
+
+"""
+Go through corpus files, extract sentence pairs, and write all the data
+to a pickle file.
+
+Format of pickle file:
+{"discourse_marker": [["this", "is", "s1"], ["this", "is", "s2"]]}
+
+Names of files for each corpus are hardcoded in here
+"""
+def parse_corpus(corpus):
+    assert(corpus in ["wiki", "ptb"])
+
+    # hardcoding of corpus filenames
+    # need a list of filenames, they'll get mixed together
+    if corpus == "ptb":
+        data_dir = "data/ptb"
+        corpus_files = ["ptb.valid.txt", "ptb.train.txt", "ptb.test.txt"]
+    elif corpus == "wiki":
+        data_dir = "data/wikitext-103"
+        corpus_files = [
+            "wiki.valid.tokens",
+            "wiki.train.tokens",
+            "wiki.test.tokens"
+        ]
+
+    all_sentence_pairs = get_pairs_from_files(
+        data_dir=data_dir,
+        corpus_files=corpus_files
+    )
+
+    save_path = pjoin(data_dir, "all_sentence_pairs.pkl")
+    pickle.dump(all_sentence_pairs, open(save_path, "wb"))
+
+
+def get_pairs_from_files(data_dir, corpus_files):
+    discourse_markers = [
+        "because", "although",
+        "but", "for example", "when",
+        "before", "after", "however", "so", "still", "though",
+        "meanwhile",
+        "while", "if"
+    ]
+    pairs = {d: [] for d in discourse_markers}
+
+    # for each input file
+    for file_name in corpus_files:
+        file_path = pjoin(data_dir, file_name)
+        with open(file_path, 'r') as f:
+            logging.info("loading file {}".format(file_path))
+            # for each line
+            line = f.readline()
+            s = None
+            while line:
+                line = f.readline()
+                # extract all sentences from that line
+                sentences = line.strip().split(" . ")
+                while len(sentences)>0:
+                    # and for each sentence and its previous sentence
+                    prev_s, s = s, sentences.pop()
+                    # first determine via regex whether a depparse is necessary
+                    markers, depparse_required = search_sentence_for_marker(s)
+                    # (run depparse if necessary)
+                    parse = None
+                    if depparse_required:
+                        parse = get_parse(s)
+                    # then for each marker in the sentence,
+                    for marker in markers:
+                        # add to that list of pairs
+                        pairs[marker].append(extract_pairs_from_sentence(
+                            current_sentence = s,
+                            marker = marker,
+                            previous_sentence = prev_s,
+                            parse = parse
+                        ))
+    return pairs
+
+
+"""
+Given a sentence (a string, space separated),
+run a regex to see
+   A) whether any of our discourse markers are in that sentence and 
+   B) whether we'll need a dependency parse
+"""
+def search_sentence_for_marker(sentence_string):
+
+    # initialize empty
+    markers = []
+    depparse_required = False
+
+    # collapse "meanwhile" into a single word
+    sentence_string = re.sub(
+        "in the meanwhile",
+        "meanwhile",
+        sentence_string,
+        re.IGNORECASE
+    )
+
+    # first, search for the simple examples
+    # we never need a dependency parse for "but", "for example", or "when"
+    simple = re.match(
+        "(but|for example|when|meanwhile)",
+        sentence_string,
+        re.IGNORECASE
+    )
+    if simple:
+        markers += simple.groups()
+
+    # next, search for markers that, if they appear sentence-internally,
+    # do not require a dependency parse
+    sentence_internal = re.match(
+        # reject "because of", "as if", "a while", and "all the while"
+        " (because(?! of)|although|(?!as )if|(?! a |all the )while) ",
+        sentence_string,
+        re.IGNORECASE
+    )
+    if sentence_internal:
+        markers += sentence_internal.groups()
+
+    # next search for those same markers sentence-initially
+    # (this will require a depparse)
+    sentence_initial = re.match(
+        "^(because|although|if|while) ",
+        sentence_string,
+        re.IGNORECASE
+    )
+    if sentence_initial:
+        markers += sentence_initial.groups()
+        depparse_required = True
+
+    # next, look for markers that we're positively pattern-matching
+    # (the ones that are too variable to split without a dependency parse)
+    positive_pattern_match = re.match(
+        "(before|after|however|so|still|though)",
+        sentence_string,
+        re.IGNORECASE
+    )
+    if positive_pattern_match:
+        markers += positive_pattern_match.groups()
+        depparse_required = True
+
+    return (markers, depparse_required)
+
+
+"""
+Given a sentence (and possibly its parse and previous sentence)
+and a particular discourse marker,
+find all valid S1, S2 pairs for that discourse marker
+"""
+def extract_pairs_from_sentence(
+            current_sentence,
+            marker, 
+            previous_sentence = "",
+            parse = None):
+
+    S1, S2 = search_for_S1_S2_candidates(
+        current_sentence = current_sentence,
+        marker = marker, 
+        previous_sentence = previous_sentence,
+        parse = parse
+    )
+    if S1 and S2:
+        None
+        # check that both s1 and s2 have verbs that could be the predicate
+    else:
+        return None
+
+    return [("s1", "s2", "label")]
+
+
+"""
+Use the rules we came up with (sometimes simple regex rules, sometimes
+depparse searches) for each discourse marker to pull out a candidate
+S1 and S2
+"""
+def search_for_S1_S2_candidates(
+                current_sentence,
+                marker, 
+                previous_sentence = "",
+                parse = None):
+
+    # first, look for the simplest discourse markers, that we can
+    # handle with just regexes
+    if marker in ["but", "for example", "when", "meanwhile"]:
+        simple = re.match(
+            "(.*)(?:but|for example|when|meanwhile)(.*)",
+            current_sentence,
+            re.IGNORECASE
+        )
+        simple_groups = simple.groups()
+        if len(simple_groups)==1:
+            s1 = previous_sentence
+            s2 = simple_groups[0].strip()
+            return (s1, s2)
+        else:
+            s1 = simple_groups[0].strip()
+            s2 = simple_groups[1].strip()
+            return (s1, s2)
+
+    # then, look at the discourse markers that we can handle with
+    # regexes when they're sentence internal
+    if marker in ["because", "although", "while", "if"]:
+        # first handle them if they're sentence-internal
+        sentence_internal = re.match(
+            "(.+) (?:because|although|while|if) (.+)",
+            current_sentence,
+            re.IGNORECASE
+        )
+        if sentence_internal:
+            s1 = sentence_internal.groups()[0]
+            s2 = sentence_internal.groups()[1]
+            return (s1, s2)
+        else:
+            # otherwise handle them if they're sentence-initial
+            search_results_for_S1_s1 = search_for_S2_S1_order(
+                marker,
+                parse
+            )
+            if search_results_for_S1_s1:
+                s1, s2 = search_results_for_S1_s1
+                return (s1, s2)
+            else:
+                if marker=="if":
+                    # reject pattern: "S1. If S2."
+                    return (None, None)
+                else:
+                    # accept pattern: "S1. [discourse marker] S2."
+                    # (for all but "if")
+                    s1 = previous_sentence
+                    s2 = re.sub(
+                        "^" + marker + " ",
+                        "",
+                        current_sentence,
+                        re.IGNORECASE
+                    )
+                    return (s1, s2)
+
+    # finally, look for markers that we're positively pattern-matching
+    # (the ones that are too variable to split without a dependency parse)
+    # fix me
+
+    return (None, None)
+
+
+"""
+using the depparse, look for the "reverse" order
+e.g. "If A, B." (as opposed to "B if A.")
+"""
+def search_for_S2_S1_order(marker, parse):
+    # fix me
+    None
+
+
+"""
+use corenlp server (see https://github.com/erindb/corenlp-ec2-startup)
+to parse sentences: tokens, dependency parse
+"""
+def get_parse(sentence):
+  url = "http://localhost:12345?properties={annotators:'tokenize,ssplit,pos,depparse'}"
+  data = sentence
+  parse_string = requests.post(url, data=data).text
+  return parse_string
+
+
+
+
+
 
 
 # https://stackoverflow.com/a/18669080
@@ -187,17 +469,6 @@ def write_example_file(data_dir, split, element_name, element_list):
   w = open(savepath, mode="w")
   w.write("\n".join(element_list))
   w.close()
-
-
-"""
-use corenlp server (see https://github.com/erindb/corenlp-ec2-startup)
-to parse sentences: tokens, dependency parse
-"""
-def get_parse(sentence):
-  url = "http://localhost:12345?properties={annotators:'tokenize,ssplit,pos,depparse'}"
-  data = sentence
-  parse_string = requests.post(url, data=data).text
-  return parse_string
 
 
 """
@@ -464,7 +735,4 @@ def parse_data_directory(data_tag, collapse_nums=False, strip_punctuation=False)
 
 
 if __name__ == '__main__':
-  parse_data_directory("ptb")
-  # parse_data_directory("wikitext-103")
-  # t = parse_example("however", '{"sentences":[{"index":0,"basicDependencies":[{"dep":"ROOT","governor":0,"governorGloss":"ROOT","dependent":4,"dependentGloss":"however"},{"dep":"nsubj","governor":4,"governorGloss":"however","dependent":1,"dependentGloss":"It"},{"dep":"aux","governor":4,"governorGloss":"however","dependent":2,"dependentGloss":"did"},{"dep":"neg","governor":4,"governorGloss":"however","dependent":3,"dependentGloss":"not"},{"dep":"punct","governor":6,"governorGloss":"cover","dependent":5,"dependentGloss":","},{"dep":"dep","governor":4,"governorGloss":"however","dependent":6,"dependentGloss":"cover"},{"dep":"det","governor":8,"governorGloss":"sort","dependent":7,"dependentGloss":"any"},{"dep":"dobj","governor":6,"governorGloss":"cover","dependent":8,"dependentGloss":"sort"},{"dep":"case","governor":11,"governorGloss":"taxes","dependent":9,"dependentGloss":"of"},{"dep":"amod","governor":11,"governorGloss":"taxes","dependent":10,"dependentGloss":"local"},{"dep":"nmod","governor":8,"governorGloss":"sort","dependent":11,"dependentGloss":"taxes"},{"dep":"cc","governor":11,"governorGloss":"taxes","dependent":12,"dependentGloss":"or"},{"dep":"amod","governor":14,"governorGloss":"measures","dependent":13,"dependentGloss":"similar"},{"dep":"conj","governor":11,"governorGloss":"taxes","dependent":14,"dependentGloss":"measures"}],"enhancedDependencies":[{"dep":"ROOT","governor":0,"governorGloss":"ROOT","dependent":4,"dependentGloss":"however"},{"dep":"nsubj","governor":4,"governorGloss":"however","dependent":1,"dependentGloss":"It"},{"dep":"aux","governor":4,"governorGloss":"however","dependent":2,"dependentGloss":"did"},{"dep":"neg","governor":4,"governorGloss":"however","dependent":3,"dependentGloss":"not"},{"dep":"punct","governor":6,"governorGloss":"cover","dependent":5,"dependentGloss":","},{"dep":"dep","governor":4,"governorGloss":"however","dependent":6,"dependentGloss":"cover"},{"dep":"det","governor":8,"governorGloss":"sort","dependent":7,"dependentGloss":"any"},{"dep":"dobj","governor":6,"governorGloss":"cover","dependent":8,"dependentGloss":"sort"},{"dep":"case","governor":11,"governorGloss":"taxes","dependent":9,"dependentGloss":"of"},{"dep":"amod","governor":11,"governorGloss":"taxes","dependent":10,"dependentGloss":"local"},{"dep":"nmod:of","governor":8,"governorGloss":"sort","dependent":11,"dependentGloss":"taxes"},{"dep":"cc","governor":11,"governorGloss":"taxes","dependent":12,"dependentGloss":"or"},{"dep":"amod","governor":14,"governorGloss":"measures","dependent":13,"dependentGloss":"similar"},{"dep":"nmod:of","governor":8,"governorGloss":"sort","dependent":14,"dependentGloss":"measures"},{"dep":"conj:or","governor":11,"governorGloss":"taxes","dependent":14,"dependentGloss":"measures"}],"enhancedPlusPlusDependencies":[{"dep":"ROOT","governor":0,"governorGloss":"ROOT","dependent":4,"dependentGloss":"however"},{"dep":"nsubj","governor":4,"governorGloss":"however","dependent":1,"dependentGloss":"It"},{"dep":"aux","governor":4,"governorGloss":"however","dependent":2,"dependentGloss":"did"},{"dep":"neg","governor":4,"governorGloss":"however","dependent":3,"dependentGloss":"not"},{"dep":"punct","governor":6,"governorGloss":"cover","dependent":5,"dependentGloss":","},{"dep":"dep","governor":4,"governorGloss":"however","dependent":6,"dependentGloss":"cover"},{"dep":"det","governor":8,"governorGloss":"sort","dependent":7,"dependentGloss":"any"},{"dep":"dobj","governor":6,"governorGloss":"cover","dependent":8,"dependentGloss":"sort"},{"dep":"case","governor":11,"governorGloss":"taxes","dependent":9,"dependentGloss":"of"},{"dep":"amod","governor":11,"governorGloss":"taxes","dependent":10,"dependentGloss":"local"},{"dep":"nmod:of","governor":8,"governorGloss":"sort","dependent":11,"dependentGloss":"taxes"},{"dep":"cc","governor":11,"governorGloss":"taxes","dependent":12,"dependentGloss":"or"},{"dep":"amod","governor":14,"governorGloss":"measures","dependent":13,"dependentGloss":"similar"},{"dep":"nmod:of","governor":8,"governorGloss":"sort","dependent":14,"dependentGloss":"measures"},{"dep":"conj:or","governor":11,"governorGloss":"taxes","dependent":14,"dependentGloss":"measures"}],"tokens":[{"index":1,"word":"It","originalText":"It","characterOffsetBegin":0,"characterOffsetEnd":2,"pos":"PRP","before":"","after":" "},{"index":2,"word":"did","originalText":"did","characterOffsetBegin":3,"characterOffsetEnd":6,"pos":"VBD","before":" ","after":" "},{"index":3,"word":"not","originalText":"not","characterOffsetBegin":7,"characterOffsetEnd":10,"pos":"RB","before":" ","after":" "},{"index":4,"word":"however","originalText":"however","characterOffsetBegin":11,"characterOffsetEnd":18,"pos":"RB","before":" ","after":" "},{"index":5,"word":",","originalText":",","characterOffsetBegin":19,"characterOffsetEnd":20,"pos":",","before":" ","after":" "},{"index":6,"word":"cover","originalText":"cover","characterOffsetBegin":21,"characterOffsetEnd":26,"pos":"VB","before":" ","after":" "},{"index":7,"word":"any","originalText":"any","characterOffsetBegin":27,"characterOffsetEnd":30,"pos":"DT","before":" ","after":" "},{"index":8,"word":"sort","originalText":"sort","characterOffsetBegin":31,"characterOffsetEnd":35,"pos":"NN","before":" ","after":" "},{"index":9,"word":"of","originalText":"of","characterOffsetBegin":36,"characterOffsetEnd":38,"pos":"IN","before":" ","after":" "},{"index":10,"word":"local","originalText":"local","characterOffsetBegin":39,"characterOffsetEnd":44,"pos":"JJ","before":" ","after":" "},{"index":11,"word":"taxes","originalText":"taxes","characterOffsetBegin":45,"characterOffsetEnd":50,"pos":"NNS","before":" ","after":" "},{"index":12,"word":"or","originalText":"or","characterOffsetBegin":51,"characterOffsetEnd":53,"pos":"CC","before":" ","after":" "},{"index":13,"word":"similar","originalText":"similar","characterOffsetBegin":54,"characterOffsetEnd":61,"pos":"JJ","before":" ","after":" "},{"index":14,"word":"measures","originalText":"measures","characterOffsetBegin":62,"characterOffsetEnd":70,"pos":"NNS","before":" ","after":""}]}]}', "current", "prev")
-  # print(t)
+  main()

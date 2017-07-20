@@ -36,6 +36,8 @@ import sys
 reload(sys)
 sys.setdefaultencoding('utf8')
 
+rejection_mode = False
+
 
 """
 Positive dependency parse patterns we're looking for
@@ -51,16 +53,11 @@ S2 - [string] the single kind of dependency
 POS - [string] accepted part of speech for marker
     (not using this yet: fix me!)
 """
-dependency_types = {
+dependency_patterns = {
   "after": {
-     # this will collect some verbal noun phrases
-     # if we want to exclude them, we can on the basis of the head being a VBG
     "POS": "IN",
     "S2": "mark", # S2 head (full S head) ---> connective
-    "S1": ["advcl"]#, # S2 head (full S head) ---> S1 head
-    # # fix me! (i'm not using alternates and lost alternates)
-    # "alternates": ["and after"],
-    # "lost_alternates": ["after that"]
+    "S1": ["advcl"]
   },
   "although": {
     "POS": "IN",
@@ -89,27 +86,20 @@ dependency_types = {
   },
   "because": {
     "POS": "IN",
-    "S2": "mark", # S2 head (full S head) ---> connective
-    "S1": ["advcl"], # S1 head ---> S2 head (full S head)
-    # "alternates": ["just because", "only because"], # fix me (????)
-    # "lost_alternates": ["because of"]
+    "S2": "mark",
+    "S1": ["advcl"]
   },
   "however": {
-    # "however you interpret it, the claims are wrong"
-    # uses advcl for S2, so we're resolving that ambiguity
     "POS": "RB",
     "S2": "advmod",
-    # different kinds of possible dependencies for S1
     "S1": ["dep", "parataxis"]
   },
   "if": {
-    # e.g. "it will fall if you rest it on the table like that"
     "POS": "IN",
     "S2": "mark",
     "S1": ["advcl"]
   },
   "while": {
-    # e.g. "while he watched tv, he kept knitting the sweater"
     "POS": "IN",
     "S2": "mark",
     "S1": ["advcl"]
@@ -125,6 +115,7 @@ def main():
     # regex to determine if depparse is necessary
     # (if so, depparse)
     # extract pairs for each matched marker
+    parse_corpus("wiki")
     parse_corpus("ptb")
 
 
@@ -144,7 +135,11 @@ def parse_corpus(corpus):
     # need a list of filenames, they'll get mixed together
     if corpus == "ptb":
         data_dir = "data/ptb"
-        corpus_files = ["ptb.valid.txt", "ptb.train.txt", "ptb.test.txt"]
+        corpus_files = [
+            "ptb.valid.txt",
+            "ptb.train.txt",
+            "ptb.test.txt"
+        ]
     elif corpus == "wiki":
         data_dir = "data/wikitext-103"
         corpus_files = [
@@ -153,13 +148,17 @@ def parse_corpus(corpus):
             "wiki.test.tokens"
         ]
 
-    all_sentence_pairs = get_pairs_from_files(
+    all_sentence_pairs, rejected_sentences = get_pairs_from_files(
         data_dir=data_dir,
         corpus_files=corpus_files
     )
 
     save_path = pjoin(data_dir, "all_sentence_pairs.pkl")
     pickle.dump(all_sentence_pairs, open(save_path, "wb"))
+    pickle.dump(
+        rejected_sentences,
+        open(pjoin(data_dir, "rejected_sentences.pkl"), "wb")
+    )
 
 
 def get_pairs_from_files(data_dir, corpus_files):
@@ -171,6 +170,7 @@ def get_pairs_from_files(data_dir, corpus_files):
         "while", "if"
     ]
     pairs = {d: [] for d in discourse_markers}
+    rejected_sentences = {d: [] for d in discourse_markers}
 
     # for each input file
     for file_name in corpus_files:
@@ -198,6 +198,7 @@ def get_pairs_from_files(data_dir, corpus_files):
                         if depparse_required:
                             parse = get_parse(s)
                         # then for each marker in the sentence,
+                        found_pair = False
                         for marker in markers:
                             # add to that list of pairs
                             pair_for_marker = extract_pairs_from_sentence(
@@ -208,7 +209,13 @@ def get_pairs_from_files(data_dir, corpus_files):
                             )
                             if pair_for_marker:
                                 pairs[marker.lower()].append(pair_for_marker)
-    return pairs
+                                found_pair = True
+                        if not found_pair:
+                            has_marker = re.match(".*(" + "|".join(discourse_markers) + ")", s)
+                            if has_marker:
+                                for m in has_marker.groups():
+                                    rejected_sentences[marker.lower()].append(s)
+    return pairs, rejected_sentences
 
 
 """
@@ -234,7 +241,7 @@ def search_sentence_for_marker(sentence_string):
     # first, search for the simple examples
     # we never need a dependency parse for "but", "for example", or "when"
     simple = re.match(
-        "(but|for example|when|meanwhile)",
+        ".*(but|for example|when|meanwhile)",
         sentence_string,
         re.IGNORECASE
     )
@@ -245,11 +252,18 @@ def search_sentence_for_marker(sentence_string):
     # do not require a dependency parse
     sentence_internal = re.match(
         # reject "because of", "as if", "a while", and "all the while"
-        " (because(?! of)|although|(?!as )if|(?! a |all the )while) ",
+        ".* (because|although|if|while) ",
         sentence_string,
         re.IGNORECASE
     )
-    if sentence_internal:
+    # reject only if that was matched
+    # fix me
+    rejections = re.match(
+        ".*(because of|as if|a while|all the while)",
+        sentence_string,
+        re.IGNORECASE
+    )
+    if sentence_internal and (not rejection_mode or not rejections):
         markers += sentence_internal.groups()
 
     # next search for those same markers sentence-initially
@@ -266,7 +280,7 @@ def search_sentence_for_marker(sentence_string):
     # next, look for markers that we're positively pattern-matching
     # (the ones that are too variable to split without a dependency parse)
     positive_pattern_match = re.match(
-        "(before|after|however|so|still|though)",
+        ".*(before|after|however|so|still|though)",
         sentence_string,
         re.IGNORECASE
     )
@@ -281,10 +295,14 @@ def search_sentence_for_marker(sentence_string):
 POS-tag string as if it's a sentence
 and see if it has a verb that could plausibly be the predicate.
 """
+# fix me
 def has_verb(string):
-    parse = get_parse(string, depparse=False)
-    tokens = json.loads(parse)["sentences"][0]["tokens"]
-    return any([re.match("V(?!(BG|BN))", t["pos"]) for t in tokens])
+    if rejection_mode:
+        parse = get_parse(string, depparse=False)
+        tokens = json.loads(parse)["sentences"][0]["tokens"]
+        return any([re.match("V(?!(BG|BN))", t["pos"]) for t in tokens])
+    else:
+        return True
 
 
 """
@@ -292,11 +310,7 @@ Given a sentence (and possibly its parse and previous sentence)
 and a particular discourse marker,
 find all valid S1, S2 pairs for that discourse marker
 """
-def extract_pairs_from_sentence(
-            current_sentence,
-            marker, 
-            previous_sentence = "",
-            parse = None):
+def extract_pairs_from_sentence(current_sentence, marker, previous_sentence = "", parse = None):
 
     S1, S2 = search_for_S1_S2_candidates(
         current_sentence = current_sentence,
@@ -315,8 +329,19 @@ def extract_pairs_from_sentence(
                 S1 = previous_sentence
                 S2 = re.sub(" ?meanwhile ?", " ", current_sentence).strip()
                 return (S1, S2)
-    
-    return None
+            else:
+                return None
+    if rejection_mode:
+        return None
+    else:
+        m = re.match("(.*)" + marker + "(.*)", current_sentence)
+        groups = m.groups()
+        if len(groups)==1:
+            return (previous_sentence, groups[0])
+        elif len(groups)==2:
+            return (groups[0], groups[1])
+        else:
+            return None
 
 
 """
@@ -324,11 +349,7 @@ Use the rules we came up with (sometimes simple regex rules, sometimes
 depparse searches) for each discourse marker to pull out a candidate
 S1 and S2
 """
-def search_for_S1_S2_candidates(
-                current_sentence,
-                marker, 
-                previous_sentence = "",
-                parse = None):
+def search_for_S1_S2_candidates(current_sentence, marker, previous_sentence = "", parse = None):
 
     # first, look for the simplest discourse markers, that we can
     # handle with just regexes
@@ -353,19 +374,20 @@ def search_for_S1_S2_candidates(
     if marker in ["because", "although", "while", "if"]:
         # first handle them if they're sentence-internal
         sentence_internal = re.match(
-            "(.+) (?:because|although|while|if) (.+)",
+            "(.+) (because|although|while|if) (.+)",
             current_sentence,
             re.IGNORECASE
         )
         if sentence_internal:
             s1 = sentence_internal.groups()[0]
-            s2 = sentence_internal.groups()[1]
+            s2 = sentence_internal.groups()[2]
             return (s1, s2)
         else:
             # otherwise handle them if they're sentence-initial
             search_results_for_S1_s1 = search_for_S2_S1_order(
                 marker,
-                parse
+                parse,
+                previous_sentence
             )
             if search_results_for_S1_s1:
                 s1, s2 = search_results_for_S1_s1
@@ -388,61 +410,37 @@ def search_for_S1_S2_candidates(
 
     # finally, look for markers that we're positively pattern-matching
     # (the ones that are too variable to split without a dependency parse)
-    # fix me
+    if marker in ["before", "after", "however", "so", "still", "though"]:
+        search_results = search_for_dep_pattern(
+            marker=marker,
+            current_sentence=current_sentence,
+            previous_sentence=previous_sentence,
+            parse_string=parse
+        )
+        if search_results:
+            return search_results
+        else:
+            return (None, None)
 
     return (None, None)
+
+"""
+using the depparse, look for the desired pattern, in any order
+"""
+def search_for_dep_pattern(marker, current_sentence, previous_sentence, parse_string):  
+    parse = json.loads(parse_string)
+    sentence = Sentence(parse["sentences"][0])
+    return sentence.find_pair(marker, "any", previous_sentence)
 
 
 """
 using the depparse, look for the "reverse" order
 e.g. "If A, B." (as opposed to "B if A.")
 """
-def search_for_S2_S1_order(marker, parse):
-    # fix me
-    None
-
-
-"""
-use corenlp server (see https://github.com/erindb/corenlp-ec2-startup)
-to parse sentences: tokens, dependency parse
-"""
-def get_parse(sentence, depparse=True):
-    sentence = re.sub(" 't ", "'t ", sentence)
-    if depparse:
-        url = "http://localhost:12345?properties={annotators:'tokenize,ssplit,pos,depparse'}"
-    else:
-        url = "http://localhost:12345?properties={annotators:'tokenize,ssplit,pos'}"
-    data = sentence
-    parse_string = requests.post(url, data=data).text
-    return parse_string
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+def search_for_S2_S1_order(marker, parse_string, previous_sentence):
+    parse = json.loads(parse_string)
+    sentence = Sentence(parse["sentences"][0])
+    return sentence.find_pair(marker, "s2 discourse_marker s1", previous_sentence)
 
 
 # https://stackoverflow.com/a/18669080
@@ -457,284 +455,143 @@ def get_indices(lst, element):
     result.append(offset)
 
 
-
-discourse_markers = dependency_types.keys()
-
-
 """
-data_dir - dir to save text files
-split - valid, train, test
-element_name - which variable: S1, S2, or labels
-element_list - list of values for that variable
+use corenlp server (see https://github.com/erindb/corenlp-ec2-startup)
+to parse sentences: tokens, dependency parse
 """
-def write_example_file(data_dir, split, element_name, element_list):
-  savepath = os.path.join(data_dir, split + "_" + element_name + ".txt")
-  w = open(savepath, mode="w")
-  w.write("\n".join(element_list))
-  w.close()
+def get_parse(sentence, depparse=True):
+    # fix me: undo this retokenization later!
+    sentence = re.sub(" 't ", "'t ", sentence)
+    if depparse:
+        url = "http://localhost:12345?properties={annotators:'tokenize,ssplit,pos,depparse'}"
+    else:
+        url = "http://localhost:12345?properties={annotators:'tokenize,ssplit,pos'}"
+    data = sentence
+    parse_string = requests.post(url, data=data).text
+    return parse_string
 
 
-"""
-marker - which discourse marker are we finding a pair for?
-parse_string - full corenlp parse in json
-current_sentence - full sentence
-previous_sentence - previous sentence might be S1 for some sentences
-"""
-def parse_example(marker, parse_string, current_sentence, previous_sentence):
-
-  # fix me (take sentence as input)
-  # sentence = "i like her because she is nice"
-
-  parse = json.loads(parse_string)
-
-  # print(current_sentence)
-
-  class Sentence():
+class Sentence():
     def __init__(self, json_sentence):
-      self.json = json_sentence
-      self.dependencies = json_sentence["basicDependencies"]
-      self.tokens = json_sentence["tokens"]
+        self.json = json_sentence
+        self.dependencies = json_sentence["basicDependencies"]
+        self.tokens = json_sentence["tokens"]
     def indices(self, word):
-      if len(word.split(" ")) > 1:
-        words = word.split(" ")
-        indices = [i for lst in [self.indices(w) for w in words] for i in lst]
-        return indices
-      else:
-        return [i+1 for i in get_indices([t["word"] for t in self.tokens], word)]
+        if len(word.split(" ")) > 1:
+            words = word.split(" ")
+            indices = [i for lst in [self.indices(w) for w in words] for i in lst]
+            return indices
+        else:
+            return [i+1 for i in get_indices([t["word"] for t in self.tokens], word)]
     def token(self, index):
-      return self.tokens[index-1]
+        return self.tokens[index-1]
     def word(self, index):
-      return self.token(index)["word"]
+        return self.token(index)["word"]
     def find_parents(self, index, filter_types=False):
-      deps = self.find_deps(index, dir="parents", filter_types=filter_types)
-      return [d["governor"] for d in deps]
+        deps = self.find_deps(index, dir="parents", filter_types=filter_types)
+        return [d["governor"] for d in deps]
     def find_children(self, index, filter_types=False):
-      deps = self.find_deps(index, dir="children", filter_types=filter_types)
-      return [d["dependent"] for d in deps]
+        deps = self.find_deps(index, dir="children", filter_types=filter_types)
+        return [d["dependent"] for d in deps]
     def find_deps(self, index, dir=None, filter_types=False):
-      deps = []
-      if dir=="parents" or dir==None:
-        deps += [d for d in sentence.dependencies if d['dependent']==index]
-      if dir=="children" or dir==None:
-        deps += [d for d in sentence.dependencies if d['governor']==index]
-      if filter_types:
-        return [d for d in deps if d["dep"] in filter_types]
-      else:
-        return deps
+        deps = []
+        if dir=="parents" or dir==None:
+            deps += [d for d in self.dependencies if d['dependent']==index]
+        if dir=="children" or dir==None:
+            deps += [d for d in self.dependencies if d['governor']==index]
+        if filter_types:
+            return [d for d in deps if d["dep"] in filter_types]
+        else:
+            return deps
     def find_dep_types(self, index, dir=None, filter_types=False):
-      deps = self.find_deps(index, dir=dir, filter_types=filter_types)
-      return [d["dep"] for d in deps]
+        deps = self.find_deps(index, dir=dir, filter_types=filter_types)
+        return [d["dep"] for d in deps]
     def string(self):
-      return " ".join([t["word"] for t in self.tokens])
+        return " ".join([t["word"] for t in self.tokens])
     def get_subordinate_indices(self, acc, explore, exclude_indices=[]):
-
-      children = [c for i in explore for c in sentence.find_children(i) if not c in exclude_indices]
-      if len(children)==0:
-        return acc
-      else:
-        return self.get_subordinate_indices(
-          acc=acc + children,
-          explore=children,
-          exclude_indices=exclude_indices
-        )
+        children = [c for i in explore for c in self.find_children(i) if not c in exclude_indices]
+        if len(children)==0:
+            return acc
+        else:
+            return self.get_subordinate_indices(
+                acc=acc + children,
+                explore=children,
+                exclude_indices=exclude_indices
+            )
 
     def get_phrase_from_head(self, head_index, exclude_indices=[]):
-      # fix me
+        # fix me
 
-      # given an index,
-      # grab every word that's a child of it in the dependency graph
-      subordinates = self.get_subordinate_indices(
+        # given an index,
+        # grab every word that's a child of it in the dependency graph
+        subordinates = self.get_subordinate_indices(
         acc=[head_index],
         explore=[head_index],
         exclude_indices=exclude_indices
-      )
-      subordinates.sort()
-
-      subordinate_phrase = " ".join([sentence.word(i) for i in subordinates])
-
-      # optionally exclude some indices and their children
-      
-      # make a string from this to return
-      return subordinate_phrase
-
-  sentence = Sentence(parse["sentences"][0])
-
-  # marker_index = sentence.indices(marker)[0] # fix me!!!
-  dep_patterns = dependency_types[marker]
-
-
-  # Look for S2
-  possible_marker_indices = sentence.indices(marker)
-  possible_s2_head_indices = [p for marker_index in possible_marker_indices for p in sentence.find_parents(
-    marker_index,
-    filter_types=[dep_patterns["S2"]]
-  )]
-  # print(sentence.find_deps(possible_marker_indices[0]))
-  if len(possible_s2_head_indices)==1:
-    # Record S2
-    s2_head_index = possible_s2_head_indices[0]
-    s2 = sentence.get_phrase_from_head(
-      s2_head_index,
-      exclude_indices=[marker_index]
-    )
-
-    # Look for S1
-    possible_s1_dependency_types = sentence.find_dep_types(
-      s2_head_index,
-      dir="parents"
-    )
-    if any([t in possible_s1_dependency_types for t in dep_patterns["S1"]]):
-      possible_s1_head_indices = sentence.find_parents(
-        s2_head_index,
-        filter_types=dep_patterns["S1"]
-      )
-      if len(possible_s1_head_indices)==1:
-        # if S1 found, record S1
-        s1_head_index = possible_s1_head_indices[0]
-        s1 = sentence.get_phrase_from_head(
-          s1_head_index,
-          exclude_indices=[s2_head_index]
         )
-        return (s1, s2, marker)
-      else:
-        # if no S1 found, record previous sentence as S1
-        s1 = previous_sentence
-    else:
-      # if no S1 found, record previous sentence as S1
-      s1 = previous_sentence
+        subordinates.sort()
 
-    # if S2 found, return example tuple
-    return (s1, s2, marker)
+        subordinate_phrase = " ".join([self.word(i) for i in subordinates])
 
-  else:
-    # if no S2 found, print out sentence and return None
-    return None
+        # optionally exclude some indices and their children
 
+        # make a string from this to return
+        return subordinate_phrase
 
+    def get_valid_marker_indices(self, marker):
+        pos = dependency_patterns[marker]["POS"]
+        return [i for i in self.indices(marker) if pos == self.token(i)["pos"] ]
 
-def text_filenames(data_dir, extension):
-  return [os.path.join(data_dir, split + "_" + label + "." + extension) \
-                      for label in ["S1", "S2", "labels"] \
-                      for split in ["train", "valid", "test"]]
+    def get_candidate_S2_indices(self, marker, marker_index):
+        connection_type = dependency_patterns[marker]["S2"]
+        # Look for S2
+        return self.find_parents(marker_index, filter_types=[connection_type])
 
-"""
-data_tag - ptb or wikitext-103
-collapse_nums - if we want, we can collapse numbers to N
-strip_punctuation - if we want, we can strip punctuation
-"""
-def parse_data_directory(data_tag, collapse_nums=False, strip_punctuation=False):
-  # Given a corpus where each line is a sentence, find examples with given
-  # discourse markers.
+    def get_candidate_S1_indices(self, marker, s2_head_index):
+        valid_connection_types = dependency_patterns[marker]["S1"]
+        return self.find_parents(
+            s2_head_index,
+            filter_types=valid_connection_types
+        )
 
-  """
-  PTB reduces all instances of numbers to N
-  If we want to, we can do that for other corpora
-  (By default, we don't)
-  """
-  def collapse_numbers(s):
-    if COLLAPSE_NUMBERS:
-      return re.sub("([^ ]*)\d([^ ]*)", "\1N\2", s)
-    else:
-      return s
+    def find_pair(self, marker, order, previous_sentence):
+        assert(order in ["s2 discourse_marker s1", "any"])
+        # fix me
+        # (this won't quite work if there are multiple matching connections)
+        # (which maybe never happens)
+        S1 = None
+        S2 = None
+        s1_ind = 1000
+        s2_ind = 0
 
+        for marker_index in self.get_valid_marker_indices(marker):
+            for s2_head_index in self.get_candidate_S2_indices(marker, marker_index):
+                # store S2 if we have one
+                S2 = self.get_phrase_from_head(
+                    s2_head_index,
+                    exclude_indices=[marker_index]
+                )
+                s2_ind = s2_head_index
+                for s1_head_index in self.get_candidate_S1_indices(marker, s2_head_index):
+                    # store S1 if we have one
+                    S1 = self.get_phrase_from_head(
+                        s1_head_index,
+                        exclude_indices=[s2_head_index]
+                    )
+                    s1_ind = s1_head_index
 
-  data_dir = "data/" + data_tag + "/"
+        # if we are only checking for the "reverse" order, reject anything else
+        if order=="s2 discourse_marker s1":
+            if s1_ind < s2_ind:
+                return None
 
-  if data_tag == "wikitext-103":
-    tag2 = "wiki"
-    extension = "tokens"
-  else:
-    tag2 = data_tag
-    extension = "txt"
+        if S2 and not S1:
+            S1 = previous_sentence
 
-  num_sentences = 0
-
-  unparsed = []
-
-  # download ptb if it doesn't exist
-  # fix me
-  if not os.path.isfile(data_dir + tag2 + ".test." + extension):
-    # download it
-    None
-  if not os.path.isfile(data_dir + tag2 + ".train." + extension):
-    None
-  if not os.path.isfile(data_dir + tag2 + ".valid." + extension):
-    None
-
-
-  # check if text files already exist
-  if False:#all([os.path.isfile(f) for f in text_filenames(data_dir, extension)]):
-    print("text files in " + data_dir + " already exist. " +
-          "Delete them if you want to rerun.")
-  else:
-    for split in ["train", "valid", "test"]:
-
-      s1s = []
-      s2s = []
-      labels = []
-
-      datapath = data_dir + tag2 + "." + split + "." + extension
-      fd = open(datapath)
-      line = fd.readline()
-      previous_line = ""
-      while line:
-        line = re.sub("\n", "", line)
-        line_words = line.strip().split()
-        if len(line_words) > 0:
-          if data_dir=="data/wikitext-103/" and line_words[0] == "=":
-            previous_line = ""
-          else:
-            if data_dir=="data/wikitext-103/":
-              doc_sentences = line.split(" . ")
-            else:
-              doc_sentences = [line]
-            for s in doc_sentences:
-              s = s.strip()
-              if collapse_nums:
-                words = collapse_numbers(s)
-
-              if strip_punctuation:
-                words_to_exclude = ["@-@", ".", "\"", ",", ":",
-                                    "—", "(", ")", "@,@", "@.@",
-                                    ";", "'", "–", "!", "?"]
-                s = " ".join([w for w in s.split() if not w in words_to_exclude])
-
-              pattern = ".* (then) .*"
-              # pattern = ".* (" + "|".join(discourse_markers) + ") .*"
-              m = re.match(pattern, s)
-              if m:
-                s = re.sub("[Ii]n the meanwhile ", "meanwhile ", s)
-                parse_string = get_parse(s)
-                for marker in m.groups():
-                  if marker=="if":
-                    if re.match("as if", s):
-                      unparsed.append((s, marker))
-                      print("NO MATCH: " + s)
-                      continue
-                  if marker=="while":
-                    if re.match("( a|all the) while", s):
-                      unparsed.append((s, marker))
-                      print("NO MATCH: " + s)
-                      continue
-                  example_tuple = parse_example(marker, parse_string, s, previous_line)
-                  if example_tuple:
-                    s1, s2, label = example_tuple
-                    s1s.append(s1.strip())
-                    s2s.append(s2.strip())
-                    labels.append(marker)
-                  else:
-                    unparsed.append((s, marker))
-                    print("NO MATCH: " + s)
-              previous_line = s
-
-        previous_line = line
-        line = fd.readline()
-        num_sentences += 1
-      fd.close()
-
-      write_example_file(data_dir, split, "S1", s1s)
-      write_example_file(data_dir, split, "S2", s2s)
-      write_example_file(data_dir, split, "labels", labels)
+        if S1 and S2:
+            return S1, S2
+        else:
+            return None
 
 
 if __name__ == '__main__':

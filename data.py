@@ -26,26 +26,15 @@ PAD_ID = 0
 UNK_ID = 1
 
 """
-# preprossesing for seq to seq (data_gen)
-# data reads preprocessed files
-
-* make vocab files
-    - vocab
-        dict {word: number}
-    - reverse vocab
-        list[number] = word
-* download and load glove
-    - 6b
-    - 300d
-
-save vocab into file vocab.dat
-just a text file where each line is a word type
-
-function naming convention
-
-train_BECAUSE
-tokenized version of data: train_BECAUSE.ids.txt
-this gets passed into pair_iter...
+ - sampling procedure (don't spend too much time on this!)
+       - pkl format [[s_1, s_2, label]]
+            * label is class index {0, ..., N}
+       - data split and shuffling: train, valid, test
+       - create_vocabulary as in notebook
+       - list_to_indices
+       - np.random.shuffle FIX RANDOM SEED
+       - create_dataset
+             * does the split, writes the files!
 """
 
 def setup_args():
@@ -118,6 +107,7 @@ def process_glove(args, vocab_list, save_path, size=4e5, random_init=True):
         else:
             glove = np.zeros((len(vocab_list), args.glove_dim))
         found = 0
+        line_num = 0
         with open(glove_path, 'r') as fh:
             for line in tqdm(fh, total=size):
                 array = line.lstrip().rstrip().split(" ")
@@ -139,32 +129,35 @@ def process_glove(args, vocab_list, save_path, size=4e5, random_init=True):
                     idx = vocab_list.index(word.lower())
                     glove[idx, :] = vector
                     found += 1
+                line_num += 1
+                if line_num == size:
+                    break
 
         print("{}/{} of word vocab have corresponding vectors in {}".format(found, len(vocab_list), glove_path))
         np.savez_compressed(save_path, glove=glove)
         print("saved trimmed glove matrix at: {}".format(save_path))
 
-def create_vocabulary(vocabulary_path, data_paths, tokenizer=None):
+def create_vocabulary(vocabulary_path, data_path, tokenizer=None):
     if gfile.Exists(vocabulary_path):
         print("Vocabulary file already exists at %s" % vocabulary_path)
     else:
-        print("Creating vocabulary %s from data %s" % (vocabulary_path, str(data_paths)))
+        print("Creating vocabulary %s from data %s" % (vocabulary_path, str(data_path)))
         vocab = {}
-        for path in data_paths:
-            if os.path.isfile(path):
-                with open(path, mode="rb") as f:
-                    counter = 0
-                    for line in f:
-                        counter += 1
-                        if counter % 100000 == 0:
-                            print("processing line %d" % counter)
-                        tokens = tokenizer(line) if tokenizer else basic_tokenizer(line)
-                        for w in tokens:
-                            if not w in _START_VOCAB:
-                                if w in vocab:
-                                    vocab[w] += 1
-                                else:
-                                    vocab[w] = 1
+        path = data_path
+        if os.path.isfile(path):
+            with open(path, mode="rb") as f:
+                counter = 0
+                for line in f:
+                    counter += 1
+                    if counter % 100000 == 0:
+                        print("processing line %d" % counter)
+                    tokens = tokenizer(line) if tokenizer else basic_tokenizer(line)
+                    for w in tokens:
+                        if not w in _START_VOCAB:
+                            if w in vocab:
+                                vocab[w] += 1
+                            else:
+                                vocab[w] = 1
         vocab_list = _START_VOCAB + sorted(vocab, key=vocab.get, reverse=True)
         print("Vocabulary size: %d" % len(vocab_list))
         with gfile.GFile(vocabulary_path, mode="wb") as vocab_file:
@@ -198,22 +191,26 @@ def data_to_token_ids(data_path, target_path, vocabulary_path,
                     token_ids = sentence_to_token_ids(line, vocab, tokenizer)
                     tokens_file.write(" ".join([str(tok) for tok in token_ids]) + "\n")
 
+
+"""
+ - sampling procedure (don't spend too much time on this!)
+       - pkl format [[s_1, s_2, label]]
+            * label is class index {0, ..., N}
+       - data split and shuffling: train, valid, test
+       - create_vocabulary as in notebook
+       - list_to_indices
+       - np.random.shuffle FIX RANDOM SEED
+       - create_dataset
+             * does the split, writes the files!
+"""
 if __name__ == '__main__':
     args = setup_args()
 
     vocab_path = pjoin(args.vocab_dir, "vocab.dat")
 
-    partial_fnames = ["test_BECAUSE_S1", "test_BUT_S1",
-                      "train_BECAUSE_S1", "train_BUT_S1",
-                      "valid_BECAUSE_S1", "valid_BUT_S1",
-                      "test_BECAUSE_S2", "test_BUT_S2",
-                      "train_BECAUSE_S2", "train_BUT_S2",
-                      "valid_BECAUSE_S2", "valid_BUT_S2"]
+    data_path = pjoin(args.source_dir, "all_sentence_pairs.pkl")
 
-    data_fnames = [partial_fname + ".txt" for partial_fname in partial_fnames]
-    data_paths = [pjoin(args.source_dir, fname) for fname in data_fnames]
-
-    create_vocabulary(vocab_path, data_paths, tokenizer=None) # nltk.word_tokenize
+    create_vocabulary(vocab_path, data_path, tokenizer=None) # nltk.word_tokenize
 
     vocab, rev_vocab = initialize_vocabulary(pjoin(args.vocab_dir, "vocab.dat"))
 

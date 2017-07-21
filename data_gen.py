@@ -28,6 +28,7 @@ from os.path import join as pjoin
 import json
 import pickle
 import requests
+import datetime
 
 import logging
 logging.basicConfig(level=logging.INFO)
@@ -115,6 +116,7 @@ def main():
     # regex to determine if depparse is necessary
     # (if so, depparse)
     # extract pairs for each matched marker
+    print(datetime.datetime.now().time())
     parse_corpus("wiki")
     parse_corpus("ptb")
 
@@ -169,52 +171,64 @@ def get_pairs_from_files(data_dir, corpus_files):
         "meanwhile",
         "while", "if"
     ]
-    pairs = {d: [] for d in discourse_markers}
     rejected_sentences = {d: [] for d in discourse_markers}
 
     # for each input file
     for file_name in corpus_files:
         file_path = pjoin(data_dir, file_name)
+        save_path = pjoin(data_dir, file_name + "_cache.pkl")
+        if os.path.isfile(save_path):
+            pairs, starting_line_num = pickle.load(open(save_path, "rb"))
+        else:
+            starting_line_num = -1
+            pairs = {d: [] for d in discourse_markers}
         with open(file_path, 'r') as f:
             logging.info("loading file {}".format(file_path))
             # for each line
             line = f.readline()
             s = None
+            line_num = 0
             while line:
+                if line_num > starting_line_num:
+                    if line_num % 1000 == 0:
+                        logging.info("{} loading line {}".format(datetime.datetime.now().time(), line_num))
+                        pickle.dump((pairs, line_num), open(save_path, "wb"))
+                    words = line.split()
+                    if len(words)==0 or words[0]=="=":
+                        s = None
+                    else:
+                        # extract all sentences from that line
+                        sentences = line.strip().split(" . ")
+                        while len(sentences)>0:
+                            # and for each sentence and its previous sentence
+                            prev_s, s = s, sentences.pop()
+                            # first determine via regex whether a depparse is necessary
+                            markers, depparse_required = search_sentence_for_marker(s)
+                            # (run depparse if necessary)
+                            parse = None
+                            if depparse_required:
+                                parse = get_parse(s)
+                            # then for each marker in the sentence,
+                            found_pair = False
+                            for marker in markers:
+                                # add to that list of pairs
+                                pair_for_marker = extract_pairs_from_sentence(
+                                    current_sentence = s,
+                                    marker = marker,
+                                    previous_sentence = prev_s,
+                                    parse = parse
+                                )
+                                if pair_for_marker:
+                                    pairs[marker.lower()].append(pair_for_marker)
+                                    found_pair = True
+                            if not found_pair:
+                                has_marker = re.match(".*(" + "|".join(discourse_markers) + ")", s)
+                                if has_marker:
+                                    for m in has_marker.groups():
+                                        rejected_sentences[m.lower()].append(s)
                 line = f.readline()
-                words = line.split()
-                if len(words)==0 or words[0]=="=":
-                    s = None
-                else:
-                    # extract all sentences from that line
-                    sentences = line.strip().split(" . ")
-                    while len(sentences)>0:
-                        # and for each sentence and its previous sentence
-                        prev_s, s = s, sentences.pop()
-                        # first determine via regex whether a depparse is necessary
-                        markers, depparse_required = search_sentence_for_marker(s)
-                        # (run depparse if necessary)
-                        parse = None
-                        if depparse_required:
-                            parse = get_parse(s)
-                        # then for each marker in the sentence,
-                        found_pair = False
-                        for marker in markers:
-                            # add to that list of pairs
-                            pair_for_marker = extract_pairs_from_sentence(
-                                current_sentence = s,
-                                marker = marker,
-                                previous_sentence = prev_s,
-                                parse = parse
-                            )
-                            if pair_for_marker:
-                                pairs[marker.lower()].append(pair_for_marker)
-                                found_pair = True
-                        if not found_pair:
-                            has_marker = re.match(".*(" + "|".join(discourse_markers) + ")", s)
-                            if has_marker:
-                                for m in has_marker.groups():
-                                    rejected_sentences[marker.lower()].append(s)
+                line_num += 1
+            pickle.dump((pairs, line_num), open(save_path, "wb"))
     return pairs, rejected_sentences
 
 

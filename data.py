@@ -1,3 +1,6 @@
+#! /usr/bin/env python
+# -*- coding: utf-8 -*-
+
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
@@ -10,6 +13,7 @@ import tarfile
 import argparse
 import nltk
 import string
+import pickle
 
 from six.moves import urllib
 
@@ -24,6 +28,10 @@ _START_VOCAB = [_PAD, _UNK]
 
 PAD_ID = 0
 UNK_ID = 1
+
+import sys
+reload(sys)
+sys.setdefaultencoding('utf8')
 
 """
  - sampling procedure (don't spend too much time on this!)
@@ -137,22 +145,29 @@ def process_glove(args, vocab_list, save_path, size=4e5, random_init=True):
         np.savez_compressed(save_path, glove=glove)
         print("saved trimmed glove matrix at: {}".format(save_path))
 
-def create_vocabulary(vocabulary_path, data_path, tokenizer=None):
+def create_vocabulary(vocabulary_path, data_path, tokenizer=None, discourse_markers=None):
     if gfile.Exists(vocabulary_path):
         print("Vocabulary file already exists at %s" % vocabulary_path)
     else:
         print("Creating vocabulary %s from data %s" % (vocabulary_path, str(data_path)))
         vocab = {}
-        path = data_path
-        if os.path.isfile(path):
-            with open(path, mode="rb") as f:
-                counter = 0
-                for line in f:
+        if os.path.isfile(data_path):
+            counter = 0
+            sentence_pairs_data = pickle.load(open(data_path, mode="rb"))
+            if not discourse_markers:
+                discourse_markers = sentence_pairs_data.keys()
+            for discourse_marker in discourse_markers:
+                for s1, s2 in sentence_pairs_data[discourse_marker]:
                     counter += 1
                     if counter % 100000 == 0:
                         print("processing line %d" % counter)
-                    tokens = tokenizer(line) if tokenizer else basic_tokenizer(line)
-                    for w in tokens:
+                    for w in s1:
+                        if not w in _START_VOCAB:
+                            if w in vocab:
+                                vocab[w] += 1
+                            else:
+                                vocab[w] = 1
+                    for w in s2:
                         if not w in _START_VOCAB:
                             if w in vocab:
                                 vocab[w] += 1

@@ -51,23 +51,21 @@ this gets passed into pair_iter...
 def setup_args():
     parser = argparse.ArgumentParser()
     code_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)))
-    vocab_dir = os.path.join("data", "winograd")
+    vocab_dir = os.path.join("data", "wikitext-103")
     glove_dir = os.path.join("data", "glove.6B")
-    source_dir = os.path.join("data", "winograd")
+    source_dir = os.path.join("data", "wikitext-103")
     parser.add_argument("--source_dir", default=source_dir)
     parser.add_argument("--glove_dir", default=glove_dir)
     parser.add_argument("--vocab_dir", default=vocab_dir)
-    parser.add_argument("--glove_dim", default=100, type=int)
+    parser.add_argument("--glove_dim", default=300, type=int)
     parser.add_argument("--random_init", action='store_true')
     return parser.parse_args()
 
 
 def basic_tokenizer(sentence):
     words = []
-    # this is stripping punctuations
-    for space_separated_fragment in ("".join(c for c in sentence if c not in string.punctuation)).split():
+    for space_separated_fragment in sentence.strip().split():
         words.extend(re.split(" ", space_separated_fragment))
-
     return [w for w in words if w]
 
 
@@ -85,12 +83,9 @@ def initialize_vocabulary(vocabulary_path):
 
 """
 once we have vocabulary, go through and make trimmed down word matrix
-
 convert indices in my vocabulary to indices in glove
 not all words will overlap in both vocabs.
-
 trained glove will be somewhere in the directory
-
 (last quarter this was wrong, but this is probably correct. maybe check git history)
 cs224n website has this. pa4 code.
 """
@@ -99,25 +94,16 @@ def process_glove(args, vocab_list, save_path, size=4e5, random_init=True):
     :param vocab_list: [vocab]
     :return:
     """
-    if os.path.basename(os.path.dirname(save_path))=="winograd":
-        # for winograd, steal npz from wikitext
-        wikipath = pjoin(
-            os.path.dirname(os.path.dirname(save_path)),
-            "wikitext-103",
-            os.path.basename(save_path))
-        print(wikipath)
-        # fix me!
-        print("TO DO: RERUN FOR WIKITEXT FIRST!!")
-        # stop
     if gfile.Exists(save_path + ".npz"):
         print("Glove file already exists at %s" % (save_path + ".npz"))
     else:
-        glove_path = os.path.join(args.glove_dir, "glove.6B.{}d.txt".format(args.glove_dim))
+        glove_path = os.path.join(args.glove_dir, "glove.840B.{}d.txt".format(args.glove_dim))
         if random_init:
             glove = np.random.randn(len(vocab_list), args.glove_dim)
         else:
             glove = np.zeros((len(vocab_list), args.glove_dim))
         found = 0
+        line_num = 0
         with open(glove_path, 'r') as fh:
             for line in tqdm(fh, total=size):
                 array = line.lstrip().rstrip().split(" ")
@@ -135,14 +121,14 @@ def process_glove(args, vocab_list, save_path, size=4e5, random_init=True):
                     idx = vocab_list.index(word.upper())
                     glove[idx, :] = vector
                     found += 1
-                if word.lower() in vocab_list:
-                    idx = vocab_list.index(word.lower())
-                    glove[idx, :] = vector
-                    found += 1
+                line_num += 1
+                if line_num == size:
+                    break
 
         print("{}/{} of word vocab have corresponding vectors in {}".format(found, len(vocab_list), glove_path))
         np.savez_compressed(save_path, glove=glove)
         print("saved trimmed glove matrix at: {}".format(save_path))
+
 
 def create_vocabulary(vocabulary_path, data_paths, tokenizer=None):
     if gfile.Exists(vocabulary_path):
@@ -151,20 +137,19 @@ def create_vocabulary(vocabulary_path, data_paths, tokenizer=None):
         print("Creating vocabulary %s from data %s" % (vocabulary_path, str(data_paths)))
         vocab = {}
         for path in data_paths:
-            if os.path.isfile(path):
-                with open(path, mode="rb") as f:
-                    counter = 0
-                    for line in f:
-                        counter += 1
-                        if counter % 100000 == 0:
-                            print("processing line %d" % counter)
-                        tokens = tokenizer(line) if tokenizer else basic_tokenizer(line)
-                        for w in tokens:
-                            if not w in _START_VOCAB:
-                                if w in vocab:
-                                    vocab[w] += 1
-                                else:
-                                    vocab[w] = 1
+            with open(path, mode="rb") as f:
+                counter = 0
+                for line in f:
+                    counter += 1
+                    if counter % 100000 == 0:
+                        print("processing line %d" % counter)
+                    tokens = tokenizer(line) if tokenizer else basic_tokenizer(line)
+                    for w in tokens:
+                        if not w in _START_VOCAB:
+                            if w in vocab:
+                                vocab[w] += 1
+                            else:
+                                vocab[w] = 1
         vocab_list = _START_VOCAB + sorted(vocab, key=vocab.get, reverse=True)
         print("Vocabulary size: %d" % len(vocab_list))
         with gfile.GFile(vocabulary_path, mode="wb") as vocab_file:
@@ -203,24 +188,21 @@ if __name__ == '__main__':
 
     vocab_path = pjoin(args.vocab_dir, "vocab.dat")
 
-    partial_fnames = ["test_BECAUSE_S1", "test_BUT_S1",
-                      "train_BECAUSE_S1", "train_BUT_S1",
-                      "valid_BECAUSE_S1", "valid_BUT_S1",
-                      "test_BECAUSE_S2", "test_BUT_S2",
-                      "train_BECAUSE_S2", "train_BUT_S2",
-                      "valid_BECAUSE_S2", "valid_BUT_S2"]
+    partial_fnames = ["test_BECAUSE", "test_BUT",
+                      "train_BECAUSE", "train_BUT",
+                      "valid_BECAUSE", "valid_BUT"]
 
     data_fnames = [partial_fname + ".txt" for partial_fname in partial_fnames]
     data_paths = [pjoin(args.source_dir, fname) for fname in data_fnames]
 
-    create_vocabulary(vocab_path, data_paths, tokenizer=None) # nltk.word_tokenize
+    create_vocabulary(vocab_path, data_paths)
 
     vocab, rev_vocab = initialize_vocabulary(pjoin(args.vocab_dir, "vocab.dat"))
 
     # ======== Trim Distributed Word Representation =======
     # If you use other word representations, you should change the code below
 
-    process_glove(args, rev_vocab, pjoin(args.source_dir, "glove.trimmed.{}".format(args.glove_dim)),
+    process_glove(args, rev_vocab, args.source_dir + "/glove.trimmed.{}".format(args.glove_dim),
                   random_init=args.random_init)
 
     # ======== Creating Dataset =========
@@ -231,6 +213,4 @@ if __name__ == '__main__':
     for partial_fname in partial_fnames:
         data_path = pjoin(args.source_dir, partial_fname + ".txt")
         ids_path = pjoin(args.source_dir, partial_fname + ".ids.txt")
-
-        if os.path.isfile(data_path):
-            data_to_token_ids(data_path, ids_path, vocab_path)
+        data_to_token_ids(data_path, ids_path, vocab_path)

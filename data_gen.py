@@ -69,14 +69,14 @@ if __name__ == '__main__':
 
     print(len(ptb_train[0]), len(ptb_train[1]))
 
-    write_to_file(ptb_train[0], pjoin("data", "ptb", "train_BUT.txt"))
-    write_to_file(ptb_train[1], pjoin("data", "ptb", "train_BECAUSE.txt"))
-
-    write_to_file(ptb_valid[0], pjoin("data", "ptb", "valid_BUT.txt"))
-    write_to_file(ptb_valid[1], pjoin("data", "ptb", "valid_BECAUSE.txt"))
-
-    write_to_file(ptb_test[0], pjoin("data", "ptb", "test_BUT.txt"))
-    write_to_file(ptb_test[1], pjoin("data", "ptb", "test_BECAUSE.txt"))
+    # write_to_file(ptb_train[0], pjoin("data", "ptb", "train_BUT.txt"))
+    # write_to_file(ptb_train[1], pjoin("data", "ptb", "train_BECAUSE.txt"))
+    #
+    # write_to_file(ptb_valid[0], pjoin("data", "ptb", "valid_BUT.txt"))
+    # write_to_file(ptb_valid[1], pjoin("data", "ptb", "valid_BECAUSE.txt"))
+    #
+    # write_to_file(ptb_test[0], pjoin("data", "ptb", "test_BUT.txt"))
+    # write_to_file(ptb_test[1], pjoin("data", "ptb", "test_BECAUSE.txt"))
 
     # this is in-sentence transition
 

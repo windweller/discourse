@@ -75,8 +75,7 @@ def main(_):
         if not FLAGS.dev:
             tf.global_variables_initializer().run()
             if FLAGS.task == "but":
-                sc.but_because_train(session, but_train, because_train, but_valid,
-                                             because_valid, but_test, because_test,
+                sc.but_because_train(session,
                                              0, FLAGS.epochs, FLAGS.run_dir, data_dir)
             else:
                 sc.cause_effect_train(session, data_dir, because_train, because_valid,because_test,

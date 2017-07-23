@@ -4,18 +4,30 @@
 """
 Corpus (e.g. PTB, Wikitext2) Pre-processing
 
-- does the split (train, test, valid) if necessary
-- tokenization if necessary
+For each discourse marker, make a tuple (s1, s2) where
+s1 and s2 are extracted according to some common patterns.
+Patterns are specific to each discourse markers (though there
+are groups of discourse markers that use the same pattern).
+Sometimes we run a dependency parse on the sentence,
+other times we use simple sentence-splitting rules.
 
-For each discourse marker:
-  - make tuple for each instance of that marker IF
-    it attaches to the head of the full sentence AND
-    it matches our accepted depparse patterns
-    (s1, s2, discourse marker)
+Make files:
+* `[raw filename]_[start index]-[end index].pkl`
+    - contains all extracted pairs from sentences with
+      index in [`start index`, `end index`) within that file
+    - format:
+        ```
+        {
+            "discourse marker": [
+                (["tokens", "in", "s1"], ["tokens", "in", "s2"]),
+                ...
+            ],
+            ...
+        }
+        ```
+* `[raw filename].SENTENCES`.
 
-Make files `S1.txt`, `S2.txt`, and `labels.txt`.
-
-(Also make master files aggregated accross "all" corpora)
+This will later be aggregated into a single `all_sentences.pkl` file.
 """
 
 import io

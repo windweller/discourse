@@ -47,6 +47,7 @@ reload(sys)
 sys.setdefaultencoding('utf8')
 
 import nltk
+import glob
 
 
 """
@@ -132,6 +133,7 @@ def setup_args():
     parser.add_argument("--corpus_length", default=5666000, type=int)
     parser.add_argument("--n_cores", default=4, type=int)
     parser.add_argument("--segment_index", default=0, type=int)
+    parser.add_argument("--mode", default="process_raw")
     return parser.parse_args()
 
 """
@@ -140,6 +142,13 @@ tags implemented so far: "ptb" and "wiki" (wikitext-103)
 """
 def main():
     args = setup_args()
+    if args.mode == "process_raw":
+        process_raw_files(args)
+    elif args.mode == "aggregate":
+        aggregate_prcessed_files(args)
+
+
+def process_raw_files(args):
 
     # for each sentence,
     # regex to determine if depparse is necessary
@@ -182,6 +191,28 @@ def main():
                 ending_sentence_index
             )
             pickle.dump(pairs_from_split, open(save_path, "wb"))
+
+
+def aggregate_prcessed_files(args):
+    data_dir = args.data_dir
+    pairs = {d: [] for d in discourse_markers}
+    for file_path in glob.glob(pjoin(data_dir, "*_*-*.pkl")):
+        print(file_path)
+        file_data = pickle.load(open(file_path, "rb"))
+        for key in pairs:
+            pairs[key] += file_data[key]
+
+    n=0
+    for key in pairs: n+=len(pairs[key])
+    print("total pairs extracted: ".format(n))
+
+    for key in pairs: print("{} ~ {} ({}%)".format(
+        key,
+        len(pairs[key]),
+        float(len(pairs[key]))/n*100
+    ))
+
+    pickle.dump(pairs, open("data/wikitext-103/all_sentences.pkl", "wb"))
 
 
 

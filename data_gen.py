@@ -18,9 +18,7 @@ Make files `S1.txt`, `S2.txt`, and `labels.txt`.
 (Also make master files aggregated accross "all" corpora)
 """
 
-import re
 import io
-import sys
 import nltk
 import os
 from os.path import join as pjoin
@@ -38,6 +36,8 @@ reload(sys)
 sys.setdefaultencoding('utf8')
 
 rejection_mode = False
+
+import nltk
 
 
 """
@@ -107,6 +107,16 @@ dependency_patterns = {
   }
 }
 
+discourse_markers = [
+    "because", "although",
+    "but", "for example", "when",
+    "before", "after", "however", "so", "still", "though",
+    "meanwhile",
+    "while", "if"
+]
+
+corpus_length = 5666000
+
 """
 Parse a particular corpus
 tags implemented so far: "ptb" and "wiki" (wikitext-103)
@@ -117,344 +127,171 @@ def main():
     # (if so, depparse)
     # extract pairs for each matched marker
     print(datetime.datetime.now().time())
-    parse_corpus("wiki")
-    parse_corpus("ptb")
+    # parse_corpus("wiki")
+    # parse_corpus("ptb")
 
-
-"""
-Go through corpus files, extract sentence pairs, and write all the data
-to a pickle file.
-
-Format of pickle file:
-{"discourse_marker": [["this", "is", "s1"], ["this", "is", "s2"]]}
-
-Names of files for each corpus are hardcoded in here
-"""
-def parse_corpus(corpus):
-    assert(corpus in ["wiki", "ptb"])
-
-    # hardcoding of corpus filenames
-    # need a list of filenames, they'll get mixed together
-    if corpus == "ptb":
-        data_dir = "data/ptb"
-        corpus_files = [
-            "ptb.valid.txt",
-            "ptb.train.txt",
-            "ptb.test.txt"
-        ]
-    elif corpus == "wiki":
-        data_dir = "data/wikitext-103"
-        corpus_files = [
-            "wiki.valid.tokens",
-            "wiki.train.tokens",
-            "wiki.test.tokens"
-        ]
-
-    all_sentence_pairs, rejected_sentences = get_pairs_from_files(
-        data_dir=data_dir,
-        corpus_files=corpus_files
-    )
-
-    save_path = pjoin(data_dir, "all_sentence_pairs.pkl")
-    pickle.dump(all_sentence_pairs, open(save_path, "wb"))
-    pickle.dump(
-        rejected_sentences,
-        open(pjoin(data_dir, "rejected_sentences.pkl"), "wb")
-    )
-
-
-def get_pairs_from_files(data_dir, corpus_files):
-    discourse_markers = [
-        "because", "although",
-        "but", "for example", "when",
-        "before", "after", "however", "so", "still", "though",
-        "meanwhile",
-        "while", "if"
+    data_dir = "data/wikitext-103"
+    corpus_files = [
+        "wiki.valid.tokens",
+        "wiki.train.tokens",
+        "wiki.test.tokens"
     ]
-    rejected_sentences = {d: [] for d in discourse_markers}
 
-    # for each input file
-    for file_name in corpus_files:
-        file_path = pjoin(data_dir, file_name)
-        save_path = pjoin(data_dir, file_name + "_cache.pkl")
+    starting_sentence_index = int(sys.argv[1])
+    ending_sentence_index = int(sys.argv[2])
+
+    for filename in corpus_files:
+        save_path = pjoin(
+            data_dir, 
+            "{}_{}-{}.pkl".format(filename, starting_sentence_index, ending_sentence_index)
+        )
+
         if os.path.isfile(save_path):
-            pairs, starting_line_num = pickle.load(open(save_path, "rb"))
+            print("file {} already exists".format(save_path))
         else:
-            starting_line_num = -1
-            pairs = {d: [] for d in discourse_markers}
-        with open(file_path, 'r') as f:
-            logging.info("loading file {}".format(file_path))
-            # for each line
-            line = f.readline()
-            s = None
-            line_num = 0
-            while line:
-                if line_num > starting_line_num:
-                    if line_num % 1000 == 0:
-                        logging.info("{} loading line {}".format(datetime.datetime.now().time(), line_num))
-                        pickle.dump((pairs, line_num), open(save_path, "wb"))
-                    words = line.split()
-                    if len(words)==0 or words[0]=="=":
-                        s = None
-                    else:
-                        # extract all sentences from that line
-                        sentences = line.strip().split(" . ")
-                        while len(sentences)>0:
-                            # and for each sentence and its previous sentence
-                            prev_s, s = s, sentences.pop()
-                            # first determine via regex whether a depparse is necessary
-                            markers, depparse_required = search_sentence_for_marker(s)
-                            # (run depparse if necessary)
-                            parse = None
-                            if depparse_required:
-                                parse = get_parse(s)
-                            # then for each marker in the sentence,
-                            found_pair = False
-                            for marker in markers:
-                                # add to that list of pairs
-                                pair_for_marker = extract_pairs_from_sentence(
-                                    current_sentence = s,
-                                    marker = marker,
-                                    previous_sentence = prev_s,
-                                    parse = parse
-                                )
-                                if pair_for_marker:
-                                    pairs[marker.lower()].append(pair_for_marker)
-                                    found_pair = True
-                            if not found_pair:
-                                has_marker = re.match(".*(" + "|".join(discourse_markers) + ")", s)
-                                if has_marker:
-                                    for m in has_marker.groups():
-                                        rejected_sentences[m.lower()].append(s)
-                line = f.readline()
-                line_num += 1
-            pickle.dump((pairs, line_num), open(save_path, "wb"))
-    return pairs, rejected_sentences
+            pairs_from_split = get_wiki_pairs(
+                pjoin(data_dir, filename),
+                starting_sentence_index,
+                ending_sentence_index
+            )
+            pickle.dump(pairs_from_split, open(save_path, "wb"))
 
 
-"""
-Given a sentence (a string, space separated),
-run a regex to see
-   A) whether any of our discourse markers are in that sentence and 
-   B) whether we'll need a dependency parse
-"""
-def search_sentence_for_marker(sentence_string):
 
-    # initialize empty
-    markers = []
-    depparse_required = False
+def get_wiki_pairs(file_path, starting_sentence_index, ending_sentence_index):
+    pairs = {d: [] for d in discourse_markers}
 
-    # collapse "meanwhile" into a single word
-    sentence_string = re.sub(
-        "in the meanwhile",
-        "meanwhile",
-        sentence_string,
-        re.IGNORECASE
-    )
+    with io.open(file_path, 'rU', encoding="utf-8") as f:
+        tokens = f.read().replace("\n", ". ")
 
-    # first, search for the simple examples
-    # we never need a dependency parse for "but", "for example", or "when"
-    simple = re.match(
-        ".*(but|for example|when|meanwhile)",
-        sentence_string,
-        re.IGNORECASE
-    )
-    if simple:
-        markers += simple.groups()
+        save_path = file_path + ".SENTENCES"
+        if os.path.isfile(save_path):
+            print("loading sentences...")
+            sent_list = pickle.load(open(save_path, "rb"))
+        else:
+            print("tokenizing...")
+            sent_list = nltk.sent_tokenize(tokens)
+            pickle.dump(sent_list, open(save_path, "wb"))
 
-    # next, search for markers that, if they appear sentence-internally,
-    # do not require a dependency parse
-    sentence_internal = re.match(
-        # reject "because of", "as if", "a while", and "all the while"
-        ".* (because|although|if|while) ",
-        sentence_string,
-        re.IGNORECASE
-    )
-    # reject only if that was matched
-    # fix me
-    rejections = re.match(
-        ".*(because of|as if|a while|all the while)",
-        sentence_string,
-        re.IGNORECASE
-    )
-    if sentence_internal and (not rejection_mode or not rejections):
-        markers += sentence_internal.groups()
+        print("tokenization complete. total number of sentences: " + str(len(sent_list)))
+        previous_sentence = ""
+        sent_num = 0
+        for sent in sent_list:
+            if ending_sentence_index < sent_num:
+                break
+            if sent_num % 1000 == 0:
+                print("{} - {}".format(
+                    datetime.datetime.now().time(),
+                    sent_num
+                ))
+            if sent_num >= starting_sentence_index:
+                for marker in discourse_markers:
+                    if marker in sent or marker.capitalize() in sent:
+                        search_words = sent.lower().split()
+                        if marker in search_words:
+                            pair = get_pairs_from_sentence(
+                                sent,
+                                marker,
+                                previous_sentence
+                            )
+                            if pair:
+                                pairs[marker].append(pair)
+                previous_sentence = sent
+            sent_num += 1
+    return pairs
 
-    # next search for those same markers sentence-initially
-    # (this will require a depparse)
-    sentence_initial = re.match(
-        "^(because|although|if|while) ",
-        sentence_string,
-        re.IGNORECASE
-    )
-    if sentence_initial:
-        markers += sentence_initial.groups()
-        depparse_required = True
 
-    # next, look for markers that we're positively pattern-matching
+def get_pairs_from_sentence(sent, marker, previous_sentence):
+
+    if marker == "meanwhile":
+        sent = sent.replace("in the meanwhile", "meanwhile")
+    elif marker == "while":
+        if " a while " in sent or " all the while " in sent:
+            return None
+
+    words = sent.split()
+    # 1. decide whether dependency parsing is needed
+    words_to_search = sent.lower().split()
+    marker_index = words_to_search.index(marker)
+
+    # first, look for the simplest discourse markers, that we can
+    # handle with just regexes
+    # and handle them
+    if marker in ["but", "for example", "when", "meanwhile"]:
+        if marker_index == 0:
+            return (previous_sentence, sent)
+        else:
+            return (
+                " ".join(words[0:marker_index]),
+                " ".join(words[marker_index+1:len(words)])
+            )
+
+    # then, look at the discourse markers that we can handle with
+    # regexes when they're sentence internal
+    elif marker in ["because", "although", "while", "if"]:
+        if marker_index == 0:
+            # handle them if they're sentence-initial
+
+            # search for pattern:
+            # "[discourse marker] S2, S1" (needs dependency parse)
+            reverse_pattern_pair = search_for_reverse_pattern_pair(sent, marker, words, previous_sentence)
+
+            if reverse_pattern_pair:
+                # if we find it, return it.
+                return reverse_pattern_pair
+            else:
+                # otherwise, return pattern: "S1. [discourse marker] S2."
+                return (previous_sentence, sent)
+        else:
+            return (
+                " ".join(words[0:marker_index]),
+                " ".join(words[marker_index+1:len(words)])
+            )
+
+    # finally, look for markers that we're positively pattern-matching
     # (the ones that are too variable to split without a dependency parse)
-    positive_pattern_match = re.match(
-        ".*(before|after|however|so|still|though)",
-        sentence_string,
-        re.IGNORECASE
-    )
-    if positive_pattern_match:
-        markers += positive_pattern_match.groups()
-        depparse_required = True
+    elif marker in ["before", "after", "however", "so", "still", "though"]:
+        return search_for_dep_pattern(
+            marker=marker,
+            current_sentence=sent,
+            previous_sentence=previous_sentence
+        )
 
-    return (markers, depparse_required)
+    else:
+        raise Exception("error in marker comparison")
+
+
+# search for pattern:
+# "[discourse marker] S2, S1" (needs dependency parse)
+def search_for_reverse_pattern_pair(sent, marker, words, previous_sentence):
+    parse_string = get_parse(sent, depparse=True)
+    parse = json.loads(parse_string)
+    sentence = Sentence(parse["sentences"][0])
+    return sentence.find_pair(marker, "s2 discourse_marker s1", previous_sentence)
+
+
+def is_verb_tag(tag):
+    return tag[0] == "V" and not tag[-2:] in ["BG", "BN"]
 
 
 """
 POS-tag string as if it's a sentence
 and see if it has a verb that could plausibly be the predicate.
 """
-# fix me
 def has_verb(string):
-    if rejection_mode:
-        parse = get_parse(string, depparse=False)
-        tokens = json.loads(parse)["sentences"][0]["tokens"]
-        return any([re.match("V(?!(BG|BN))", t["pos"]) for t in tokens])
-    else:
-        return True
+    parse = get_parse(string, depparse=False)
+    tokens = json.loads(parse)["sentences"][0]["tokens"]
+    return any([is_verb_tag(t["pos"]) for t in tokens])
 
-
-"""
-Given a sentence (and possibly its parse and previous sentence)
-and a particular discourse marker,
-find all valid S1, S2 pairs for that discourse marker
-"""
-def extract_pairs_from_sentence(current_sentence, marker, previous_sentence = "", parse = None):
-
-    S1, S2 = search_for_S1_S2_candidates(
-        current_sentence = current_sentence,
-        marker = marker, 
-        previous_sentence = previous_sentence,
-        parse = parse
-    )
-    if S1 and S2:
-        # check that both s1 and s2 have verbs that could be the predicate
-        S1_valid = has_verb(S1)
-        S2_valid = has_verb(S2)
-        if S1_valid and S2_valid:
-            return (S1, S2)
-        else:
-            if S2_valid and marker=="meanwhile":
-                S1 = previous_sentence
-                S2 = re.sub(" ?meanwhile ?", " ", current_sentence).strip()
-                return (S1, S2)
-            else:
-                return None
-    if rejection_mode:
-        return None
-    else:
-        m = re.match("(.*)" + marker + "(.*)", current_sentence)
-        groups = m.groups()
-        if len(groups)==1:
-            return (previous_sentence, groups[0])
-        elif len(groups)==2:
-            return (groups[0], groups[1])
-        else:
-            return None
-
-
-"""
-Use the rules we came up with (sometimes simple regex rules, sometimes
-depparse searches) for each discourse marker to pull out a candidate
-S1 and S2
-"""
-def search_for_S1_S2_candidates(current_sentence, marker, previous_sentence = "", parse = None):
-
-    # first, look for the simplest discourse markers, that we can
-    # handle with just regexes
-    if marker in ["but", "for example", "when", "meanwhile"]:
-        simple = re.match(
-            "(.*)(?:but|for example|when|meanwhile)(.*)",
-            current_sentence,
-            re.IGNORECASE
-        )
-        simple_groups = simple.groups()
-        if len(simple_groups)==1:
-            s1 = previous_sentence
-            s2 = simple_groups[0].strip()
-            return (s1, s2)
-        else:
-            s1 = simple_groups[0].strip()
-            s2 = simple_groups[1].strip()
-            return (s1, s2)
-
-    # then, look at the discourse markers that we can handle with
-    # regexes when they're sentence internal
-    if marker in ["because", "although", "while", "if"]:
-        # first handle them if they're sentence-internal
-        sentence_internal = re.match(
-            "(.+) (because|although|while|if) (.+)",
-            current_sentence,
-            re.IGNORECASE
-        )
-        if sentence_internal:
-            s1 = sentence_internal.groups()[0]
-            s2 = sentence_internal.groups()[2]
-            return (s1, s2)
-        else:
-            # otherwise handle them if they're sentence-initial
-            search_results_for_S1_s1 = search_for_S2_S1_order(
-                marker,
-                parse,
-                previous_sentence
-            )
-            if search_results_for_S1_s1:
-                s1, s2 = search_results_for_S1_s1
-                return (s1, s2)
-            else:
-                if marker=="if":
-                    # reject pattern: "S1. If S2."
-                    return (None, None)
-                else:
-                    # accept pattern: "S1. [discourse marker] S2."
-                    # (for all but "if")
-                    s1 = previous_sentence
-                    s2 = re.sub(
-                        "^" + marker + " ",
-                        "",
-                        current_sentence,
-                        re.IGNORECASE
-                    )
-                    return (s1, s2)
-
-    # finally, look for markers that we're positively pattern-matching
-    # (the ones that are too variable to split without a dependency parse)
-    if marker in ["before", "after", "however", "so", "still", "though"]:
-        search_results = search_for_dep_pattern(
-            marker=marker,
-            current_sentence=current_sentence,
-            previous_sentence=previous_sentence,
-            parse_string=parse
-        )
-        if search_results:
-            return search_results
-        else:
-            return (None, None)
-
-    return (None, None)
 
 """
 using the depparse, look for the desired pattern, in any order
 """
-def search_for_dep_pattern(marker, current_sentence, previous_sentence, parse_string):  
+def search_for_dep_pattern(marker, current_sentence, previous_sentence):  
+    parse_string = get_parse(current_sentence, depparse=True)
     parse = json.loads(parse_string)
     sentence = Sentence(parse["sentences"][0])
     return sentence.find_pair(marker, "any", previous_sentence)
-
-
-"""
-using the depparse, look for the "reverse" order
-e.g. "If A, B." (as opposed to "B if A.")
-"""
-def search_for_S2_S1_order(marker, parse_string, previous_sentence):
-    parse = json.loads(parse_string)
-    sentence = Sentence(parse["sentences"][0])
-    return sentence.find_pair(marker, "s2 discourse_marker s1", previous_sentence)
 
 
 # https://stackoverflow.com/a/18669080
@@ -475,7 +312,7 @@ to parse sentences: tokens, dependency parse
 """
 def get_parse(sentence, depparse=True):
     # fix me: undo this retokenization later!
-    sentence = re.sub(" 't ", "'t ", sentence)
+    sentence = sentence.replace("'t ", " 't ")
     if depparse:
         url = "http://localhost:12345?properties={annotators:'tokenize,ssplit,pos,depparse'}"
     else:
@@ -520,7 +357,7 @@ class Sentence():
     def find_dep_types(self, index, dir=None, filter_types=False):
         deps = self.find_deps(index, dir=dir, filter_types=filter_types)
         return [d["dep"] for d in deps]
-    def string(self):
+    def __str__(self):
         return " ".join([t["word"] for t in self.tokens])
     def get_subordinate_indices(self, acc, explore, exclude_indices=[]):
         children = [c for i in explore for c in self.find_children(i) if not c in exclude_indices]

@@ -186,8 +186,14 @@ def get_wiki_pairs(file_path, starting_sentence_index, ending_sentence_index):
                 ))
             if sent_num >= starting_sentence_index:
                 for marker in discourse_markers:
-                    if marker in sent or marker.capitalize() in sent:
+                    if sent.find(marker) or sent.find(marker.capitalize()):
+
+                        if marker == "for example":
+                            sent.replace("for example", "for_example")
+                            marker = "for_example"
+
                         search_words = sent.lower().split()
+
                         if marker in search_words:
                             pair = get_pairs_from_sentence(
                                 sent,
@@ -208,6 +214,9 @@ def get_pairs_from_sentence(sent, marker, previous_sentence):
     elif marker == "while":
         if " a while " in sent or " all the while " in sent:
             return None
+    elif marker == "because":
+        if " because of " in sent or "Because of" in sent:
+            return None
 
     words = sent.split()
     # 1. decide whether dependency parsing is needed
@@ -217,7 +226,7 @@ def get_pairs_from_sentence(sent, marker, previous_sentence):
     # first, look for the simplest discourse markers, that we can
     # handle with just regexes
     # and handle them
-    if marker in ["but", "for example", "when", "meanwhile"]:
+    if marker in ["but", "for_example", "when", "meanwhile"]:
         if marker_index == 0:
             return (previous_sentence, sent)
         else:

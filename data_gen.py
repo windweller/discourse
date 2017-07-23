@@ -27,6 +27,8 @@ import json
 import pickle
 import requests
 import datetime
+import argparse
+import numpy as np
 
 import sys
 reload(sys)
@@ -110,11 +112,23 @@ discourse_markers = [
     "while", "if"
 ]
 
+def setup_args():
+    parser = argparse.ArgumentParser()
+    code_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)))
+    parser.add_argument("--data_dir", default="data/wikitext-103")
+    parser.add_argument("--corpus_files", default="wiki.valid.tokens wiki.train.tokens wiki.test.tokens")
+    parser.add_argument("--corpus_length", default=5666000, type=int)
+    parser.add_argument("--n_cores", default=4, type=int)
+    parser.add_argument("--segment_index", default=0, type=int)
+    return parser.parse_args()
+
 """
 Parse a particular corpus
 tags implemented so far: "ptb" and "wiki" (wikitext-103)
 """
 def main():
+    args = setup_args()
+
     # for each sentence,
     # regex to determine if depparse is necessary
     # (if so, depparse)
@@ -123,22 +137,17 @@ def main():
     # parse_corpus("wiki")
     # parse_corpus("ptb")
 
-
     # wikitext parameters:
-    data_dir = "data/wikitext-103"
-    corpus_files = [
-        "wiki.valid.tokens",
-        "wiki.train.tokens",
-        "wiki.test.tokens"
-    ]
-    corpus_length = 5666000 #approx (actual value is a little bit less)
+    data_dir = args.data_dir
+    corpus_files = args.corpus_files.split()
+    corpus_length = args.corpus_length #approx (actual value is a little bit less)
+    n_cores = args.n_cores
 
-    n_cores = 4
-    step = ceil(corpus_length / 4.0)
+    step = int(np.ceil(corpus_length / 4.0))
     starting_indices = [i for i in range(0, corpus_length, step)]
     ending_indices = [i+step for i in starting_indices]
 
-    segment_index = int(sys.argv[1])
+    segment_index = args.segment_index
     starting_sentence_index = starting_indices[segment_index]
     ending_sentence_index = ending_indices[segment_index]
     print("parsing from {}K to {}K...".format(

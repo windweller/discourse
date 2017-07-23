@@ -28,14 +28,9 @@ import pickle
 import requests
 import datetime
 
-import logging
-logging.basicConfig(level=logging.INFO)
-
 import sys
 reload(sys)
 sys.setdefaultencoding('utf8')
-
-rejection_mode = False
 
 import nltk
 
@@ -115,8 +110,6 @@ discourse_markers = [
     "while", "if"
 ]
 
-corpus_length = 5666000
-
 """
 Parse a particular corpus
 tags implemented so far: "ptb" and "wiki" (wikitext-103)
@@ -130,15 +123,28 @@ def main():
     # parse_corpus("wiki")
     # parse_corpus("ptb")
 
+
+    # wikitext parameters:
     data_dir = "data/wikitext-103"
     corpus_files = [
         "wiki.valid.tokens",
         "wiki.train.tokens",
         "wiki.test.tokens"
     ]
+    corpus_length = 5666000 #approx (actual value is a little bit less)
 
-    starting_sentence_index = int(sys.argv[1])
-    ending_sentence_index = int(sys.argv[2])
+    n_cores = 4
+    step = ceil(corpus_length / 4.0)
+    starting_indices = [i for i in range(0, corpus_length, step)]
+    ending_indices = [i+step for i in starting_indices]
+
+    segment_index = int(sys.argv[1])
+    starting_sentence_index = starting_indices[segment_index]
+    ending_sentence_index = ending_indices[segment_index]
+    print("parsing from {}K to {}K...".format(
+        starting_sentence_index/1000,
+        ending_sentence_index/1000
+    ))
 
     for filename in corpus_files:
         save_path = pjoin(

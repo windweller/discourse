@@ -129,7 +129,7 @@ def setup_args():
     parser = argparse.ArgumentParser()
     code_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)))
     parser.add_argument("--data_dir", default="data/wikitext-103")
-    parser.add_argument("--corpus_files", default="wiki.valid.tokens wiki.train.tokens wiki.test.tokens")
+    parser.add_argument("--corpus_files", default="wiki.valid.tokens wiki.test.tokens wiki.train.tokens")
     parser.add_argument("--corpus_length", default=5666000, type=int)
     parser.add_argument("--n_cores", default=4, type=int)
     parser.add_argument("--segment_index", default=0, type=int)
@@ -186,6 +186,7 @@ def process_raw_files(args):
         if os.path.isfile(save_path):
             print("file {} already exists".format(save_path))
         else:
+            print("processing file {}...".format(filename))
             pairs_from_split = get_wiki_pairs(
                 pjoin(data_dir, filename),
                 starting_sentence_index,

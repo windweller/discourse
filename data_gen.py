@@ -267,7 +267,7 @@ def get_wiki_pairs(file_path, starting_sentence_index, ending_sentence_index, sh
                             if pair and all([len(p)>shortest_sentence_length for p in pair]):
                                 if marker == "for_example":
                                     marker = "for example"
-                                pairs[marker].append(pair)
+                                pairs[marker].append((pair[0].split(), pair[1].split()))
                 previous_sentence = sent
             sent_num += 1
     return pairs

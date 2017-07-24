@@ -133,6 +133,7 @@ def setup_args():
     parser.add_argument("--corpus_length", default=5666000, type=int)
     parser.add_argument("--n_cores", default=4, type=int)
     parser.add_argument("--segment_index", default=0, type=int)
+    parser.add_argument("--shortest_sentence_length", default=10, type=int)
     parser.add_argument("--mode", default="process_raw")
     return parser.parse_args()
 
@@ -188,7 +189,8 @@ def process_raw_files(args):
             pairs_from_split = get_wiki_pairs(
                 pjoin(data_dir, filename),
                 starting_sentence_index,
-                ending_sentence_index
+                ending_sentence_index,
+                args.shortest_sentence_length
             )
             pickle.dump(pairs_from_split, open(save_path, "wb"))
 
@@ -216,7 +218,7 @@ def aggregate_prcessed_files(args):
 
 
 
-def get_wiki_pairs(file_path, starting_sentence_index, ending_sentence_index):
+def get_wiki_pairs(file_path, starting_sentence_index, ending_sentence_index, shortest_sentence_length):
     pairs = {d: [] for d in discourse_markers}
 
     with io.open(file_path, 'rU', encoding="utf-8") as f:
@@ -261,7 +263,7 @@ def get_wiki_pairs(file_path, starting_sentence_index, ending_sentence_index):
                                 marker,
                                 previous_sentence
                             )
-                            if pair:
+                            if pair and all([len(p)>shortest_sentence_length for p in pair]):
                                 if marker == "for_example":
                                     marker = "for example"
                                 pairs[marker].append(pair)

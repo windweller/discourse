@@ -165,7 +165,7 @@ def process_raw_files(args):
     corpus_length = args.corpus_length #approx (actual value is a little bit less)
     n_cores = args.n_cores
 
-    step = int(np.ceil(corpus_length / 4.0))
+    step = int(np.ceil(corpus_length / n_cores))
     starting_indices = [i for i in range(0, corpus_length, step)]
     ending_indices = [i+step for i in starting_indices]
 

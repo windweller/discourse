@@ -235,7 +235,7 @@ def get_wiki_pairs(file_path, starting_sentence_index, ending_sentence_index):
         previous_sentence = ""
         sent_num = 0
         for sent in sent_list:
-            if ending_sentence_index < sent_num:
+            if ending_sentence_index <= sent_num:
                 break
             if sent_num % 1000 == 0:
                 print("{} - {}".format(
@@ -244,10 +244,13 @@ def get_wiki_pairs(file_path, starting_sentence_index, ending_sentence_index):
                 ))
             if sent_num >= starting_sentence_index:
                 for marker in discourse_markers:
-                    if sent.find(marker) or sent.find(marker.capitalize()):
+                    if sent.lower().find(marker) >= 0:
 
                         if marker == "for example":
-                            sent.replace("for example", "for_example")
+                            if sent.find("for example") >=0:
+                                sent = sent.replace("for example", "for_example")
+                            elif sent.find("For example") >=0:
+                                sent = sent.replace("For example", "for_example")
                             marker = "for_example"
 
                         search_words = sent.lower().split()
@@ -259,6 +262,8 @@ def get_wiki_pairs(file_path, starting_sentence_index, ending_sentence_index):
                                 previous_sentence
                             )
                             if pair:
+                                if marker == "for_example":
+                                    marker = "for example"
                                 pairs[marker].append(pair)
                 previous_sentence = sent
             sent_num += 1
@@ -286,7 +291,7 @@ def get_pairs_from_sentence(sent, marker, previous_sentence):
     # and handle them
     if marker in ["but", "for_example", "when", "meanwhile"]:
         if marker_index == 0:
-            return (previous_sentence, sent)
+            return (previous_sentence, " ".join(words[1:]))
         else:
             return (
                 " ".join(words[0:marker_index]),
@@ -308,7 +313,7 @@ def get_pairs_from_sentence(sent, marker, previous_sentence):
                 return reverse_pattern_pair
             else:
                 # otherwise, return pattern: "S1. [discourse marker] S2."
-                return (previous_sentence, sent)
+                return (previous_sentence, " ".join(words[1:]))
         else:
             return (
                 " ".join(words[0:marker_index]),

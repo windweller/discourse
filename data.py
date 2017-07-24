@@ -33,6 +33,9 @@ import sys
 reload(sys)
 sys.setdefaultencoding('utf8')
 
+np.random.seed(123)
+
+
 """
  - sampling procedure (don't spend too much time on this!)
        - pkl format [[s_1, s_2, label]]
@@ -45,17 +48,20 @@ sys.setdefaultencoding('utf8')
              * does the split, writes the files!
 """
 
+
 def setup_args():
     parser = argparse.ArgumentParser()
     code_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)))
-    vocab_dir = os.path.join("data", "winograd")
+    vocab_dir = os.path.join("data", "ptb")
     glove_dir = os.path.join("data", "glove.6B")
-    source_dir = os.path.join("data", "winograd")
+    source_dir = os.path.join("data", "ptb")
     parser.add_argument("--source_dir", default=source_dir)
     parser.add_argument("--glove_dir", default=glove_dir)
     parser.add_argument("--vocab_dir", default=vocab_dir)
     parser.add_argument("--glove_dim", default=100, type=int)
     parser.add_argument("--random_init", action='store_true')
+    parser.add_argument("--train_size", default=0.9)
+    parser.add_argument("--discourse_markers", default="because,although,but,for example,when,before,after,however,so,still,though,meanwhile,while,if")
     return parser.parse_args()
 
 
@@ -145,34 +151,32 @@ def process_glove(args, vocab_list, save_path, size=4e5, random_init=True):
         np.savez_compressed(save_path, glove=glove)
         print("saved trimmed glove matrix at: {}".format(save_path))
 
-def create_vocabulary(vocabulary_path, data_path, tokenizer=None, discourse_markers=None):
+def create_vocabulary(vocabulary_path, sentence_pairs_data, tokenizer=None, discourse_markers=None):
     if gfile.Exists(vocabulary_path):
         print("Vocabulary file already exists at %s" % vocabulary_path)
     else:
-        print("Creating vocabulary %s from data %s" % (vocabulary_path, str(data_path)))
+        print("Creating vocabulary {}".format(vocabulary_path))
         vocab = {}
-        if os.path.isfile(data_path):
-            counter = 0
-            sentence_pairs_data = pickle.load(open(data_path, mode="rb"))
-            if not discourse_markers:
-                discourse_markers = sentence_pairs_data.keys()
-            for discourse_marker in discourse_markers:
-                for s1, s2 in sentence_pairs_data[discourse_marker]:
-                    counter += 1
-                    if counter % 100000 == 0:
-                        print("processing line %d" % counter)
-                    for w in s1:
-                        if not w in _START_VOCAB:
-                            if w in vocab:
-                                vocab[w] += 1
-                            else:
-                                vocab[w] = 1
-                    for w in s2:
-                        if not w in _START_VOCAB:
-                            if w in vocab:
-                                vocab[w] += 1
-                            else:
-                                vocab[w] = 1
+        counter = 0
+        if not discourse_markers:
+            discourse_markers = sentence_pairs_data.keys()
+        for discourse_marker in discourse_markers:
+            for s1, s2 in sentence_pairs_data[discourse_marker]:
+                counter += 1
+                if counter % 100000 == 0:
+                    print("processing line %d" % counter)
+                for w in s1:
+                    if not w in _START_VOCAB:
+                        if w in vocab:
+                            vocab[w] += 1
+                        else:
+                            vocab[w] = 1
+                for w in s2:
+                    if not w in _START_VOCAB:
+                        if w in vocab:
+                            vocab[w] += 1
+                        else:
+                            vocab[w] = 1
         vocab_list = _START_VOCAB + sorted(vocab, key=vocab.get, reverse=True)
         print("Vocabulary size: %d" % len(vocab_list))
         with gfile.GFile(vocabulary_path, mode="wb") as vocab_file:
@@ -221,28 +225,80 @@ def data_to_token_ids(data_path, target_path, vocabulary_path,
 if __name__ == '__main__':
     args = setup_args()
 
+    discourse_markers = args.discourse_markers.split(",")
+
     vocab_path = pjoin(args.vocab_dir, "vocab.dat")
 
     data_path = pjoin(args.source_dir, "all_sentence_pairs.pkl")
+    if os.path.isfile(data_path):
+        print("Loading data %s" % (str(data_path)))
+        sentence_pairs_data = pickle.load(open(data_path, mode="rb"))
 
-    create_vocabulary(vocab_path, data_path, tokenizer=None) # nltk.word_tokenize
+        create_vocabulary(vocab_path, sentence_pairs_data, tokenizer=None) # nltk.word_tokenize
 
-    vocab, rev_vocab = initialize_vocabulary(pjoin(args.vocab_dir, "vocab.dat"))
+        vocab, rev_vocab = initialize_vocabulary(pjoin(args.vocab_dir, "vocab.dat"))
 
-    # ======== Trim Distributed Word Representation =======
-    # If you use other word representations, you should change the code below
+        # ======== Trim Distributed Word Representation =======
+        # If you use other word representations, you should change the code below
 
-    process_glove(args, rev_vocab, pjoin(args.source_dir, "glove.trimmed.{}".format(args.glove_dim)),
-                  random_init=args.random_init)
+        process_glove(args, rev_vocab, pjoin(args.source_dir, "glove.trimmed.{}".format(args.glove_dim)),
+                      random_init=args.random_init)
 
-    # ======== Creating Dataset =========
-    # We created our data files seperately
-    # If your model loads data differently (like in bulk)
-    # You should change the below code
+        # ======== Split =========
 
-    for partial_fname in partial_fnames:
-        data_path = pjoin(args.source_dir, partial_fname + ".txt")
-        ids_path = pjoin(args.source_dir, partial_fname + ".ids.txt")
+        assert(args.train_size < 1)
+        split_proportions = {
+            "train": args.train_size,
+            "valid": (1-args.train_size)/2,
+            "test": (1-args.train_size)/2
+        }
+        assert(sum([split_proportions[split] for split in split_proportions])==1)
 
-        if os.path.isfile(data_path):
-            data_to_token_ids(data_path, ids_path, vocab_path)
+        splits = {split: [] for split in split_proportions}
+
+        # gather class labels for reference
+        class_labels = {}
+        i = -1
+
+        # make split, s.t. we have similar distributions over discourse markers for each split
+        for marker in discourse_markers:
+            i += 1
+            class_labels[marker] = i
+
+            # shuffle sentence pairs within each marker
+            # (otherwise sentences from the same document will end up in the same split)
+            shuffled_sentence_pairs = np.random.shuffle(sentence_pairs_data[marker])
+
+            # add class label to each example
+            all_examples = [(p[0], p[1], i) for p in shuffled_sentence_pairs]
+            total_n_examples = len(all_examples)
+
+            # make valid and test sets (they will be equal size)
+            valid_size = split_proportions["valid"]*total_n_examples
+            test_size = valid_size
+            splits["valid"] += all_examples[0:valid_size]
+            splits["test"] += all_examples[valid_size:valid_size+test_size]
+
+            # make train set with remaining examples
+            splits["train"] += all_examples[valid_size+test_size:]
+
+        # shuffle training set so class labels are randomized
+        splits = {split: np.random.shuffle(splits[split]) for split in splits}
+
+        # print class labels for reference  
+        print(class_labels)
+        
+
+        # # ======== Creating Dataset =========
+        # # We created our data files seperately
+        # # If your model loads data differently (like in bulk)
+        # # You should change the below code
+
+        # ids_path = pjoin(args.source_dir, ".ids.txt")
+
+        #     if os.path.isfile(data_path):
+        #         data_to_token_ids(data_path, ids_path, vocab_path)
+
+    else:
+        print("Data file {} does not exist.".format(data_path))
+

@@ -27,7 +27,7 @@ Make files:
         ```
 * `[raw filename].SENTENCES`.
 
-This will later be aggregated into a single `all_sentences.pkl` file.
+This will later be aggregated into a single `all_sentence_pairs.pkl` file.
 """
 
 import io
@@ -207,7 +207,7 @@ def aggregate_prcessed_files(args):
 
     n=0
     for key in pairs: n+=len(pairs[key])
-    print("total pairs extracted: ".format(n))
+    print("total pairs extracted: {}".format(n))
 
     for key in pairs: print("{} ~ {} ({}%)".format(
         key,
@@ -215,7 +215,7 @@ def aggregate_prcessed_files(args):
         float(len(pairs[key]))/n*100
     ))
 
-    pickle.dump(pairs, open("data/wikitext-103/all_sentences.pkl", "wb"))
+    pickle.dump(pairs, open("data/wikitext-103/all_sentence_pairs.pkl", "wb"))
 
 
 

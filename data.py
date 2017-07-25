@@ -50,7 +50,10 @@ Loads data in format:
 
 Exports data (split into valid, train, test files) in format:
 ```
-[(s1, s2, label)]
+{
+  "discourse_marker": [(s1, s2, label), ...],
+  ...
+}
 ```
 where `label` is class index from {0, ..., number_of_discourse_markers},
 and `s1` and `s2` are lists of word ids
@@ -209,15 +212,17 @@ def data_to_token_ids(data, target_path, vocabulary_path, tokenizer=None):
     if not gfile.Exists(target_path):
         vocab, _ = initialize_vocabulary(vocabulary_path)
 
-        ids_data = []
+        ids_data = {}
         counter = 0
-        for s1, s2, label in data:
-            counter += 1
-            if counter % 5000 == 0:
-                print("tokenizing example %d" % counter)
-            token_ids_s1 = sentence_to_token_ids(s1, vocab, tokenizer)
-            token_ids_s2 = sentence_to_token_ids(s2, vocab, tokenizer)
-            ids_data.append((token_ids_s1, token_ids_s2, label))
+        for marker in data:
+            ids_data[marker] = []
+            for s1, s2, label in data[marker]:
+                counter += 1
+                if counter % 5000 == 0:
+                    print("tokenizing example %d" % counter)
+                token_ids_s1 = sentence_to_token_ids(s1, vocab, tokenizer)
+                token_ids_s2 = sentence_to_token_ids(s2, vocab, tokenizer)
+                ids_data[marker].append((token_ids_s1, token_ids_s2, label))
 
         pickle.dump(ids_data, gfile.GFile(target_path, mode="wb"))
 
@@ -265,7 +270,7 @@ if __name__ == '__main__':
         }
         assert(sum([split_proportions[split] for split in split_proportions])==1)
 
-        splits = {split: [] for split in split_proportions}
+        splits = {split: {} for split in split_proportions}
 
         # gather class labels for reference
         class_labels = {}
@@ -287,14 +292,11 @@ if __name__ == '__main__':
             # make valid and test sets (they will be equal size)
             valid_size = int(np.floor(split_proportions["valid"]*total_n_examples))
             test_size = valid_size
-            splits["valid"] += all_examples[0:valid_size]
-            splits["test"] += all_examples[valid_size:valid_size+test_size]
+            splits["valid"][marker] = all_examples[0:valid_size]
+            splits["test"][marker] = all_examples[valid_size:valid_size+test_size]
 
             # make train set with remaining examples
-            splits["train"] += all_examples[valid_size+test_size:]
-
-        # shuffle training set so class labels are randomized
-        for split in splits: np.random.shuffle(splits[split])
+            splits["train"][marker] = all_examples[valid_size+test_size:]
 
         # print class labels for reference  
         print(class_labels)

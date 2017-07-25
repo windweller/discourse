@@ -226,14 +226,18 @@ def get_wiki_pairs(file_path, starting_sentence_index, ending_sentence_index, sh
 
     with io.open(file_path, 'rU', encoding="utf-8") as f:
         if sentences_presegmented:
+            print("reading sentences...")
             # read and store only the lines we need to
             sent_list = []
             line_num = 0
             for line in f:
-                if ending_sentence_index <= line_num:
+                if line_num < starting_sentence_index:
+                    pass
+                elif ending_sentence_index <= line_num:
                     break
-                elif starting_sentence_index <= line_num:
+                else:
                     sent_list.append(line[:-1])
+                line_num += 1
         else:
             tokens = f.read().replace("\n", ". ")
 

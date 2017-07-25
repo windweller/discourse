@@ -135,6 +135,7 @@ def setup_args():
     parser.add_argument("--segment_index", default=0, type=int)
     parser.add_argument("--shortest_sentence_length", default=10, type=int)
     parser.add_argument("--mode", default="process_raw")
+    parser.add_argument("--sentences_presegmented", action='store_true')
     return parser.parse_args()
 
 """
@@ -191,7 +192,8 @@ def process_raw_files(args):
                 pjoin(data_dir, filename),
                 starting_sentence_index,
                 ending_sentence_index,
-                args.shortest_sentence_length
+                args.shortest_sentence_length,
+                args.sentences_presegmented
             )
             pickle.dump(pairs_from_split, open(save_path, "wb"))
 
@@ -219,24 +221,40 @@ def aggregate_prcessed_files(args):
 
 
 
-def get_wiki_pairs(file_path, starting_sentence_index, ending_sentence_index, shortest_sentence_length):
+def get_wiki_pairs(file_path, starting_sentence_index, ending_sentence_index, shortest_sentence_length, sentences_presegmented):
     pairs = {d: [] for d in discourse_markers}
 
     with io.open(file_path, 'rU', encoding="utf-8") as f:
-        tokens = f.read().replace("\n", ". ")
-
-        save_path = file_path + ".SENTENCES"
-        if os.path.isfile(save_path):
-            print("loading sentences...")
-            sent_list = pickle.load(open(save_path, "rb"))
+        if sentences_presegmented:
+            # read and store only the lines we need to
+            sent_list = []
+            line_num = 0
+            for line in f:
+                if ending_sentence_index <= line_num:
+                    break
+                elif starting_sentence_index <= line_num:
+                    sent_list.append(line[:-1])
         else:
-            print("tokenizing...")
-            sent_list = nltk.sent_tokenize(tokens)
-            pickle.dump(sent_list, open(save_path, "wb"))
+            tokens = f.read().replace("\n", ". ")
 
-        print("tokenization complete. total number of sentences: " + str(len(sent_list)))
+            save_path = file_path + ".SENTENCES"
+            if os.path.isfile(save_path):
+                print("loading sentences...")
+                sent_list = pickle.load(open(save_path, "rb"))
+                print("sentences loaded. total number of sentences: " + str(len(sent_list)))
+            else:
+                print("tokenizing...")
+                sent_list = nltk.sent_tokenize(tokens)
+                pickle.dump(sent_list, open(save_path, "wb"))
+                print("tokenization complete. total number of sentences: " + str(len(sent_list)))
+ 
         previous_sentence = ""
-        sent_num = 0
+
+        if sentences_presegmented:
+            sent_num = starting_sentence_index
+        else:
+            sent_num = 0
+            
         for sent in sent_list:
             if ending_sentence_index <= sent_num:
                 break

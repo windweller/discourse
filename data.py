@@ -37,15 +37,25 @@ np.random.seed(123)
 
 
 """
- - sampling procedure (don't spend too much time on this!)
-       - pkl format [[s_1, s_2, label]]
-            * label is class index {0, ..., N}
-       - data split and shuffling: train, valid, test
-       - create_vocabulary as in notebook
-       - list_to_indices
-       - np.random.shuffle FIX RANDOM SEED
-       - create_dataset
-             * does the split, writes the files!
+Loads data in format:
+```
+{
+    "discourse marker": [
+        (["tokens", "in", "s1"], ["tokens", "in", "s2"]),
+        ...
+    ],
+    ...
+}
+```
+
+Exports data (split into valid, train, test files) in format:
+```
+[(s1, s2, label)]
+```
+where `label` is class index from {0, ..., number_of_discourse_markers},
+and `s1` and `s2` are lists of word ids
+
+Also creates vocabulary file `vocab.dat` specifying the mapping between glove embeddings and ids.
 """
 
 
@@ -78,7 +88,7 @@ def initialize_vocabulary(vocabulary_path):
     # map vocab to word embeddings
     if gfile.Exists(vocabulary_path):
         rev_vocab = []
-        with gfile.GFile(vocabulary_path, mode="r") as f:
+        with gfile.GFile(vocabulary_path, mode="rb") as f:
             rev_vocab.extend(f.readlines())
         rev_vocab = [line.strip('\n') for line in rev_vocab]
         vocab = dict([(x, y) for (y, x) in enumerate(rev_vocab)])
@@ -195,20 +205,21 @@ def sentence_to_token_ids(sentence, vocabulary, tokenizer=None):
     return [vocabulary.get(w, UNK_ID) for w in words]
 
 
-def data_to_token_ids(data_path, target_path, vocabulary_path,
-                      tokenizer=None):
+def data_to_token_ids(data, target_path, vocabulary_path, tokenizer=None):
     if not gfile.Exists(target_path):
-        print("Tokenizing data in %s" % data_path)
         vocab, _ = initialize_vocabulary(vocabulary_path)
-        with gfile.GFile(data_path, mode="rb") as data_file:
-            with gfile.GFile(target_path, mode="w") as tokens_file:
-                counter = 0
-                for line in data_file:
-                    counter += 1
-                    if counter % 5000 == 0:
-                        print("tokenizing line %d" % counter)
-                    token_ids = sentence_to_token_ids(line, vocab, tokenizer)
-                    tokens_file.write(" ".join([str(tok) for tok in token_ids]) + "\n")
+
+        ids_data = []
+        counter = 0
+        for s1, s2, label in data:
+            counter += 1
+            if counter % 5000 == 0:
+                print("tokenizing example %d" % counter)
+            token_ids_s1 = sentence_to_token_ids(s1, vocab, tokenizer)
+            token_ids_s2 = sentence_to_token_ids(s2, vocab, tokenizer)
+            ids_data.append((token_ids_s1, token_ids_s2, label))
+
+        pickle.dump(ids_data, gfile.GFile(target_path, mode="wb"))
 
 
 """
@@ -267,14 +278,14 @@ if __name__ == '__main__':
 
             # shuffle sentence pairs within each marker
             # (otherwise sentences from the same document will end up in the same split)
-            shuffled_sentence_pairs = np.random.shuffle(sentence_pairs_data[marker])
+            np.random.shuffle(sentence_pairs_data[marker])
 
             # add class label to each example
-            all_examples = [(p[0], p[1], i) for p in shuffled_sentence_pairs]
+            all_examples = [(p[0], p[1], i) for p in sentence_pairs_data[marker]]
             total_n_examples = len(all_examples)
 
             # make valid and test sets (they will be equal size)
-            valid_size = split_proportions["valid"]*total_n_examples
+            valid_size = int(np.floor(split_proportions["valid"]*total_n_examples))
             test_size = valid_size
             splits["valid"] += all_examples[0:valid_size]
             splits["test"] += all_examples[valid_size:valid_size+test_size]
@@ -283,21 +294,19 @@ if __name__ == '__main__':
             splits["train"] += all_examples[valid_size+test_size:]
 
         # shuffle training set so class labels are randomized
-        splits = {split: np.random.shuffle(splits[split]) for split in splits}
+        for split in splits: np.random.shuffle(splits[split])
 
         # print class labels for reference  
         print(class_labels)
         
 
-        # # ======== Creating Dataset =========
-        # # We created our data files seperately
-        # # If your model loads data differently (like in bulk)
-        # # You should change the below code
+        # ======== Creating Dataset =========
 
-        # ids_path = pjoin(args.source_dir, ".ids.txt")
-
-        #     if os.path.isfile(data_path):
-        #         data_to_token_ids(data_path, ids_path, vocab_path)
+        for split in splits:
+            data = splits[split]
+            ids_path = pjoin(args.source_dir, split + ".ids.pkl")
+            print("Tokenizing data in {}".format(split))
+            data_to_token_ids(data, ids_path, vocab_path)
 
     else:
         print("Data file {} does not exist.".format(data_path))

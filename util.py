@@ -23,6 +23,7 @@ def tokenize(string):
     return [int(s) for s in string.split()]
 
 def get_label(marker):
+    # now in data_dir/"class_labels.pkl"
     assert marker in ["because", "but"]
     if marker=="because":
         return 0

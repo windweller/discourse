@@ -62,6 +62,14 @@ Also creates vocabulary file `vocab.dat` specifying the mapping between glove em
 """
 
 
+
+# tf.app.flags.DEFINE_integer("max_seq_len", 50, "number of time steps to unroll for BPTT, also the max sequence length")
+# tf.app.flags.DEFINE_integer("min_seq_len", 5, "some sentences are just punctuation!")
+# ## remember to use 1/max_ratio for min_ratio!!!
+# tf.app.flags.DEFINE_integer("max_ratio", 5.0, "ratio between len(s1) and len(s2)")
+# tf.app.flags.DEFINE_integer("undersamp_thresh", 50000, "")
+
+
 def setup_args():
     parser = argparse.ArgumentParser()
     code_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)))
@@ -208,7 +216,7 @@ def sentence_to_token_ids(sentence, vocabulary, tokenizer=None):
     return [vocabulary.get(w, UNK_ID) for w in words]
 
 
-def data_to_token_ids(data, target_path, vocabulary_path, tokenizer=None):
+def data_to_token_ids(data, target_path, vocabulary_path, data_dir, tokenizer=None):
     if not gfile.Exists(target_path):
         vocab, _ = initialize_vocabulary(vocabulary_path)
 
@@ -299,7 +307,7 @@ if __name__ == '__main__':
             splits["train"][marker] = all_examples[valid_size+test_size:]
 
         # print class labels for reference  
-        print(class_labels)
+        pickle.dump(class_labels, open(pjoin(args.source_dir, "class_labels.pkl"), "wb"))
         
 
         # ======== Creating Dataset =========

@@ -21,7 +21,6 @@ FLAGS = tf.app.flags.FLAGS
 tf.app.flags.DEFINE_integer("state_size", 256, "hidden dimension")
 tf.app.flags.DEFINE_integer("layers", 1, "number of hidden layers")
 tf.app.flags.DEFINE_integer("epochs", 8, "Number of epochs to train.")
-tf.app.flags.DEFINE_integer("max_seq_len", 35, "number of time steps to unroll for BPTT, also the max sequence length")
 tf.app.flags.DEFINE_integer("embedding_size", 100, "dimension of GloVE vector to use")
 tf.app.flags.DEFINE_integer("learning_rate_decay_epoch", 1, "Learning rate starts decaying after this epoch.")
 tf.app.flags.DEFINE_float("dropout", 0.2, "probability of dropping units")

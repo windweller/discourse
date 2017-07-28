@@ -49,10 +49,7 @@ Loads data in format:
 
 Exports data (split into valid, train, test files) in format:
 ```
-{
-  "discourse_marker": [(s1, s2, label), ...],
-  ...
-}
+[(s1, s2, label), ...]
 ```
 where `label` is class index from {0, ..., number_of_discourse_markers},
 and `s1` and `s2` are lists of word ids
@@ -77,9 +74,10 @@ def setup_args():
     parser.add_argument("--min_seq_len", default=5)
     parser.add_argument("--max_ratio", default=5.0)
     parser.add_argument("--undersamp_cutoff", default=50000)
-    parser.add_argument("--discourse_markers", default="because,although,but,for example,when,before,after,however,so,still,though,meanwhile,while,if")
+    parser.add_argument("--exclude", default="")
     return parser.parse_args()
 
+    # train.pkl -> train_no_because.pkl, train.pkl -> train_all.pkl
 
 def basic_tokenizer(sentence):
     words = []
@@ -118,16 +116,6 @@ def process_glove(args, vocab_list, save_path, size=4e5, random_init=True):
     :param vocab_list: [vocab]
     :return:
     """
-    if os.path.basename(os.path.dirname(save_path))=="winograd":
-        # for winograd, steal npz from wikitext
-        wikipath = pjoin(
-            os.path.dirname(os.path.dirname(save_path)),
-            "wikitext-103",
-            os.path.basename(save_path))
-        print(wikipath)
-        # fix me!
-        print("TO DO: RERUN FOR WIKITEXT FIRST!!")
-        # stop
     if gfile.Exists(save_path + ".npz"):
         print("Glove file already exists at %s" % (save_path + ".npz"))
     else:
@@ -213,7 +201,8 @@ def data_to_token_ids(data, target_path, vocabulary_path, data_dir):
     else:
         vocab, _ = initialize_vocabulary(vocabulary_path)
 
-        ids_data = {}
+        # fix me: this will be a list instead
+        ids_data = []
         for marker in data:
             ids_data[marker] = []
             counter = 0
@@ -223,7 +212,9 @@ def data_to_token_ids(data, target_path, vocabulary_path, data_dir):
                     print("converting example %d" % counter)
                 token_ids_s1 = sentence_to_token_ids(s1, vocab)
                 token_ids_s2 = sentence_to_token_ids(s2, vocab)
-                ids_data[marker].append((token_ids_s1, token_ids_s2, label))
+                ids_data.append((token_ids_s1, token_ids_s2, label))
+
+        np.random.shuffle(ids_data)
 
         print("writing {}".format(target_path))
         pickle.dump(ids_data, gfile.GFile(target_path, mode="wb"))
@@ -261,11 +252,18 @@ def filter_examples(orig_pairs, class_label, max_seq_len, min_seq_len, max_ratio
 if __name__ == '__main__':
     args = setup_args()
 
-    discourse_markers = args.discourse_markers.split(",")
+    discourse_markers = [d for d in [
+        "because", "although",
+        "but", "for example", "when",
+        "before", "after", "however", "so", "still", "though",
+        "meanwhile",
+        "while", "if"
+    ] if d not in args.exclude.split(",")]
 
     vocab_path = pjoin(args.vocab_dir, "vocab.dat")
 
     data_path = pjoin(args.source_dir, "all_sentence_pairs.pkl")
+
     if os.path.isfile(data_path):
         print("Loading data %s" % (str(data_path)))
         sentence_pairs_data = pickle.load(open(data_path, mode="rb"))
@@ -282,7 +280,7 @@ if __name__ == '__main__':
 
         # ======== Split =========
 
-        assert(args.train_size < 1)
+        assert(args.train_size < 1 and args.train_size > 0)
         split_proportions = {
             "train": args.train_size,
             "valid": (1-args.train_size)/2,
@@ -331,7 +329,15 @@ if __name__ == '__main__':
         for split in splits:
             data = splits[split]
             print("Converting data in {}".format(split))
-            ids_path = pjoin(args.source_dir, split + ".ids.pkl")
+            if args.exclude == "":
+                tag = "all"
+            else:
+                tag = "no_" + args.exclude.replace(",", "_")
+            ids_path = pjoin(
+                args.source_dir,
+                "{}_{}.ids.pkl".format(split, tag)
+            )
+
             data_to_token_ids(data, ids_path, vocab_path, args.source_dir)
 
     else:

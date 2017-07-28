@@ -67,7 +67,7 @@ def setup_args():
     parser.add_argument("--source_dir", default=source_dir)
     parser.add_argument("--glove_dir", default=glove_dir)
     parser.add_argument("--vocab_dir", default=vocab_dir)
-    parser.add_argument("--glove_dim", default=100, type=int)
+    parser.add_argument("--glove_dim", default=300, type=int)
     parser.add_argument("--random_init", action='store_true')
     parser.add_argument("--train_size", default=0.9)
     parser.add_argument("--max_seq_len", default=50)
@@ -119,7 +119,7 @@ def process_glove(args, vocab_dict, save_path, random_init=True):
     if gfile.Exists(save_path + ".npz"):
         print("Glove file already exists at %s" % (save_path + ".npz"))
     else:
-        glove_path = os.path.join(args.glove_dir, "glove.6B.{}d.txt".format(args.glove_dim))
+        glove_path = os.path.join(args.glove_dir, "glove.840B.{}d.txt".format(args.glove_dim))
         if random_init:
             glove = np.random.randn(len(vocab_dict), args.glove_dim)
         else:

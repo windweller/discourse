@@ -41,6 +41,7 @@ cause and effect: load in one file
 
 2 pair_iter, one for each task
 but wrap both in one if i have time with a flag
+
 """
 
 def get_training_tuple(tokens1, tokens2, task, marker, vocab,

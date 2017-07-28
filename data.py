@@ -35,7 +35,6 @@ sys.setdefaultencoding('utf8')
 
 np.random.seed(123)
 
-
 """
 Loads data in format:
 ```
@@ -62,26 +61,22 @@ Also creates vocabulary file `vocab.dat` specifying the mapping between glove em
 """
 
 
-
-# tf.app.flags.DEFINE_integer("max_seq_len", 50, "number of time steps to unroll for BPTT, also the max sequence length")
-# tf.app.flags.DEFINE_integer("min_seq_len", 5, "some sentences are just punctuation!")
-# ## remember to use 1/max_ratio for min_ratio!!!
-# tf.app.flags.DEFINE_integer("max_ratio", 5.0, "ratio between len(s1) and len(s2)")
-# tf.app.flags.DEFINE_integer("undersamp_thresh", 50000, "")
-
-
 def setup_args():
     parser = argparse.ArgumentParser()
     code_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)))
-    vocab_dir = os.path.join("data", "ptb")
+    vocab_dir = os.path.join("data", "wikitext-103")
     glove_dir = os.path.join("data", "glove.6B")
-    source_dir = os.path.join("data", "ptb")
+    source_dir = os.path.join("data", "wikitext-103")
     parser.add_argument("--source_dir", default=source_dir)
     parser.add_argument("--glove_dir", default=glove_dir)
     parser.add_argument("--vocab_dir", default=vocab_dir)
     parser.add_argument("--glove_dim", default=100, type=int)
     parser.add_argument("--random_init", action='store_true')
     parser.add_argument("--train_size", default=0.9)
+    parser.add_argument("--max_seq_len", default=50)
+    parser.add_argument("--min_seq_len", default=5)
+    parser.add_argument("--max_ratio", default=5.0)
+    parser.add_argument("--undersamp_cutoff", default=50000)
     parser.add_argument("--discourse_markers", default="because,although,but,for example,when,before,after,however,so,still,though,meanwhile,while,if")
     return parser.parse_args()
 
@@ -217,13 +212,16 @@ def sentence_to_token_ids(sentence, vocabulary, tokenizer=None):
 
 
 def data_to_token_ids(data, target_path, vocabulary_path, data_dir, tokenizer=None):
-    if not gfile.Exists(target_path):
+    if gfile.Exists(target_path):
+        print("file {} already exists".format(target_path))
+    else:
         vocab, _ = initialize_vocabulary(vocabulary_path)
 
         ids_data = {}
-        counter = 0
         for marker in data:
             ids_data[marker] = []
+            counter = 0
+            print(len(data[marker]))
             for s1, s2, label in data[marker]:
                 counter += 1
                 if counter % 5000 == 0:
@@ -232,8 +230,27 @@ def data_to_token_ids(data, target_path, vocabulary_path, data_dir, tokenizer=No
                 token_ids_s2 = sentence_to_token_ids(s2, vocab, tokenizer)
                 ids_data[marker].append((token_ids_s1, token_ids_s2, label))
 
+        print("writing {}".format(target_path))
         pickle.dump(ids_data, gfile.GFile(target_path, mode="wb"))
 
+def filter_examples(orig_pairs, class_label, max_seq_len, min_seq_len, max_ratio, undersamp_cutoff):
+    new_pairs_with_labels = []
+    min_ratio = 1 / max_ratio
+    for s1, s2 in orig_pairs:
+        ratio = float(len(s1))/len(s2)
+        if len(s1) < min_seq_len or max_seq_len < len(s1):
+            pass
+        elif len(s2) < min_seq_len or max_seq_len < len(s2):
+            pass
+        elif ratio < min_ratio or max_ratio < ratio:
+            pass
+        else:
+            new_pairs_with_labels.append((s1, s2, class_label))
+
+    # shuffle sentence pairs within each marker
+    # (otherwise sentences from the same document will end up in the same split)
+    np.random.shuffle(new_pairs_with_labels)
+    return new_pairs_with_labels[:undersamp_cutoff]
 
 """
  - sampling procedure (don't spend too much time on this!)
@@ -289,13 +306,17 @@ if __name__ == '__main__':
             i += 1
             class_labels[marker] = i
 
-            # shuffle sentence pairs within each marker
-            # (otherwise sentences from the same document will end up in the same split)
-            np.random.shuffle(sentence_pairs_data[marker])
-
             # add class label to each example
-            all_examples = [(p[0], p[1], i) for p in sentence_pairs_data[marker]]
+            all_examples = filter_examples(
+                sentence_pairs_data[marker],
+                i,
+                args.max_seq_len,
+                args.min_seq_len,
+                args.max_ratio,
+                args.undersamp_cutoff
+            )
             total_n_examples = len(all_examples)
+            print("total number of examples: {}".format(total_n_examples))
 
             # make valid and test sets (they will be equal size)
             valid_size = int(np.floor(split_proportions["valid"]*total_n_examples))
@@ -314,9 +335,9 @@ if __name__ == '__main__':
 
         for split in splits:
             data = splits[split]
-            ids_path = pjoin(args.source_dir, split + ".ids.pkl")
             print("Tokenizing data in {}".format(split))
-            data_to_token_ids(data, ids_path, vocab_path)
+            ids_path = pjoin(args.source_dir, split + ".ids.pkl")
+            data_to_token_ids(data, ids_path, vocab_path, args.source_dir)
 
     else:
         print("Data file {} does not exist.".format(data_path))

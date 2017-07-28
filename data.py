@@ -167,7 +167,7 @@ def process_glove(args, vocab_list, save_path, size=4e5, random_init=True):
         np.savez_compressed(save_path, glove=glove)
         print("saved trimmed glove matrix at: {}".format(save_path))
 
-def create_vocabulary(vocabulary_path, sentence_pairs_data, tokenizer=None, discourse_markers=None):
+def create_vocabulary(vocabulary_path, sentence_pairs_data, discourse_markers=None):
     if gfile.Exists(vocabulary_path):
         print("Vocabulary file already exists at %s" % vocabulary_path)
     else:
@@ -200,18 +200,14 @@ def create_vocabulary(vocabulary_path, sentence_pairs_data, tokenizer=None, disc
                 vocab_file.write(w + b"\n")
 
 """
-tokenize and map words to ids in vocab
+map words to ids in vocab
 called by data_to_token_ids
 """
-def sentence_to_token_ids(sentence, vocabulary, tokenizer=None):
-    if tokenizer:
-        words = tokenizer(sentence)
-    else:
-        words = basic_tokenizer(sentence)
-    return [vocabulary.get(w, UNK_ID) for w in words]
+def sentence_to_token_ids(sentence, vocabulary):
+    return [vocabulary.get(w, UNK_ID) for w in sentence]
 
 
-def data_to_token_ids(data, target_path, vocabulary_path, data_dir, tokenizer=None):
+def data_to_token_ids(data, target_path, vocabulary_path, data_dir):
     if gfile.Exists(target_path):
         print("file {} already exists".format(target_path))
     else:
@@ -221,13 +217,12 @@ def data_to_token_ids(data, target_path, vocabulary_path, data_dir, tokenizer=No
         for marker in data:
             ids_data[marker] = []
             counter = 0
-            print(len(data[marker]))
             for s1, s2, label in data[marker]:
                 counter += 1
-                if counter % 5000 == 0:
-                    print("tokenizing example %d" % counter)
-                token_ids_s1 = sentence_to_token_ids(s1, vocab, tokenizer)
-                token_ids_s2 = sentence_to_token_ids(s2, vocab, tokenizer)
+                if counter % 10000 == 0:
+                    print("converting example %d" % counter)
+                token_ids_s1 = sentence_to_token_ids(s1, vocab)
+                token_ids_s2 = sentence_to_token_ids(s2, vocab)
                 ids_data[marker].append((token_ids_s1, token_ids_s2, label))
 
         print("writing {}".format(target_path))
@@ -275,7 +270,7 @@ if __name__ == '__main__':
         print("Loading data %s" % (str(data_path)))
         sentence_pairs_data = pickle.load(open(data_path, mode="rb"))
 
-        create_vocabulary(vocab_path, sentence_pairs_data, tokenizer=None) # nltk.word_tokenize
+        create_vocabulary(vocab_path, sentence_pairs_data)
 
         vocab, rev_vocab = initialize_vocabulary(pjoin(args.vocab_dir, "vocab.dat"))
 
@@ -335,7 +330,7 @@ if __name__ == '__main__':
 
         for split in splits:
             data = splits[split]
-            print("Tokenizing data in {}".format(split))
+            print("Converting data in {}".format(split))
             ids_path = pjoin(args.source_dir, split + ".ids.pkl")
             data_to_token_ids(data, ids_path, vocab_path, args.source_dir)
 

@@ -195,7 +195,7 @@ def sentence_to_token_ids(sentence, vocabulary):
     return [vocabulary.get(w, UNK_ID) for w in sentence]
 
 
-def data_to_token_ids(data, target_path, vocabulary_path, data_dir):
+def data_to_token_ids(data, target_path, text_path, vocabulary_path, data_dir):
     if gfile.Exists(target_path):
         print("file {} already exists".format(target_path))
     else:
@@ -203,6 +203,7 @@ def data_to_token_ids(data, target_path, vocabulary_path, data_dir):
 
         # fix me: this will be a list instead
         ids_data = []
+        text_data = []
         for marker in data:
             ids_data[marker] = []
             counter = 0
@@ -213,11 +214,13 @@ def data_to_token_ids(data, target_path, vocabulary_path, data_dir):
                 token_ids_s1 = sentence_to_token_ids(s1, vocab)
                 token_ids_s2 = sentence_to_token_ids(s2, vocab)
                 ids_data.append((token_ids_s1, token_ids_s2, label))
+                text_data.append((s1, s2, label))
 
         np.random.shuffle(ids_data)
 
-        print("writing {}".format(target_path))
+        print("writing {} and {}".format(target_path, text_path))
         pickle.dump(ids_data, gfile.GFile(target_path, mode="wb"))
+        pickle.dump(text_data, gfile.GFile(text_path, mode="wb"))
 
 def filter_examples(orig_pairs, class_label, max_seq_len, min_seq_len, max_ratio, undersamp_cutoff):
     new_pairs_with_labels = []
@@ -337,8 +340,12 @@ if __name__ == '__main__':
                 args.source_dir,
                 "{}_{}.ids.pkl".format(split, tag)
             )
+            text_path = pjoin(
+                args.source_dir,
+                "{}_{}.text.pkl".format(split, tag)
+            )
 
-            data_to_token_ids(data, ids_path, vocab_path, args.source_dir)
+            data_to_token_ids(data, ids_path, text_path, vocab_path, args.source_dir)
 
     else:
         print("Data file {} does not exist.".format(data_path))

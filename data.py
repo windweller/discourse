@@ -68,7 +68,7 @@ def setup_args():
     parser.add_argument("--glove_dir", default=glove_dir)
     parser.add_argument("--vocab_dir", default=vocab_dir)
     parser.add_argument("--glove_dim", default=300, type=int)
-    parser.add_argument("--random_init", action='store_true')
+    parser.add_argument("--random_init", action='store_false')
     parser.add_argument("--train_size", default=0.9)
     parser.add_argument("--max_seq_len", default=50)
     parser.add_argument("--min_seq_len", default=5)

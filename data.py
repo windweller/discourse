@@ -260,7 +260,7 @@ if __name__ == '__main__':
         # ======== Trim Distributed Word Representation =======
         # If you use other word representations, you should change the code below
 
-        process_glove(args, rev_vocab, pjoin(args.source_dir, "glove.trimmed.{}".format(args.glove_dim)),
+        process_glove(args, vocab, pjoin(args.source_dir, "glove.trimmed.{}".format(args.glove_dim)),
                       random_init=args.random_init)
 
         # ======== Split =========

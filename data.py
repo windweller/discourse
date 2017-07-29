@@ -67,7 +67,7 @@ def setup_args():
     parser.add_argument("--source_dir", default=source_dir)
     parser.add_argument("--glove_dir", default=glove_dir)
     parser.add_argument("--vocab_dir", default=vocab_dir)
-    parser.add_argument("--glove_dim", default=100, type=int)
+    parser.add_argument("--glove_dim", default=300, type=int)
     parser.add_argument("--random_init", action='store_true')
     parser.add_argument("--train_size", default=0.9)
     parser.add_argument("--max_seq_len", default=50)
@@ -111,7 +111,7 @@ trained glove will be somewhere in the directory
 (last quarter this was wrong, but this is probably correct. maybe check git history)
 cs224n website has this. pa4 code.
 """
-def process_glove(args, vocab_list, save_path, size=4e5, random_init=True):
+def process_glove(args, vocab_dict, save_path, random_init=True):
     """
     :param vocab_list: [vocab]
     :return:
@@ -119,41 +119,26 @@ def process_glove(args, vocab_list, save_path, size=4e5, random_init=True):
     if gfile.Exists(save_path + ".npz"):
         print("Glove file already exists at %s" % (save_path + ".npz"))
     else:
-        glove_path = os.path.join(args.glove_dir, "glove.6B.{}d.txt".format(args.glove_dim))
+        glove_path = os.path.join(args.glove_dir, "glove.840B.{}d.txt".format(args.glove_dim))
         if random_init:
-            glove = np.random.randn(len(vocab_list), args.glove_dim)
+            glove = np.random.randn(len(vocab_dict), args.glove_dim)
         else:
-            glove = np.zeros((len(vocab_list), args.glove_dim))
-        found = 0
-        line_num = 0
-        with open(glove_path, 'r') as fh:
-            for line in tqdm(fh, total=size):
-                array = line.lstrip().rstrip().split(" ")
-                word = array[0]
-                vector = list(map(float, array[1:]))
-                if word in vocab_list:
-                    idx = vocab_list.index(word)
-                    glove[idx, :] = vector
-                    found += 1
-                if word.capitalize() in vocab_list:
-                    idx = vocab_list.index(word.capitalize())
-                    glove[idx, :] = vector
-                    found += 1
-                if word.upper() in vocab_list:
-                    idx = vocab_list.index(word.upper())
-                    glove[idx, :] = vector
-                    found += 1
-                if word.lower() in vocab_list:
-                    idx = vocab_list.index(word.lower())
-                    glove[idx, :] = vector
-                    found += 1
-                line_num += 1
-                if line_num == size:
-                    break
+            glove = np.zeros((len(vocab_dict), args.glove_dim))
 
-        print("{}/{} of word vocab have corresponding vectors in {}".format(found, len(vocab_list), glove_path))
+        found = 0
+
+        with open(glove_path, 'r') as f:
+            for line in f:
+                word, vec = line.split(' ', 1)
+                if word in vocab_dict:  # all cased
+                    idx = vocab_dict[word]
+                    glove[idx, :] = np.fromstring(vec, sep=' ')
+                    found += 1
+
+        print("{}/{} of word vocab have corresponding vectors in {}".format(found, len(vocab), glove_path))
         np.savez_compressed(save_path, glove=glove)
         print("saved trimmed glove matrix at: {}".format(save_path))
+
 
 def create_vocabulary(vocabulary_path, sentence_pairs_data, discourse_markers=None):
     if gfile.Exists(vocabulary_path):
@@ -278,7 +263,7 @@ if __name__ == '__main__':
         # ======== Trim Distributed Word Representation =======
         # If you use other word representations, you should change the code below
 
-        process_glove(args, rev_vocab, pjoin(args.source_dir, "glove.trimmed.{}".format(args.glove_dim)),
+        process_glove(args, vocab, pjoin(args.source_dir, "glove.trimmed.{}".format(args.glove_dim)),
                       random_init=args.random_init)
 
         # ======== Split =========

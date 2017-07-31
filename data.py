@@ -195,7 +195,7 @@ def data_to_token_ids(data, target_path, text_path, vocabulary_path, data_dir):
             for s1, s2, label in data[marker]:
                 counter += 1
                 if counter % 10000 == 0:
-                    print("converting example %d" % counter)
+                    print("converting %s %d" % (marker, counter))
                 token_ids_s1 = sentence_to_token_ids(s1, vocab)
                 token_ids_s2 = sentence_to_token_ids(s2, vocab)
                 ids_data.append((token_ids_s1, token_ids_s2, label))

@@ -14,14 +14,13 @@ from tensorflow.python.ops import rnn_cell
 from tensorflow.python.ops.rnn_cell import DropoutWrapper
 from tensorflow.python.ops import variable_scope as vs
 
-from util import pair_iter
-
 FLAGS = tf.app.flags.FLAGS
 
 tf.app.flags.DEFINE_integer("state_size", 256, "hidden dimension")
 tf.app.flags.DEFINE_integer("layers", 1, "number of hidden layers")
 tf.app.flags.DEFINE_integer("epochs", 8, "Number of epochs to train.")
 tf.app.flags.DEFINE_integer("embedding_size", 100, "dimension of GloVE vector to use")
+tf.app.flags.DEFINE_integer("max_seq_len", 50, "max sequence length")
 tf.app.flags.DEFINE_integer("learning_rate_decay_epoch", 1, "Learning rate starts decaying after this epoch.")
 tf.app.flags.DEFINE_float("dropout", 0.2, "probability of dropping units")
 tf.app.flags.DEFINE_integer("batch_size", 100, "batch size")
@@ -33,13 +32,12 @@ tf.app.flags.DEFINE_integer("keep", 0, "How many checkpoints to keep, 0 indicate
 tf.app.flags.DEFINE_integer("print_every", 5, "How many iterations to do per print.")
 tf.app.flags.DEFINE_float("max_gradient_norm", 5.0, "Clip gradients to this norm.")
 tf.app.flags.DEFINE_string("run_dir", "sandbox", "directory to store experiment outputs")
-tf.app.flags.DEFINE_string("dataset", "ptb", "ptb/wikitext-103 select the dataset to use")
+tf.app.flags.DEFINE_string("dataset", "wikitext-103", "ptb/wikitext-103 select the dataset to use")
 tf.app.flags.DEFINE_string("task", "but", "choose the task: but/cause")
 tf.app.flags.DEFINE_string("embed_path", "", "Path to the trimmed GLoVe embedding")
 tf.app.flags.DEFINE_string("restore_checkpoint", None, "checkpoint file to restore model parameters from")
 tf.app.flags.DEFINE_boolean("dev", False, "if flag true, will run on dev dataset in a pure testing mode")
 tf.app.flags.DEFINE_boolean("correct_example", False, "if flag false, will print error, true will print out success")
-tf.app.flags.DEFINE_boolean("winograd", False, "run on winograd challenges")
 tf.app.flags.DEFINE_integer("best_epoch", 1, "enter the best epoch to use")
 tf.app.flags.DEFINE_integer("num_examples", 30, "enter the best epoch to use")
 
@@ -53,6 +51,34 @@ def get_optimizer(opt):
     else:
         assert (False)
     return optfn
+
+def padded(tokens, batch_pad=0):
+    maxlen = max(map(lambda x: len(x), tokens)) if batch_pad == 0 else batch_pad
+    return map(lambda token_list: token_list + [data.PAD_ID] * (maxlen - len(token_list)), tokens)
+
+def pair_iter(q, batch_size, inp_len, query_len):
+    # use inp_len, query_len to filter list
+    batched_seq1 = []
+    batched_seq2 = []
+    batched_label = []
+    iter_q = q[:]
+
+    while len(iter_q) > 0:
+        while len(batched_seq1) < batch_size and len(iter_q) > 0:
+            pair = iter_q.pop(0)
+            if len(pair[0]) <= inp_len and len(pair[1]) <= query_len:
+                batched_seq1.append(pair[0])
+                batched_seq2.append(pair[1])
+                batched_label.append(pair[2])
+
+        padded_input = np.array(padded(batched_seq1), dtype=np.int32)
+        input_mask = (padded_input != data.PAD_ID).astype(np.int32)
+        padded_query = np.array(padded(batched_seq2), dtype=np.int32)
+        query_mask = (padded_query != data.PAD_ID).astype(np.int32)
+        labels = np.array(batched_label, dtype=np.int32)
+
+        yield padded_input, input_mask, padded_query, query_mask, labels
+        batched_seq1, batched_seq2, batched_label = [], [], []
 
 class Encoder(object):
     def __init__(self, size, num_layers):
@@ -95,23 +121,11 @@ class Encoder(object):
 
         return out, encoder_outputs
 
-
-class CNNEncoder(object):
-    """
-    Partially adapted
-    from https://github.com/dennybritz/cnn-text-classification-tf/blob/master/text_cnn.py
-    """
-
-    def __init__(self):
-        pass
-
-
 class SequenceClassifier(object):
     def __init__(self, encoder, flags, vocab_size, vocab, rev_vocab, embed_path, task, optimizer="adam", is_training=True):
         # task: ["but", "cause"]
 
-        batch_size = flags.batch_size
-        max_seq_len = flags.max_seq_len
+        self.max_seq_len = flags.max_seq_len
         self.encoder = encoder
         self.embed_path = embed_path
         self.vocab = vocab
@@ -145,12 +159,8 @@ class SequenceClassifier(object):
             self.seqB_inputs = tf.nn.embedding_lookup(embed, self.seqB)
 
         # main computation graph is here
-        if task == 'but':
-            self.setup_but_because()
-            self.loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(self.logits, self.labels))
-        else:
-            self.setup_cause_effect()
-            self.loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(self.logits, self.labels))
+        self.setup_but_because()
+        self.loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(self.logits, self.labels))
 
         if is_training:
             # ==== set up training/updating procedure ====
@@ -187,12 +197,12 @@ class SequenceClassifier(object):
         self.logits = rnn_cell._linear([seqA_c_vec, seqB_c_vec, persA_B_mul, persA_B_sub, persA_B_avg],
                                        self.label_size, bias=True)
 
-    def optimize(self, session, because_tokens, because_mask, but_tokens, but_mask, labels):
+    def optimize(self, session, seqA_tokens, seqA_mask, seqB_tokens, seqB_mask, labels):
         input_feed = {}
-        input_feed[self.seqA] = because_tokens
-        input_feed[self.seqA_mask] = because_mask
-        input_feed[self.seqB] = but_tokens
-        input_feed[self.seqB_mask] = but_mask
+        input_feed[self.seqA] = seqA_tokens
+        input_feed[self.seqA_mask] = seqA_mask
+        input_feed[self.seqB] = seqB_tokens
+        input_feed[self.seqB_mask] = seqB_mask
         input_feed[self.labels] = labels
 
         input_feed[self.encoder.keep_prob] = self.keep_prob_config
@@ -227,81 +237,14 @@ class SequenceClassifier(object):
                 extracted_sent.append(list_sent[i])
         return extracted_sent
 
-    def but_because_validate_winograd(self, session, data_dir, split):
-        # this is always "dev"
-        valid_costs, valid_accus, valid_wino_accus = [], [], []
-        valid_logits, valid_labels = [], []
-        valid_sent1, valid_sent2 = [], []
-        valid_winograd_sent1, valid_winograd_sent2 = [], []
-
-
-        for s1_tokens, s1_mask, s2_tokens, s2_mask, labels, winograd_labels, \
-                text in pair_iter(task="winograd", data_dir=data_dir,
-                                  split="valid", vocab=self.vocab,
-                                  rev_vocab = self.rev_vocab,
-                                  batch_size = self.flags.batch_size,
-                                  shuffle=True, cache=False):
-            cost, logits = self.test(
-                    session, s1_tokens, s1_mask,
-                    s2_tokens, s2_mask, labels)
-            valid_costs.append(cost)
-            accu = np.mean(np.argmax(logits, axis=1) == labels)
-
-            preds = np.argmax(logits, axis=1)
-
-            # winograd_preds = logits[:, 1]  # original
-            winograd_preds = (np.exp(logits) / np.sum(np.exp(logits), axis=1).reshape(logits.shape[0], 1))[:, 1]  # doing softmax
-
-            wino_correct = 0
-            positions = np.array([False] * s1_tokens.shape[0])
-            for i in range(0, s1_tokens.shape[0]-1, 2):
-                # print(i, i+1)
-                # print(winograd_preds[i], winograd_preds[i+1])
-                wino_correct += winograd_preds[i] < winograd_preds[i+1]  # this is wrong
-                positions[i] = True  # mark correct examples
-
-            if FLAGS.correct_example:
-                valid_winograd_sent1.append(self.detokenize_batch(self.extract_sent(positions, s1_tokens)))
-            else:
-                valid_winograd_sent1.append(self.detokenize_batch(self.extract_sent(np.invert(positions), s1_tokens)))
-
-            winograd_accu = wino_correct / float(s1_tokens.shape[0] / 2.)
-
-            if FLAGS.correct_example:
-                positions = preds == labels
-            else:
-                positions = preds != labels
-
-            valid_logits.extend(np.extract(positions, preds).tolist())
-            valid_labels.extend(np.extract(positions, labels).tolist())
-            valid_sent1.extend(self.detokenize_batch(self.extract_sent(positions, s1_tokens)))
-            valid_sent2.extend(self.detokenize_batch(self.extract_sent(positions, s2_tokens)))
-
-            valid_accus.append(accu)
-            valid_wino_accus.append(winograd_accu)
-
-            print(winograd_preds)
-            print(winograd_labels)
-            # print(winograd_preds)
-
-        valid_accu = sum(valid_accus) / float(len(valid_accus))
-        valid_cost = sum(valid_costs) / float(len(valid_costs))
-        valid_wino_accu = sum(valid_wino_accus) / float(len(valid_wino_accus))
-
-        return valid_cost, valid_accu, valid_logits, valid_labels, valid_wino_accu, valid_sent1, valid_sent2, valid_winograd_sent1, valid_winograd_sent2
-
-    def but_because_validate(self, session, data_dir, split, dev=False):
+    def but_because_validate(self, session, q, dev=False):
         valid_costs, valid_accus = [], []
         valid_logits, valid_labels = [], []
         valid_sent1, valid_sent2 = [], []
 
-        for because_tokens, because_mask, but_tokens, \
-                but_mask, labels, text in pair_iter(
-                        task="but_because", data_dir=data_dir, split=split,
-                        vocab=self.vocab, rev_vocab=self.rev_vocab,
-                        batch_size=self.flags.batch_size, shuffle=False,
-                        cache=False):
-            cost, logits = self.test(session, because_tokens, because_mask, but_tokens, but_mask, labels)
+        for seqA_tokens, seqA_mask, seqB_tokens, \
+                seqB_mask, labels in pair_iter(q, self.flags.batch_size, self.max_seq_len, self.max_seq_len):
+            cost, logits = self.test(session, seqA_tokens, seqA_mask, seqB_tokens, seqB_mask, labels)
             valid_costs.append(cost)
             accu = np.mean(np.argmax(logits, axis=1) == labels)
 
@@ -322,8 +265,8 @@ class SequenceClassifier(object):
 
             valid_logits.extend(np.extract(positions, preds).tolist())
             valid_labels.extend(np.extract(positions, labels).tolist())
-            valid_sent1.extend(self.detokenize_batch(self.extract_sent(positions, because_tokens)))
-            valid_sent2.extend(self.detokenize_batch(self.extract_sent(positions, but_tokens)))
+            valid_sent1.extend(self.detokenize_batch(self.extract_sent(positions, seqA_tokens)))
+            valid_sent2.extend(self.detokenize_batch(self.extract_sent(positions, seqB_tokens)))
 
             valid_accus.append(accu)
 
@@ -365,54 +308,16 @@ class SequenceClassifier(object):
             return outsent
         return [detok_sent(s) for s in sent]
 
-    def cause_effect_validate(self, session, data_dir, split, dev=False):
-        valid_costs, valid_accus = [], []
-        valid_logits, valid_labels = [], []
-        valid_sent1, valid_sent2 = [], []
-
-        for cause_tokens, cause_mask, effect_tokens, \
-            effect_mask, labels, text in pair_iter(
-                    task="cause_effect", data_dir=data_dir, split=split,
-                    vocab=self.vocab, rev_vocab=self.rev_vocab,
-                    batch_size=self.flags.batch_size, shuffle=False,
-                    cache=False):
-            cost, logits = self.test(session, cause_tokens, cause_mask, effect_tokens, effect_mask, labels)
-            valid_costs.append(cost)
-            accu = np.mean(np.argmax(logits, axis=1) == labels)
-
-            preds = np.argmax(logits, axis=1)
-
-            if FLAGS.correct_example:
-                positions = preds == labels
-            else:
-                positions = preds != labels
-
-            valid_logits.extend(np.extract(positions, preds).tolist())
-            valid_labels.extend(np.extract(positions, labels).tolist())
-            valid_sent1.extend(self.detokenize_batch(self.extract_sent(positions, cause_tokens)))
-            valid_sent2.extend(self.detokenize_batch(self.extract_sent(positions, effect_tokens)))
-
-            valid_accus.append(accu)
-
-        valid_accu = sum(valid_accus) / float(len(valid_accus))
-        valid_cost = sum(valid_costs) / float(len(valid_costs))
-
-        if dev:
-            return valid_cost, valid_accu, valid_logits, valid_labels, valid_sent1, valid_sent2
-
-        return valid_cost, valid_accu
-
-    def cause_effect_dev_test(self, session, data_dir, because_dev,
-                              save_train_dir, best_epoch):
+    def but_because_dev_test(self, session, q, save_train_dir, best_epoch):
         ## Checkpoint
         checkpoint_path = os.path.join(save_train_dir, "dis.ckpt")
 
         logging.info("restore model from best epoch %d" % best_epoch)
         self.saver.restore(session, checkpoint_path + ("-%d" % best_epoch))
 
-        test_cost, test_accu, test_logits, test_labels, \
-                valid_sent1, valid_sent2 = self.cause_effect_validate(
-                        session, data_dir, "valid", dev=True)
+        # load into the "dev" files
+        test_cost, test_accu, test_logits, test_labels, valid_sent1, valid_sent2 = self.but_because_validate(session, q, dev=True)
+
         logging.info("Final dev cost: %f dev accu: %f" % (test_cost, test_accu))
 
         examples = 0
@@ -424,46 +329,8 @@ class SequenceClassifier(object):
 
         sys.stdout.flush()
 
-    def but_because_dev_test(self, session, data_dir, save_train_dir, best_epoch):
-        ## Checkpoint
-        checkpoint_path = os.path.join(save_train_dir, "dis.ckpt")
+    def but_because_train(self, session, q_train, q_valid, q_test, curr_epoch, num_epochs, save_train_dir):
 
-        logging.info("restore model from best epoch %d" % best_epoch)
-        self.saver.restore(session, checkpoint_path + ("-%d" % best_epoch))
-
-        # load into the "dev" files
-        if not FLAGS.winograd:
-            test_cost, test_accu, test_logits, test_labels, valid_sent1, valid_sent2 = self.but_because_validate(session, data_dir, "valid", dev=True)
-
-            logging.info("Final dev cost: %f dev accu: %f" % (test_cost, test_accu))
-
-            examples = 0
-            for pair in zip(test_logits, test_labels, valid_sent1, valid_sent2):
-                print("true label: {}, predicted: {}, sent1: {}, sent2: {}".format(pair[1], pair[0], pair[2], pair[3]))
-                examples += 1
-                if examples >= FLAGS.num_examples:
-                    break
-        else:
-            test_cost, test_accu, test_logits, test_labels, \
-            valid_wino_accu, valid_sent1, \
-            valid_sent2, valid_winograd_sent1, \
-            valid_winograd_sent2 = self.but_because_validate_winograd(session, data_dir, "valid")
-
-            logging.info("Final dev cost: %f dev accu: %f" % (test_cost, test_accu))
-            logging.info("Winograd accu: %f" % (valid_wino_accu))
-
-            examples = 0
-            for pair in zip(test_logits, test_labels, valid_sent1, valid_sent2):
-                print("true label: {}, predicted: {}, sent1: {}, sent2: {}".format(pair[1], pair[0], pair[2], pair[3]))
-                examples += 1
-                if examples >= FLAGS.num_examples:
-                    break
-
-        sys.stdout.flush()
-
-    def cause_effect_train(self, session, data_dir, because_train,
-                           because_valid, because_test,
-                           curr_epoch, num_epochs, save_train_dir):
         tic = time.time()
         params = tf.trainable_variables()
         num_params = sum(map(lambda t: np.prod(tf.shape(t.value()).eval()), params))
@@ -484,17 +351,13 @@ class SequenceClassifier(object):
 
             ## Train
             epoch_tic = time.time()
-            for cause_tokens, cause_mask, effect_tokens, \
-                effect_mask, labels, text in pair_iter(
-                        task="cause_effect", data_dir=data_dir, split="train",
-                        vocab=self.vocab, rev_vocab=self.rev_vocab,
-                        batch_size=self.flags.batch_size, shuffle=True,
-                        cache=False):
+            for seqA_tokens, seqA_mask, seqB_tokens, \
+                seqB_mask, labels in pair_iter(q_train, self.flags.batch_size, self.max_seq_len, self.max_seq_len):
                 # Get a batch and make a step.
                 tic = time.time()
 
-                logits, grad_norm, cost, param_norm, seqA_rep = self.optimize(session, cause_tokens, cause_mask,
-                                                                              effect_tokens, effect_mask, labels)
+                logits, grad_norm, cost, param_norm, seqA_rep = self.optimize(session, seqA_tokens, seqA_mask,
+                                                            seqB_tokens, seqB_mask, labels)
 
                 accu = np.mean(np.argmax(logits, axis=1) == labels)
 
@@ -520,97 +383,7 @@ class SequenceClassifier(object):
             checkpoint_path = os.path.join(save_train_dir, "dis.ckpt")
 
             ## Validate
-            valid_cost, valid_accu = self.cause_effect_validate(session, data_dir, "valid")
-            valid_accus.append(valid_accu)
-
-            logging.info("Epoch %d Validation cost: %f validation accu: %f epoch time: %f" % (epoch, valid_cost,
-                                                                                              valid_accu,
-                                                                                              epoch_toc - epoch_tic))
-
-            # use accuracy to guide this part, instead of loss
-            if len(previous_losses) >= 1 and valid_accu < max(valid_accus):
-                lr *= FLAGS.learning_rate_decay
-                logging.info("Annealing learning rate at epoch {} to {}".format(epoch, lr))
-                session.run(self.learning_rate_decay_op)
-
-                logging.info("validation cost trigger: restore model from epoch %d" % best_epoch)
-                self.saver.restore(session, checkpoint_path + ("-%d" % best_epoch))
-            else:
-                previous_losses.append(valid_cost)
-                best_epoch = epoch
-                self.saver.save(session, checkpoint_path, global_step=epoch)
-
-        logging.info("restore model from best epoch %d" % best_epoch)
-        logging.info("best validation accuracy: %d" % valid_accus[best_epoch-1])
-        self.saver.restore(session, checkpoint_path + ("-%d" % best_epoch))
-
-        # after training, we test this thing
-        ## Test
-        test_cost, test_accu = self.cause_effect_validate(session, data_dir, "test")
-        logging.info("Final test cost: %f test accu: %f" % (test_cost, test_accu))
-
-        sys.stdout.flush()
-
-    def but_because_train(self, session, but_train, because_train, but_valid,
-                          because_valid, but_test, because_test, curr_epoch, num_epochs, save_train_dir, data_dir):
-
-        tic = time.time()
-        params = tf.trainable_variables()
-        num_params = sum(map(lambda t: np.prod(tf.shape(t.value()).eval()), params))
-        toc = time.time()
-        logging.info("Number of params: %d (retreival took %f secs)" % (num_params, toc - tic))
-
-        lr = FLAGS.learning_rate
-        epoch = curr_epoch
-        best_epoch = 0
-        previous_losses = []
-        valid_accus = []
-        exp_cost = None
-        exp_norm = None
-
-        while num_epochs == 0 or epoch < num_epochs:
-            epoch += 1
-            current_step = 0
-
-            ## Train
-            epoch_tic = time.time()
-            for because_tokens, because_mask, but_tokens, \
-                but_mask, labels, text in pair_iter(
-                        task="but_because", data_dir=data_dir, split="train",
-                        vocab=self.vocab, rev_vocab=self.rev_vocab,
-                        batch_size=self.flags.batch_size, shuffle=True,
-                        cache=False):
-                # Get a batch and make a step.
-                tic = time.time()
-
-                logits, grad_norm, cost, param_norm, seqA_rep = self.optimize(session, because_tokens, because_mask,
-                                                            but_tokens, but_mask, labels)
-
-                accu = np.mean(np.argmax(logits, axis=1) == labels)
-
-                toc = time.time()
-                iter_time = toc - tic
-                current_step += 1
-
-                if not exp_cost:
-                    exp_cost = cost
-                    exp_norm = grad_norm
-                else:
-                    exp_cost = 0.99 * exp_cost + 0.01 * cost
-                    exp_norm = 0.99 * exp_norm + 0.01 * grad_norm
-
-                if current_step % self.flags.print_every == 0:
-                    logging.info(
-                        'epoch %d, iter %d, cost %f, exp_cost %f, accuracy %f, grad norm %f, param norm %f, batch time %f' %
-                        (epoch, current_step, cost, exp_cost, accu, grad_norm, param_norm, iter_time))
-
-            epoch_toc = time.time()
-
-            ## Checkpoint
-            checkpoint_path = os.path.join(save_train_dir, "dis.ckpt")
-
-            ## Validate
-            valid_cost, valid_accu = self.but_because_validate(session, data_dir, "valid")
+            valid_cost, valid_accu = self.but_because_validate(session, q_valid)
             valid_accus.append(valid_accu)
 
             logging.info("Epoch %d Validation cost: %f validation accu: %f epoch time: %f" % (epoch, valid_cost,
@@ -642,7 +415,7 @@ class SequenceClassifier(object):
 
         # after training, we test this thing
         ## Test
-        test_cost, test_accu = self.but_because_validate(session, data_dir, "test")
+        test_cost, test_accu = self.but_because_validate(session, q_test)
         logging.info("Final test cost: %f test accu: %f" % (test_cost, test_accu))
 
         sys.stdout.flush()

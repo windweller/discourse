@@ -190,7 +190,7 @@ def data_to_token_ids(data, target_path, text_path, vocabulary_path, data_dir):
         ids_data = []
         text_data = []
         for marker in data:
-            ids_data[marker] = []
+            # ids_data[marker] = []
             counter = 0
             for s1, s2, label in data[marker]:
                 counter += 1

@@ -44,6 +44,8 @@ def main(_):
     vocab, rev_vocab = initialize_vocab(vocab_path)
     vocab_size = len(vocab)
 
+    logging.info("vocab size: {}".format(vocab_size))
+
     pkl_train_name = pjoin("data", FLAGS.dataset, "train_all.ids.pkl")
     pkl_val_name = pjoin("data", FLAGS.dataset, "valid_all.ids.pkl")
     pkl_test_name = pjoin("data", FLAGS.dataset, "test_all.ids.pkl")

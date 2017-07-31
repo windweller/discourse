@@ -16,10 +16,10 @@ from tensorflow.python.ops import variable_scope as vs
 
 FLAGS = tf.app.flags.FLAGS
 
-tf.app.flags.DEFINE_integer("state_size", 256, "hidden dimension")
-tf.app.flags.DEFINE_integer("layers", 1, "number of hidden layers")
+tf.app.flags.DEFINE_integer("state_size", 512, "hidden dimension")
+tf.app.flags.DEFINE_integer("layers", 2, "number of hidden layers")
 tf.app.flags.DEFINE_integer("epochs", 8, "Number of epochs to train.")
-tf.app.flags.DEFINE_integer("embedding_size", 100, "dimension of GloVE vector to use")
+tf.app.flags.DEFINE_integer("embedding_size", 300, "dimension of GloVE vector to use")
 tf.app.flags.DEFINE_integer("max_seq_len", 50, "max sequence length")
 tf.app.flags.DEFINE_integer("learning_rate_decay_epoch", 1, "Learning rate starts decaying after this epoch.")
 tf.app.flags.DEFINE_float("dropout", 0.2, "probability of dropping units")
@@ -28,13 +28,13 @@ tf.app.flags.DEFINE_integer("seed", 123, "random seed to use")
 tf.app.flags.DEFINE_float("init_scale", 0.1, "scale for random initialization")
 tf.app.flags.DEFINE_float("learning_rate", 0.01, "initial learning rate")
 tf.app.flags.DEFINE_float("learning_rate_decay", 0.8, "amount to decrease learning rate")
-tf.app.flags.DEFINE_integer("keep", 0, "How many checkpoints to keep, 0 indicates keep all.")
+tf.app.flags.DEFINE_integer("keep", 5, "How many checkpoints to keep, 0 indicates keep all.")
 tf.app.flags.DEFINE_integer("print_every", 5, "How many iterations to do per print.")
 tf.app.flags.DEFINE_float("max_gradient_norm", 5.0, "Clip gradients to this norm.")
 tf.app.flags.DEFINE_string("run_dir", "sandbox", "directory to store experiment outputs")
 tf.app.flags.DEFINE_string("dataset", "wikitext-103", "ptb/wikitext-103 select the dataset to use")
 tf.app.flags.DEFINE_string("task", "but", "choose the task: but/cause")
-tf.app.flags.DEFINE_string("embed_path", "", "Path to the trimmed GLoVe embedding")
+tf.app.flags.DEFINE_string("embed_path", "data/wikitext-103/glove.trimmed.300.npz", "Path to the trimmed GLoVe embedding")
 tf.app.flags.DEFINE_string("restore_checkpoint", None, "checkpoint file to restore model parameters from")
 tf.app.flags.DEFINE_boolean("dev", False, "if flag true, will run on dev dataset in a pure testing mode")
 tf.app.flags.DEFINE_boolean("correct_example", False, "if flag false, will print error, true will print out success")
@@ -122,7 +122,7 @@ class Encoder(object):
         return out, encoder_outputs
 
 class SequenceClassifier(object):
-    def __init__(self, encoder, flags, vocab_size, vocab, rev_vocab, embed_path, task, optimizer="adam", is_training=True):
+    def __init__(self, encoder, flags, vocab_size, vocab, rev_vocab, embed_path, optimizer="adam", is_training=True):
         # task: ["but", "cause"]
 
         self.max_seq_len = flags.max_seq_len
@@ -132,7 +132,7 @@ class SequenceClassifier(object):
         self.rev_vocab = rev_vocab
         self.vocab_size = vocab_size
         self.flags = flags
-        self.label_size = 2
+        self.label_size = 14
 
         self.learning_rate = flags.learning_rate
         max_gradient_norm = flags.max_gradient_norm

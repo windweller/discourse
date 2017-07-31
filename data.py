@@ -297,7 +297,7 @@ if __name__ == '__main__':
                 args.undersamp_cutoff
             )
             total_n_examples = len(all_examples)
-            print("total number of examples: {}".format(total_n_examples))
+            print("total number of {}: {}".format(marker, total_n_examples))
 
             # make valid and test sets (they will be equal size)
             valid_size = int(np.floor(split_proportions["valid"]*total_n_examples))

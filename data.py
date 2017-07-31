@@ -14,6 +14,7 @@ import argparse
 import nltk
 import string
 import pickle
+import random
 
 from six.moves import urllib
 
@@ -34,6 +35,7 @@ reload(sys)
 sys.setdefaultencoding('utf8')
 
 np.random.seed(123)
+random.seed(123)
 
 """
 Loads data in format:
@@ -180,7 +182,7 @@ def sentence_to_token_ids(sentence, vocabulary):
     return [vocabulary.get(w, UNK_ID) for w in sentence]
 
 
-def data_to_token_ids(data, target_path, text_path, vocabulary_path, data_dir):
+def data_to_token_ids(data, rev_class_labels, target_path, text_path, vocabulary_path, data_dir):
     if gfile.Exists(target_path):
         print("file {} already exists".format(target_path))
     else:
@@ -201,11 +203,18 @@ def data_to_token_ids(data, target_path, text_path, vocabulary_path, data_dir):
                 ids_data.append((token_ids_s1, token_ids_s2, label))
                 text_data.append((s1, s2, label))
 
-        np.random.shuffle(ids_data)
+        shuffled_idx = range(len(ids_data))
+        random.shuffle(shuffled_idx)
+        shuffled_ids_data = [ids_data[idx] for idx in shuffled_idx]
+        shuffled_text_data = [text_data[idx] for idx in shuffled_idx]
 
         print("writing {} and {}".format(target_path, text_path))
-        pickle.dump(ids_data, gfile.GFile(target_path, mode="wb"))
-        pickle.dump(text_data, gfile.GFile(text_path, mode="wb"))
+        pickle.dump(shuffled_ids_data, gfile.GFile(target_path, mode="wb"))
+
+        with gfile.GFile(text_path, mode="wb") as f:
+            for t in shuffled_text_data:
+                f.write(str([" ".join(t[0]), " ".join(t[1]), rev_class_labels[t[2]]]) + "\n")
+
 
 def filter_examples(orig_pairs, class_label, max_seq_len, min_seq_len, max_ratio, undersamp_cutoff):
     new_pairs_with_labels = []
@@ -280,12 +289,14 @@ if __name__ == '__main__':
 
         # gather class labels for reference
         class_labels = {}
+        rev_class_labels = []
         i = -1
 
         # make split, s.t. we have similar distributions over discourse markers for each split
         for marker in discourse_markers:
             i += 1
             class_labels[marker] = i
+            rev_class_labels.append(marker)
 
             # add class label to each example
             all_examples = filter_examples(
@@ -327,10 +338,10 @@ if __name__ == '__main__':
             )
             text_path = pjoin(
                 args.source_dir,
-                "{}_{}.text.pkl".format(split, tag)
+                "{}_{}.text.txt".format(split, tag)
             )
 
-            data_to_token_ids(data, ids_path, text_path, vocab_path, args.source_dir)
+            data_to_token_ids(data, rev_class_labels, ids_path, text_path, vocab_path, args.source_dir)
 
     else:
         print("Data file {} does not exist.".format(data_path))

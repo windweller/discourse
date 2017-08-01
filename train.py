@@ -20,6 +20,8 @@ logging.basicConfig(level=logging.INFO)
 
 FLAGS = tf.app.flags.FLAGS
 
+tf.app.flags.DEFINE_string("exclude", "", "discourse markers excluded")
+
 # TODO: copy this file and make one for cause_effect
 
 def initialize_vocab(vocab_path):
@@ -52,9 +54,14 @@ def main(_):
 
     logging.info("vocab size: {}".format(vocab_size))
 
-    pkl_train_name = pjoin("data", FLAGS.dataset, "train_all.ids.pkl")
-    pkl_val_name = pjoin("data", FLAGS.dataset, "valid_all.ids.pkl")
-    pkl_test_name = pjoin("data", FLAGS.dataset, "test_all.ids.pkl")
+    if FLAGS.exclude == "":
+        tag = "all"
+    else:
+        tag = "no_" + FLAGS.exclude.replace(",", "_")
+
+    pkl_train_name = pjoin("data", FLAGS.dataset, "train_{}.ids.pkl".format(tag))
+    pkl_val_name = pjoin("data", FLAGS.dataset, "valid_{}.ids.pkl".format(tag))
+    pkl_test_name = pjoin("data", FLAGS.dataset, "test_{}.ids.pkl".format(tag))
 
     with open(pkl_train_name, "rb") as f:
         q_train = pickle.load(f)

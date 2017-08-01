@@ -128,9 +128,12 @@ class Encoder(object):
             # now we choose both so layer 1 and layer 2 will have a difference
             # this is extracting the last hidden states
             if FLAGS.rnn == "GRU":
+                print(output_state_fw.get_shape())
+                print(output_state_bw.get_shape())
                 encoder_outputs = tf.add(output_state_fw, output_state_bw)  # used to have [0][1]
             else:
                 # last layer [-1], hidden state [1]
+                # this works with multilayer
                 encoder_outputs = tf.add(output_state_fw[-1][1], output_state_bw[-1][1])
 
         return out, encoder_outputs

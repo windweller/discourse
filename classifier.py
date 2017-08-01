@@ -425,7 +425,6 @@ class SequenceClassifier(object):
 
             ## Validate
             valid_cost, valid_accu = self.but_because_validate(session, q_valid, label_tokens)
-            valid_accus.append(valid_accu)
 
             logging.info("Epoch %d Validation cost: %f validation accu: %f epoch time: %f" % (epoch, valid_cost,
                                                                                               valid_accu,
@@ -437,7 +436,7 @@ class SequenceClassifier(object):
             #     session.run(self.learning_rate_decay_op)
 
             # only do accuracy
-            if len(previous_losses) >= 1 and valid_accu <= max(valid_accus):
+            if len(previous_losses) >= 1 and valid_accu < max(valid_accus):
                 lr *= FLAGS.learning_rate_decay
                 logging.info("Annealing learning rate at epoch {} to {}".format(epoch, lr))
                 session.run(self.learning_rate_decay_op)

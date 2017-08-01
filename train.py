@@ -5,10 +5,12 @@ from __future__ import print_function
 import os
 import sys
 import json
+import pickle
 
 import tensorflow as tf
 import numpy as np
 
+import data
 from classifier import SequenceClassifier, Encoder
 from os.path import join as pjoin
 
@@ -17,6 +19,8 @@ import logging
 logging.basicConfig(level=logging.INFO)
 
 FLAGS = tf.app.flags.FLAGS
+
+tf.app.flags.DEFINE_string("exclude", "", "discourse markers excluded")
 
 # TODO: copy this file and make one for cause_effect
 
@@ -31,6 +35,11 @@ def initialize_vocab(vocab_path):
     else:
         raise ValueError("Vocabulary file %s not found.", vocab_path)
 
+def dict_to_list(dic):
+    l = [None] * len(dic)
+    for k, v in dic.iteritems():
+        l[v] = k
+    return l
 
 def main(_):
     if not os.path.exists(FLAGS.run_dir):
@@ -43,15 +52,30 @@ def main(_):
     vocab, rev_vocab = initialize_vocab(vocab_path)
     vocab_size = len(vocab)
 
-    but_train = pjoin("data", FLAGS.dataset, "train_BUT.ids.txt")
-    because_train = pjoin("data", FLAGS.dataset, "train_BECAUSE.ids.txt")
+    logging.info("vocab size: {}".format(vocab_size))
 
-    but_valid = pjoin("data", FLAGS.dataset, "valid_BUT.ids.txt")
-    because_valid = pjoin("data", FLAGS.dataset, "valid_BECAUSE.ids.txt")
+    if FLAGS.exclude == "":
+        tag = "all"
+    else:
+        tag = "no_" + FLAGS.exclude.replace(",", "_")
 
-    # in dev setting, these would be dev
-    but_test = pjoin("data", FLAGS.dataset, "test_BUT.ids.txt")
-    because_test = pjoin("data", FLAGS.dataset, "test_BECAUSE.ids.txt")
+    pkl_train_name = pjoin("data", FLAGS.dataset, "train_{}.ids.pkl".format(tag))
+    pkl_val_name = pjoin("data", FLAGS.dataset, "valid_{}.ids.pkl".format(tag))
+    pkl_test_name = pjoin("data", FLAGS.dataset, "test_{}.ids.pkl".format(tag))
+
+    with open(pkl_train_name, "rb") as f:
+        q_train = pickle.load(f)
+
+    with open(pkl_val_name, "rb") as f:
+        q_valid = pickle.load(f)
+
+    with open(pkl_test_name, "rb") as f:
+        q_test = pickle.load(f)
+
+    with open(pjoin("data", FLAGS.dataset, "class_labels.pkl"), "rb") as f:
+        label_dict = pickle.load(f)
+    label_tokens = dict_to_list(label_dict)
+    logging.info("classifying markers: {}".format(label_tokens))
 
     data_dir = pjoin("data", FLAGS.dataset)
 
@@ -65,7 +89,7 @@ def main(_):
 
         with tf.variable_scope("model", reuse=None, initializer=initializer):
             encoder = Encoder(size=FLAGS.state_size, num_layers=FLAGS.layers)
-            sc = SequenceClassifier(encoder, FLAGS, vocab_size, vocab, rev_vocab, embed_path, task=FLAGS.task)
+            sc = SequenceClassifier(encoder, FLAGS, vocab_size, vocab, rev_vocab, embed_path)
 
         model_saver = tf.train.Saver(max_to_keep=FLAGS.epochs)
 
@@ -74,18 +98,10 @@ def main(_):
 
         if not FLAGS.dev:
             tf.global_variables_initializer().run()
-            if FLAGS.task == "but":
-                sc.but_because_train(session, but_train, because_train, but_valid,
-                                             because_valid, but_test, because_test,
-                                             0, FLAGS.epochs, FLAGS.run_dir, data_dir)
-            else:
-                sc.cause_effect_train(session, data_dir, because_train, because_valid,because_test,
-                                                   0, FLAGS.epochs, FLAGS.run_dir)
+            sc.but_because_train(session, q_train, q_valid, q_test, label_tokens, 0, FLAGS.epochs, FLAGS.run_dir)
+
         else:
-            if FLAGS.task == "but":
-                sc.but_because_dev_test(session, data_dir, FLAGS.run_dir, FLAGS.best_epoch)
-            else:
-                sc.cause_effect_dev_test(session, data_dir, because_valid, FLAGS.run_dir, FLAGS.best_epoch)
+            sc.but_because_dev_test(session, data_dir, FLAGS.run_dir, FLAGS.best_epoch, label_tokens)
 
 if __name__ == "__main__":
     tf.app.run()

@@ -363,7 +363,7 @@ def get_pairs_from_sentence(sent, marker, previous_sentence):
 def search_for_reverse_pattern_pair(sent, marker, words, previous_sentence):
     parse_string = get_parse(sent, depparse=True)
     parse = json.loads(parse_string)
-    sentence = Sentence(parse["sentences"][0])
+    sentence = Sentence(parse["sentences"][0], sent)
     return sentence.find_pair(marker, "s2 discourse_marker s1", previous_sentence)
 
 
@@ -387,7 +387,7 @@ using the depparse, look for the desired pattern, in any order
 def search_for_dep_pattern(marker, current_sentence, previous_sentence):  
     parse_string = get_parse(current_sentence, depparse=True)
     parse = json.loads(parse_string)
-    sentence = Sentence(parse["sentences"][0])
+    sentence = Sentence(parse["sentences"][0], current_sentence)
     return sentence.find_pair(marker, "any", previous_sentence)
 
 
@@ -402,13 +402,73 @@ def get_indices(lst, element):
       return result
     result.append(offset)
 
+def get_nearest(lst, element):
+    distances = [abs(e-element) for e in lst]
+    return lst[np.argmin(distances)]
+
+
+"""
+parsed tokenization is different from original tokenization.
+try to re-align and extract the correct words given the
+extraction_indices (which are 1-indexed into parsed_words)
+
+fix me to catch more cases?
+"""
+def extract_subphrase(orig_words, parsed_words, extraction_indices):
+    extraction_indices = [i-1 for i in extraction_indices]
+
+    if len(orig_words) == len(parsed_words):
+        return " ".join([orig_words[i] for i in extraction_indices])
+    else:
+        first_parse_index = extraction_indices[0]
+        first_word_indices = get_indices(orig_words, parsed_words[first_parse_index])
+
+        last_parse_index = extraction_indices[-1]
+
+        last_word_indices = get_indices(orig_words, parsed_words[last_parse_index])
+
+        if len(first_word_indices)>0 and len(last_word_indices)>0:
+            first_orig_index = get_nearest(first_word_indices, first_parse_index)
+            last_orig_index = get_nearest(last_word_indices, last_parse_index)
+            if last_orig_index-first_orig_index == last_parse_index-first_parse_index:
+                # maybe it's just shifted
+                shift = first_orig_index - first_parse_index
+                extraction_indices = [i+shift for i in extraction_indices]
+                return " ".join([orig_words[i] for i in extraction_indices])
+            else:
+                # or maybe there's funny stuff happening inside the subphrase
+                # in which case T-T
+                return None
+        else:
+            if len(first_word_indices)>0 and abs(last_parse_index-len(parsed_words))<3:
+                # the end of the sentence is always weird. assume it's aligned
+
+                # grab the start of the subphrase
+                first_orig_index = get_nearest(first_word_indices, first_parse_index)
+                # shift if necessary
+                shift = first_orig_index - first_parse_index
+                extraction_indices = [i+shift for i in extraction_indices]
+
+                if len(orig_words) > extraction_indices[-1]:
+                    # extend to the end of the sentence if we're not already there
+                    extraction_indices += range(extraction_indices[-1]+1, len(orig_words))
+                else:
+                    extraction_indices = [i for i in extraction_indices if i<len(orig_words)]
+
+                return " ".join([orig_words[i] for i in extraction_indices])
+
+            else:
+                # or maybe the first and/or last words have been transformed,
+                # in which case T-T
+                return None
+        
+
 
 """
 use corenlp server (see https://github.com/erindb/corenlp-ec2-startup)
 to parse sentences: tokens, dependency parse
 """
 def get_parse(sentence, depparse=True):
-    # fix me: undo this retokenization later!
     sentence = sentence.replace("'t ", " 't ")
     if depparse:
         url = "http://localhost:12345?properties={annotators:'tokenize,ssplit,pos,depparse'}"
@@ -420,10 +480,11 @@ def get_parse(sentence, depparse=True):
 
 
 class Sentence():
-    def __init__(self, json_sentence):
+    def __init__(self, json_sentence, original_sentence):
         self.json = json_sentence
         self.dependencies = json_sentence["basicDependencies"]
         self.tokens = json_sentence["tokens"]
+        self.original_sentence = original_sentence
     def indices(self, word):
         if len(word.split(" ")) > 1:
             words = word.split(" ")
@@ -468,20 +529,25 @@ class Sentence():
             )
 
     def get_phrase_from_head(self, head_index, exclude_indices=[]):
-        # fix me
 
         # given an index,
-        # grab every word that's a child of it in the dependency graph
-        subordinates = self.get_subordinate_indices(
-        acc=[head_index],
-        explore=[head_index],
-        exclude_indices=exclude_indices
+        # grab every index that's a child of it in the dependency graph
+        subordinate_indices = self.get_subordinate_indices(
+            acc=[head_index],
+            explore=[head_index],
+            exclude_indices=exclude_indices
         )
-        subordinates.sort()
+        subordinate_indices.sort()
 
-        subordinate_phrase = " ".join([self.word(i) for i in subordinates])
+        # make string of subordinate phrase from parse
+        parse_subordinate_string = " ".join([self.word(i) for i in subordinate_indices])
 
-        # optionally exclude some indices and their children
+        # correct subordinate phrase from parsed version to wikitext version
+        # (tokenization systems are different)
+        orig_words = self.original_sentence.split()
+        parsed_words = [t["word"] for t in self.tokens]
+
+        subordinate_phrase = extract_subphrase(orig_words, parsed_words, subordinate_indices)
 
         # make a string from this to return
         return subordinate_phrase
@@ -519,6 +585,11 @@ class Sentence():
                     s2_head_index,
                     exclude_indices=[marker_index]
                 )
+                # we'll lose some stuff here because of alignment between
+                # wikitext tokenization and corenlp tokenization.
+                # if we can't get a phrase, reject this pair
+                if not S2:
+                    return None
                 s2_ind = s2_head_index
                 for s1_head_index in self.get_candidate_S1_indices(marker, s2_head_index):
                     # store S1 if we have one
@@ -526,6 +597,11 @@ class Sentence():
                         s1_head_index,
                         exclude_indices=[s2_head_index]
                     )
+                    # we'll lose some stuff here because of alignment between
+                    # wikitext tokenization and corenlp tokenization.
+                    # if we can't get a phrase, reject this pair
+                    if not S1:
+                        return None
                     s1_ind = s1_head_index
 
         # if we are only checking for the "reverse" order, reject anything else

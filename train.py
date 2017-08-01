@@ -21,6 +21,7 @@ logging.basicConfig(level=logging.INFO)
 FLAGS = tf.app.flags.FLAGS
 
 tf.app.flags.DEFINE_string("exclude", "", "discourse markers excluded")
+tf.app.flags.DEFINE_string("include", "", "discourse markers included")
 
 
 def initialize_vocab(vocab_path):
@@ -81,6 +82,13 @@ def main(_):
     with open(os.path.join(FLAGS.run_dir, "flags.json"), 'w') as fout:
         json.dump(FLAGS.__flags, fout)
 
+    # auto-adjust label size
+    label_size = 14
+    if FLAGS.exclude != "":
+        label_size -= len(FLAGS.exclude.split(","))
+    elif FLAGS.include != "":
+        label_size = len(FLAGS.include.split(","))
+
     with tf.Graph().as_default(), tf.Session() as session:
         tf.set_random_seed(FLAGS.seed)
 
@@ -88,7 +96,7 @@ def main(_):
 
         with tf.variable_scope("model", reuse=None, initializer=initializer):
             encoder = Encoder(size=FLAGS.state_size, num_layers=FLAGS.layers)
-            sc = SequenceClassifier(encoder, FLAGS, vocab_size, vocab, rev_vocab, embed_path)
+            sc = SequenceClassifier(encoder, FLAGS, vocab_size, vocab, rev_vocab, label_size, embed_path)
 
         model_saver = tf.train.Saver(max_to_keep=FLAGS.epochs)
 

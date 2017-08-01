@@ -88,7 +88,7 @@ class Encoder(object):
 
         if FLAGS.rnn == "lstm":
             cell = rnn_cell.BasicLSTMCell(self.size)
-            state_is_tuple = False
+            state_is_tuple = True
         else:
             cell = rnn_cell.GRUCell(self.size)
             state_is_tuple = False
@@ -127,10 +127,11 @@ class Encoder(object):
             # before we are using state_is_tuple=True, meaning we only chose top layer
             # now we choose both so layer 1 and layer 2 will have a difference
             # this is extracting the last hidden states
-            # if FLAGS.rnn == "GRU":
-            encoder_outputs = tf.add(output_state_fw, output_state_bw)  # used to have [0][1]
-            # else:
-            #     encoder_outputs = tf.add(output_state_fw[0][1], output_state_bw[0][1])
+            if FLAGS.rnn == "GRU":
+                encoder_outputs = tf.add(output_state_fw, output_state_bw)  # used to have [0][1]
+            else:
+                # last layer [-1], hidden state [1]
+                encoder_outputs = tf.add(output_state_fw[-1][1], output_state_bw[-1][1])
 
         return out, encoder_outputs
 

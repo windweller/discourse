@@ -249,9 +249,10 @@ def filter_examples(orig_pairs, class_label, max_seq_len, min_seq_len, max_ratio
 if __name__ == '__main__':
     args = setup_args()
 
+    # --exclude "because,for example,algorithm"
     discourse_markers = [d for d in [
         "because", "although",
-        "but", "when",             # "for_example"
+        "but", "when", "for example",
         "before", "after", "however", "so", "still", "though",
         "meanwhile",
         "while", "if"
@@ -323,19 +324,21 @@ if __name__ == '__main__':
 
         print("overall number of training examples: {}".format(overall))
 
+        if args.exclude == "":
+            tag = "all"
+        else:
+            tag = "no_" + args.exclude.replace(",", "_").replace(" ", "_")
+            # last part is for "for example"
+
         # print class labels for reference  
-        pickle.dump(class_labels, open(pjoin(args.source_dir, "class_labels.pkl"), "wb"))
-        
+        pickle.dump(class_labels, open(pjoin(args.source_dir, "class_labels_{}.pkl".format(tag)), "wb"))
 
         # ======== Creating Dataset =========
 
         for split in splits:
             data = splits[split]
             print("Converting data in {}".format(split))
-            if args.exclude == "":
-                tag = "all"
-            else:
-                tag = "no_" + args.exclude.replace(",", "_")
+
             ids_path = pjoin(
                 args.source_dir,
                 "{}_{}.ids.pkl".format(split, tag)

@@ -134,6 +134,8 @@ class SequenceClassifier(object):
         self.flags = flags
         self.label_size = 14 if flags.exclude == "" else 14 - len(flags.exclude.split(","))
 
+        logging.info("label size is: {}".format(self.label_size))
+
         self.learning_rate = flags.learning_rate
         max_gradient_norm = flags.max_gradient_norm
         keep = flags.keep

@@ -251,7 +251,7 @@ if __name__ == '__main__':
 
     discourse_markers = [d for d in [
         "because", "although",
-        "but", "for example", "when",
+        "but", "when",             # "for_example"
         "before", "after", "however", "so", "still", "though",
         "meanwhile",
         "while", "if"

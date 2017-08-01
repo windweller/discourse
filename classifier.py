@@ -132,7 +132,7 @@ class SequenceClassifier(object):
         self.rev_vocab = rev_vocab
         self.vocab_size = vocab_size
         self.flags = flags
-        self.label_size = 14
+        self.label_size = 14 - len(FLAGS.exclude.split(","))
 
         self.learning_rate = flags.learning_rate
         max_gradient_norm = flags.max_gradient_norm

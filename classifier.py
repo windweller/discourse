@@ -246,13 +246,13 @@ class SequenceClassifier(object):
             idx_of_cat = labels == la
             cat_preds = preds[idx_of_cat]
             accu = np.mean(cat_preds == la)
-            labels_accu[la] = accu
+            labels_accu[la] = [accu]
 
         return labels_accu
 
     def cumulate_multiclass_accuracy(self, total_accu, labels_accu):
         for k, v in labels_accu.iteritems():
-            total_accu[k].append(v)
+            total_accu[k].extend(v)
 
     def get_mean_multiclass_accuracy(self, total_accu):
         for k, v in total_accu.iteritems():

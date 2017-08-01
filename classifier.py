@@ -26,14 +26,15 @@ tf.app.flags.DEFINE_float("dropout", 0.2, "probability of dropping units")
 tf.app.flags.DEFINE_integer("batch_size", 300, "batch size")
 tf.app.flags.DEFINE_integer("seed", 123, "random seed to use")
 tf.app.flags.DEFINE_float("init_scale", 0.1, "scale for random initialization")
+tf.app.flags.DEFINE_string("rnn", "lstm", "lstm/gru architecture choice")
+tf.app.flags.DEFINE_string("opt", "adam", "adam/sgd, the optimizer to use")
 tf.app.flags.DEFINE_float("learning_rate", 0.003, "initial learning rate")
-tf.app.flags.DEFINE_float("learning_rate_decay", 0.5, "amount to decrease learning rate")
+tf.app.flags.DEFINE_float("learning_rate_decay", 0.8, "amount to decrease learning rate")
 tf.app.flags.DEFINE_integer("keep", 5, "How many checkpoints to keep, 0 indicates keep all.")
 tf.app.flags.DEFINE_integer("print_every", 5, "How many iterations to do per print.")
 tf.app.flags.DEFINE_float("max_gradient_norm", 5.0, "Clip gradients to this norm.")
 tf.app.flags.DEFINE_string("run_dir", "sandbox", "directory to store experiment outputs")
 tf.app.flags.DEFINE_string("dataset", "wikitext-103", "ptb/wikitext-103 select the dataset to use")
-tf.app.flags.DEFINE_string("task", "but", "choose the task: but/cause")
 tf.app.flags.DEFINE_string("embed_path", "data/wikitext-103/glove.trimmed.300.npz", "Path to the trimmed GLoVe embedding")
 tf.app.flags.DEFINE_string("restore_checkpoint", None, "checkpoint file to restore model parameters from")
 tf.app.flags.DEFINE_boolean("dev", False, "if flag true, will run on dev dataset in a pure testing mode")
@@ -84,9 +85,14 @@ class Encoder(object):
     def __init__(self, size, num_layers):
         self.size = size
         self.keep_prob = tf.placeholder(tf.float32)
-        lstm_cell = rnn_cell.BasicLSTMCell(self.size)
-        lstm_cell = DropoutWrapper(lstm_cell, input_keep_prob=self.keep_prob, seed=123)
-        self.encoder_cell = tf.nn.rnn_cell.MultiRNNCell([lstm_cell] * num_layers, state_is_tuple=True)
+
+        if FLAGS.rnn == "lstm":
+            cell = rnn_cell.BasicLSTMCell(self.size)
+        else:
+            cell = rnn_cell.GRUCell(self.size)
+
+        cell = DropoutWrapper(cell, input_keep_prob=self.keep_prob, seed=123)
+        self.encoder_cell = tf.nn.rnn_cell.MultiRNNCell([cell] * num_layers, state_is_tuple=True)
 
     def encode(self, inputs, masks, reuse=False, scope_name=""):
         """
@@ -124,7 +130,6 @@ class Encoder(object):
 class SequenceClassifier(object):
     def __init__(self, encoder, flags, vocab_size, vocab, rev_vocab, label_size, embed_path,
                  optimizer="adam", is_training=True):
-        # task: ["but", "cause"]
 
         self.max_seq_len = flags.max_seq_len
         self.encoder = encoder

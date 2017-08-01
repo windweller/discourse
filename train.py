@@ -97,11 +97,14 @@ def main(_):
     with tf.Graph().as_default(), tf.Session() as session:
         tf.set_random_seed(FLAGS.seed)
 
-        initializer = tf.random_uniform_initializer(-FLAGS.init_scale, FLAGS.init_scale, seed=FLAGS.seed)
+        # initializer = tf.random_uniform_initializer(-FLAGS.init_scale, FLAGS.init_scale, seed=FLAGS.seed)
+
+        initializer = tf.uniform_unit_scaling_initializer(FLAGS.init_scale, seed=FLAGS.seed)
 
         with tf.variable_scope("model", reuse=None, initializer=initializer):
             encoder = Encoder(size=FLAGS.state_size, num_layers=FLAGS.layers)
-            sc = SequenceClassifier(encoder, FLAGS, vocab_size, vocab, rev_vocab, label_size, embed_path)
+            sc = SequenceClassifier(encoder, FLAGS, vocab_size, vocab, rev_vocab, label_size, embed_path,
+                                    optimizer=FLAGS.opt)
 
         model_saver = tf.train.Saver(max_to_keep=FLAGS.epochs)
 

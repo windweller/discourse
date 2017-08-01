@@ -354,7 +354,7 @@ class SequenceClassifier(object):
         self.saver.restore(session, checkpoint_path + ("-%d" % best_epoch))
 
         # load into the "dev" files
-        test_cost, test_accu, test_logits, test_labels, valid_sent1, valid_sent2 = self.but_because_validate(session, q, label_tokens dev=True)
+        test_cost, test_accu, test_logits, test_labels, valid_sent1, valid_sent2 = self.but_because_validate(session, q, label_tokens, dev=True)
 
         logging.info("Final dev cost: %f dev accu: %f" % (test_cost, test_accu))
 
@@ -367,7 +367,7 @@ class SequenceClassifier(object):
 
         sys.stdout.flush()
 
-    def but_because_train(self, session, q_train, q_valid, q_test, curr_epoch, num_epochs, save_train_dir):
+    def but_because_train(self, session, q_train, q_valid, q_test, label_tokens, curr_epoch, num_epochs, save_train_dirs):
 
         tic = time.time()
         params = tf.trainable_variables()
@@ -418,7 +418,7 @@ class SequenceClassifier(object):
             epoch_toc = time.time()
 
             ## Checkpoint
-            checkpoint_path = os.path.join(save_train_dir, "dis.ckpt")
+            checkpoint_path = os.path.join(save_train_dirs, "dis.ckpt")
 
             ## Validate
             valid_cost, valid_accu = self.but_because_validate(session, q_valid, label_tokens)

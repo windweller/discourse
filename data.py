@@ -331,13 +331,15 @@ if __name__ == '__main__':
 
         print("overall number of training examples: {}".format(overall))
 
-        if args.exclude=="" and args.include=="":
+        if args.exclude == "" and args.include == "":
             tag = "all"
-        elif args.include=="":
+        elif args.exclude != "":
             tag = "no_" + args.exclude.replace(",", "_").replace(" ", "_")
             # last part is for "for example"
+        elif args.include != "":
+            tag = args.include.replace(",", "_").replace(" ", "_")
         else:
-            tag = args.include.replace(",", "_")
+            raise Exception("no match state for exclude/include")
 
         # print class labels for reference  
         pickle.dump(class_labels, open(pjoin(args.source_dir, "class_labels_{}.pkl".format(tag)), "wb"))

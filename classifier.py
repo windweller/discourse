@@ -244,7 +244,7 @@ class SequenceClassifier(object):
         for la in label_cat:
             # for each label, we get the index of the correct labels
             idx_of_cat = labels == la
-            cat_preds = np.where(idx_of_cat, preds)
+            cat_preds = preds[idx_of_cat]
             accu = np.mean(cat_preds == la)
             labels_accu[la] = accu
 

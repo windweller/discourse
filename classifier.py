@@ -237,10 +237,34 @@ class SequenceClassifier(object):
                 extracted_sent.append(list_sent[i])
         return extracted_sent
 
-    def but_because_validate(self, session, q, dev=False):
+    def get_multiclass_accuracy(self, preds, labels):
+        label_cat = range(self.label_size)
+        labels_accu = {}
+
+        for la in label_cat:
+            # for each label, we get the index of the correct labels
+            idx_of_cat = labels == la
+            cat_preds = np.where(idx_of_cat, preds)
+            accu = np.mean(cat_preds == la)
+            labels_accu[la] = accu
+
+        return labels_accu
+
+    def cumulate_multiclass_accuracy(self, total_accu, labels_accu):
+        for k, v in labels_accu.iteritems():
+            total_accu[k].append(v)
+
+    def get_mean_multiclass_accuracy(self, total_accu):
+        for k, v in total_accu.iteritems():
+            total_accu[k] = np.mean(total_accu[k])
+
+    def but_because_validate(self, session, q, label_tokens, dev=False):
+        # class_label: [because, but, ...]
         valid_costs, valid_accus = [], []
         valid_logits, valid_labels = [], []
         valid_sent1, valid_sent2 = [], []
+
+        total_labels_accu = None
 
         for seqA_tokens, seqA_mask, seqB_tokens, \
                 seqB_mask, labels in pair_iter(q, self.flags.batch_size, self.max_seq_len, self.max_seq_len):
@@ -249,6 +273,13 @@ class SequenceClassifier(object):
             accu = np.mean(np.argmax(logits, axis=1) == labels)
 
             preds = np.argmax(logits, axis=1)
+
+            # TODO: multiclass accuracy
+            labels_accu = self.get_multiclass_accuracy(preds, labels)
+            if total_labels_accu is None:
+                total_labels_accu = labels_accu
+            else:
+                self.cumulate_multiclass_accuracy(total_labels_accu, labels_accu)
 
             if FLAGS.correct_example:
                 positions = preds == labels
@@ -272,6 +303,13 @@ class SequenceClassifier(object):
 
         valid_accu = sum(valid_accus) / float(len(valid_accus))
         valid_cost = sum(valid_costs) / float(len(valid_costs))
+
+        self.get_mean_multiclass_accuracy(total_labels_accu)
+        multiclass_accu_msg = ''
+        for k, v in total_labels_accu.iteritems():
+            multiclass_accu_msg += label_tokens[k] + ": " + str(v) + " "
+
+        logging.info(multiclass_accu_msg)
 
         if dev:
             return valid_cost, valid_accu, valid_logits, valid_labels, valid_sent1, valid_sent2
@@ -308,7 +346,7 @@ class SequenceClassifier(object):
             return outsent
         return [detok_sent(s) for s in sent]
 
-    def but_because_dev_test(self, session, q, save_train_dir, best_epoch):
+    def but_because_dev_test(self, session, q, save_train_dir, best_epoch, label_tokens):
         ## Checkpoint
         checkpoint_path = os.path.join(save_train_dir, "dis.ckpt")
 
@@ -316,7 +354,7 @@ class SequenceClassifier(object):
         self.saver.restore(session, checkpoint_path + ("-%d" % best_epoch))
 
         # load into the "dev" files
-        test_cost, test_accu, test_logits, test_labels, valid_sent1, valid_sent2 = self.but_because_validate(session, q, dev=True)
+        test_cost, test_accu, test_logits, test_labels, valid_sent1, valid_sent2 = self.but_because_validate(session, q, label_tokens dev=True)
 
         logging.info("Final dev cost: %f dev accu: %f" % (test_cost, test_accu))
 
@@ -383,7 +421,7 @@ class SequenceClassifier(object):
             checkpoint_path = os.path.join(save_train_dir, "dis.ckpt")
 
             ## Validate
-            valid_cost, valid_accu = self.but_because_validate(session, q_valid)
+            valid_cost, valid_accu = self.but_because_validate(session, q_valid, label_tokens)
             valid_accus.append(valid_accu)
 
             logging.info("Epoch %d Validation cost: %f validation accu: %f epoch time: %f" % (epoch, valid_cost,

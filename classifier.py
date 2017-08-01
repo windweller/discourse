@@ -132,7 +132,7 @@ class SequenceClassifier(object):
         self.rev_vocab = rev_vocab
         self.vocab_size = vocab_size
         self.flags = flags
-        self.label_size = 14 - len(FLAGS.exclude.split(",")) if FLAGS.exclude != "" else 14
+        self.label_size = 14 if flags.exclude == "" else 14 - len(flags.exclude.split(","))
 
         self.learning_rate = flags.learning_rate
         max_gradient_norm = flags.max_gradient_norm
@@ -451,7 +451,7 @@ class SequenceClassifier(object):
             valid_accus.append(valid_accu)
 
         logging.info("restore model from best epoch %d" % best_epoch)
-        logging.info("best validation accuracy: %d" % valid_accus[best_epoch-1])
+        logging.info("best validation accuracy: %d" % valid_accus[best_epoch])
         self.saver.restore(session, checkpoint_path + ("-%d" % best_epoch))
 
         # after training, we test this thing

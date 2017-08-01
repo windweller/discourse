@@ -252,13 +252,14 @@ if __name__ == '__main__':
     assert(args.include=="" or args.exclude=="")
 
     all_discourse_markers = [
-            "because", "although",
-            "but", "when",           # "for_example"
-            "before", "after", "however", "so", "still", "though",
-            "meanwhile",
-            "while", "if"
-        ]
+        "because", "although",
+        "but", "when", "for example",
+        "before", "after", "however", "so", "still", "though",
+        "meanwhile",
+        "while", "if"
+    ]
     if args.include=="":
+        # --exclude "because,for example,algorithm"
         discourse_markers = [d for d in all_discourse_markers if d not in args.exclude.split(",")]
     else:
         discourse_markers = args.include.split(",")
@@ -330,21 +331,22 @@ if __name__ == '__main__':
 
         print("overall number of training examples: {}".format(overall))
 
+        if args.exclude=="" and args.include=="":
+            tag = "all"
+        elif args.include=="":
+            tag = "no_" + args.exclude.replace(",", "_").replace(" ", "_")
+            # last part is for "for example"
+        else:
+            tag = args.include.replace(",", "_")
+
         # print class labels for reference  
-        pickle.dump(class_labels, open(pjoin(args.source_dir, "class_labels.pkl"), "wb"))
-        
+        pickle.dump(class_labels, open(pjoin(args.source_dir, "class_labels_{}.pkl".format(tag)), "wb"))
 
         # ======== Creating Dataset =========
 
         for split in splits:
             data = splits[split]
             print("Converting data in {}".format(split))
-            if args.exclude=="" and args.include=="":
-                tag = "all"
-            elif args.include=="":
-                tag = "no_" + args.exclude.replace(",", "_")
-            else:
-                tag = args.include.replace(",", "_")
             ids_path = pjoin(
                 args.source_dir,
                 "{}_{}.ids.pkl".format(split, tag)

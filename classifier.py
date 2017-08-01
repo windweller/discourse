@@ -122,7 +122,8 @@ class Encoder(object):
         return out, encoder_outputs
 
 class SequenceClassifier(object):
-    def __init__(self, encoder, flags, vocab_size, vocab, rev_vocab, embed_path, optimizer="adam", is_training=True):
+    def __init__(self, encoder, flags, vocab_size, vocab, rev_vocab, label_size, embed_path,
+                 optimizer="adam", is_training=True):
         # task: ["but", "cause"]
 
         self.max_seq_len = flags.max_seq_len
@@ -132,7 +133,7 @@ class SequenceClassifier(object):
         self.rev_vocab = rev_vocab
         self.vocab_size = vocab_size
         self.flags = flags
-        self.label_size = 14 if flags.exclude == "" else 14 - len(flags.exclude.split(","))
+        self.label_size = label_size
 
         logging.info("label size is: {}".format(self.label_size))
 

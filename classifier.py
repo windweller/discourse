@@ -121,6 +121,12 @@ class Encoder(object):
 
         return out, encoder_outputs
 
+def get_class_accuracy(model_classifications, labels, marker):
+    recall = mean([model_classifications[i]==labels[i] for i in range(len(labels)) if labels[i]==marker])
+    precision = mean([model_classifications[i]==labels[i] for i in range(len(labels)) if model_classifications[i]==marker])
+    accuracy = mean([model_classifications[i]==labels[i] || (labels[i]!=marker and model_classifications[i]!=marker)])
+    return (recall, precision, accuracy)
+
 class SequenceClassifier(object):
     def __init__(self, encoder, flags, vocab_size, vocab, rev_vocab, embed_path, optimizer="adam", is_training=True):
         # task: ["but", "cause"]
@@ -246,7 +252,11 @@ class SequenceClassifier(object):
                 seqB_mask, labels in pair_iter(q, self.flags.batch_size, self.max_seq_len, self.max_seq_len):
             cost, logits = self.test(session, seqA_tokens, seqA_mask, seqB_tokens, seqB_mask, labels)
             valid_costs.append(cost)
-            accu = np.mean(np.argmax(logits, axis=1) == labels)
+
+            model_classifications = np.argmax(logits, axis=1)
+            accu = np.mean(model_classifications == labels)
+
+            accu_by_class = {marker: get_class_accuracy(model_classifications, labels, marker) for marker in set(labels):
 
             preds = np.argmax(logits, axis=1)
 

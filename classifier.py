@@ -132,7 +132,7 @@ class SequenceClassifier(object):
         self.rev_vocab = rev_vocab
         self.vocab_size = vocab_size
         self.flags = flags
-        self.label_size = 14
+        self.label_size = 14 - len(FLAGS.exclude.split(",")) if FLAGS.exclude != "" else 14
 
         self.learning_rate = flags.learning_rate
         max_gradient_norm = flags.max_gradient_norm
@@ -237,10 +237,37 @@ class SequenceClassifier(object):
                 extracted_sent.append(list_sent[i])
         return extracted_sent
 
-    def but_because_validate(self, session, q, dev=False):
+    def get_multiclass_accuracy(self, preds, labels):
+        label_cat = range(self.label_size)
+        labels_accu = {}
+
+        for la in label_cat:
+            # for each label, we get the index of the correct labels
+            idx_of_cat = labels == la
+            cat_preds = preds[idx_of_cat]
+            if cat_preds.size != 0:
+                accu = np.mean(cat_preds == la)
+                labels_accu[la] = [accu]
+            else:
+                labels_accu[la] = []
+
+        return labels_accu
+
+    def cumulate_multiclass_accuracy(self, total_accu, labels_accu):
+        for k, v in labels_accu.iteritems():
+            total_accu[k].extend(v)
+
+    def get_mean_multiclass_accuracy(self, total_accu):
+        for k, v in total_accu.iteritems():
+            total_accu[k] = np.mean(total_accu[k])
+
+    def but_because_validate(self, session, q, label_tokens, dev=False):
+        # class_label: [because, but, ...]
         valid_costs, valid_accus = [], []
         valid_logits, valid_labels = [], []
         valid_sent1, valid_sent2 = [], []
+
+        total_labels_accu = None
 
         for seqA_tokens, seqA_mask, seqB_tokens, \
                 seqB_mask, labels in pair_iter(q, self.flags.batch_size, self.max_seq_len, self.max_seq_len):
@@ -249,6 +276,13 @@ class SequenceClassifier(object):
             accu = np.mean(np.argmax(logits, axis=1) == labels)
 
             preds = np.argmax(logits, axis=1)
+
+            # TODO: multiclass accuracy
+            labels_accu = self.get_multiclass_accuracy(preds, labels)
+            if total_labels_accu is None:
+                total_labels_accu = labels_accu
+            else:
+                self.cumulate_multiclass_accuracy(total_labels_accu, labels_accu)
 
             if FLAGS.correct_example:
                 positions = preds == labels
@@ -272,6 +306,13 @@ class SequenceClassifier(object):
 
         valid_accu = sum(valid_accus) / float(len(valid_accus))
         valid_cost = sum(valid_costs) / float(len(valid_costs))
+
+        self.get_mean_multiclass_accuracy(total_labels_accu)
+        multiclass_accu_msg = ''
+        for k, v in total_labels_accu.iteritems():
+            multiclass_accu_msg += label_tokens[k] + ": " + str(v) + " "
+
+        logging.info(multiclass_accu_msg)
 
         if dev:
             return valid_cost, valid_accu, valid_logits, valid_labels, valid_sent1, valid_sent2
@@ -308,7 +349,7 @@ class SequenceClassifier(object):
             return outsent
         return [detok_sent(s) for s in sent]
 
-    def but_because_dev_test(self, session, q, save_train_dir, best_epoch):
+    def but_because_dev_test(self, session, q, save_train_dir, best_epoch, label_tokens):
         ## Checkpoint
         checkpoint_path = os.path.join(save_train_dir, "dis.ckpt")
 
@@ -316,7 +357,7 @@ class SequenceClassifier(object):
         self.saver.restore(session, checkpoint_path + ("-%d" % best_epoch))
 
         # load into the "dev" files
-        test_cost, test_accu, test_logits, test_labels, valid_sent1, valid_sent2 = self.but_because_validate(session, q, dev=True)
+        test_cost, test_accu, test_logits, test_labels, valid_sent1, valid_sent2 = self.but_because_validate(session, q, label_tokens, dev=True)
 
         logging.info("Final dev cost: %f dev accu: %f" % (test_cost, test_accu))
 
@@ -329,7 +370,7 @@ class SequenceClassifier(object):
 
         sys.stdout.flush()
 
-    def but_because_train(self, session, q_train, q_valid, q_test, curr_epoch, num_epochs, save_train_dir):
+    def but_because_train(self, session, q_train, q_valid, q_test, label_tokens, curr_epoch, num_epochs, save_train_dirs):
 
         tic = time.time()
         params = tf.trainable_variables()
@@ -380,11 +421,10 @@ class SequenceClassifier(object):
             epoch_toc = time.time()
 
             ## Checkpoint
-            checkpoint_path = os.path.join(save_train_dir, "dis.ckpt")
+            checkpoint_path = os.path.join(save_train_dirs, "dis.ckpt")
 
             ## Validate
-            valid_cost, valid_accu = self.but_because_validate(session, q_valid)
-            valid_accus.append(valid_accu)
+            valid_cost, valid_accu = self.but_because_validate(session, q_valid, label_tokens)
 
             logging.info("Epoch %d Validation cost: %f validation accu: %f epoch time: %f" % (epoch, valid_cost,
                                                                                               valid_accu,
@@ -395,8 +435,8 @@ class SequenceClassifier(object):
             #     logging.info("Annealing learning rate at epoch {} to {}".format(epoch, lr))
             #     session.run(self.learning_rate_decay_op)
 
-            # use accuracy to guide this part, instead of loss
-            if len(previous_losses) >= 1 and valid_cost < min(previous_losses):
+            # only do accuracy
+            if len(previous_losses) >= 1 and valid_accu < max(valid_accus):
                 lr *= FLAGS.learning_rate_decay
                 logging.info("Annealing learning rate at epoch {} to {}".format(epoch, lr))
                 session.run(self.learning_rate_decay_op)
@@ -408,6 +448,7 @@ class SequenceClassifier(object):
                 best_epoch = epoch
                 self.saver.save(session, checkpoint_path, global_step=epoch)
 
+            valid_accus.append(valid_accu)
 
         logging.info("restore model from best epoch %d" % best_epoch)
         logging.info("best validation accuracy: %d" % valid_accus[best_epoch-1])
@@ -415,7 +456,7 @@ class SequenceClassifier(object):
 
         # after training, we test this thing
         ## Test
-        test_cost, test_accu = self.but_because_validate(session, q_test)
+        test_cost, test_accu = self.but_because_validate(session, q_test, label_tokens)
         logging.info("Final test cost: %f test accu: %f" % (test_cost, test_accu))
 
         sys.stdout.flush()

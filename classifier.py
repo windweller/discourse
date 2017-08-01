@@ -445,10 +445,10 @@ class SequenceClassifier(object):
                 self.saver.restore(session, checkpoint_path + ("-%d" % best_epoch))
             else:
                 previous_losses.append(valid_cost)
-                valid_accus.append(valid_accu)
                 best_epoch = epoch
                 self.saver.save(session, checkpoint_path, global_step=epoch)
 
+            valid_accus.append(valid_accu)
 
         logging.info("restore model from best epoch %d" % best_epoch)
         logging.info("best validation accuracy: %d" % valid_accus[best_epoch-1])

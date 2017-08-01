@@ -77,6 +77,7 @@ def setup_args():
     parser.add_argument("--max_ratio", default=5.0)
     parser.add_argument("--undersamp_cutoff", default=50000)
     parser.add_argument("--exclude", default="")
+    parser.add_argument("--include", default="")
     return parser.parse_args()
 
     # train.pkl -> train_no_because.pkl, train.pkl -> train_all.pkl
@@ -248,14 +249,20 @@ def filter_examples(orig_pairs, class_label, max_seq_len, min_seq_len, max_ratio
 """
 if __name__ == '__main__':
     args = setup_args()
+    assert(args.include=="" or args.exclude=="")
 
-    discourse_markers = [d for d in [
-        "because", "although",
-        "but", "when",             # "for_example"
-        "before", "after", "however", "so", "still", "though",
-        "meanwhile",
-        "while", "if"
-    ] if d not in args.exclude.split(",")]
+    all_discourse_markers = [
+            "because", "although",
+            "but", "when",           # "for_example"
+            "before", "after", "however", "so", "still", "though",
+            "meanwhile",
+            "while", "if"
+        ]
+    if args.include=="":
+        discourse_markers = [d for d in all_discourse_markers if d not in args.exclude.split(",")]
+    else:
+        discourse_markers = args.include.split(",")
+        assert(all([d in all_discourse_markers for d in discourse_markers]))
 
     vocab_path = pjoin(args.vocab_dir, "vocab.dat")
 
@@ -332,10 +339,12 @@ if __name__ == '__main__':
         for split in splits:
             data = splits[split]
             print("Converting data in {}".format(split))
-            if args.exclude == "":
+            if args.exclude=="" and args.include=="":
                 tag = "all"
-            else:
+            elif args.include=="":
                 tag = "no_" + args.exclude.replace(",", "_")
+            else:
+                tag = args.include.replace(",", "_")
             ids_path = pjoin(
                 args.source_dir,
                 "{}_{}.ids.pkl".format(split, tag)

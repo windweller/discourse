@@ -54,7 +54,6 @@ def main(_):
 
     logging.info("vocab size: {}".format(vocab_size))
 
-
     if FLAGS.exclude == "" and FLAGS.include == "":
         tag = "all"
     elif FLAGS.exclude != "":
@@ -64,7 +63,6 @@ def main(_):
         tag = FLAGS.include.replace(",", "_").replace(" ", "_")
     else:
         raise Exception("no match state for exclude/include")
-
 
     pkl_train_name = pjoin("data", FLAGS.dataset, "train_{}.ids.pkl".format(tag))
     pkl_val_name = pjoin("data", FLAGS.dataset, "valid_{}.ids.pkl".format(tag))

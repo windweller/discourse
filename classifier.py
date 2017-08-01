@@ -396,7 +396,7 @@ class SequenceClassifier(object):
             #     session.run(self.learning_rate_decay_op)
 
             # use accuracy to guide this part, instead of loss
-            if len(previous_losses) >= 1 and valid_cost < min(previous_losses):
+            if len(previous_losses) >= 1 and valid_cost >= min(previous_losses):
                 lr *= FLAGS.learning_rate_decay
                 logging.info("Annealing learning rate at epoch {} to {}".format(epoch, lr))
                 session.run(self.learning_rate_decay_op)

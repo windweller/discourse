@@ -88,11 +88,13 @@ class Encoder(object):
 
         if FLAGS.rnn == "lstm":
             cell = rnn_cell.BasicLSTMCell(self.size)
+            state_is_tuple = True
         else:
             cell = rnn_cell.GRUCell(self.size)
+            state_is_tuple = False
 
         cell = DropoutWrapper(cell, input_keep_prob=self.keep_prob, seed=123)
-        self.encoder_cell = tf.nn.rnn_cell.MultiRNNCell([cell] * num_layers, state_is_tuple=True)
+        self.encoder_cell = tf.nn.rnn_cell.MultiRNNCell([cell] * num_layers, state_is_tuple=state_is_tuple)
 
     def encode(self, inputs, masks, reuse=False, scope_name=""):
         """
@@ -123,7 +125,7 @@ class Encoder(object):
                 out = fw_out + bw_out
 
             # this is extracting the last hidden states
-            encoder_outputs = tf.add(output_state_fw[0][1], output_state_bw[0][1])
+            encoder_outputs = tf.add(output_state_fw, output_state_bw)  # used to have [0][1]
 
         return out, encoder_outputs
 

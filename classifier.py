@@ -436,8 +436,8 @@ class SequenceClassifier(object):
             #     logging.info("Annealing learning rate at epoch {} to {}".format(epoch, lr))
             #     session.run(self.learning_rate_decay_op)
 
-            # use accuracy to guide this part, instead of loss
-            if len(previous_losses) >= 1 and valid_cost >= min(previous_losses):
+            # use both accuracy and loss to guide this
+            if len(previous_losses) >= 1 and (valid_cost >= min(previous_losses) and valid_accu <= max(valid_accus)):
                 lr *= FLAGS.learning_rate_decay
                 logging.info("Annealing learning rate at epoch {} to {}".format(epoch, lr))
                 session.run(self.learning_rate_decay_op)
@@ -446,6 +446,7 @@ class SequenceClassifier(object):
                 self.saver.restore(session, checkpoint_path + ("-%d" % best_epoch))
             else:
                 previous_losses.append(valid_cost)
+                valid_accus.append(valid_accu)
                 best_epoch = epoch
                 self.saver.save(session, checkpoint_path, global_step=epoch)
 

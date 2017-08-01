@@ -293,6 +293,7 @@ if __name__ == '__main__':
         i = -1
 
         # make split, s.t. we have similar distributions over discourse markers for each split
+        overall = 0
         for marker in discourse_markers:
             i += 1
             class_labels[marker] = i
@@ -308,6 +309,7 @@ if __name__ == '__main__':
                 args.undersamp_cutoff
             )
             total_n_examples = len(all_examples)
+            overall += total_n_examples
             print("total number of {}: {}".format(marker, total_n_examples))
 
             # make valid and test sets (they will be equal size)
@@ -318,6 +320,8 @@ if __name__ == '__main__':
 
             # make train set with remaining examples
             splits["train"][marker] = all_examples[valid_size+test_size:]
+
+        print("overall number of training examples: {}".format(overall))
 
         # print class labels for reference  
         pickle.dump(class_labels, open(pjoin(args.source_dir, "class_labels.pkl"), "wb"))

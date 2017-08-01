@@ -245,8 +245,11 @@ class SequenceClassifier(object):
             # for each label, we get the index of the correct labels
             idx_of_cat = labels == la
             cat_preds = preds[idx_of_cat]
-            accu = np.mean(cat_preds == la)
-            labels_accu[la] = [accu]
+            if cat_preds.size != 0:
+                accu = np.mean(cat_preds == la)
+                labels_accu[la] = [accu]
+            else:
+                labels_accu[la] = []
 
         return labels_accu
 
@@ -453,7 +456,7 @@ class SequenceClassifier(object):
 
         # after training, we test this thing
         ## Test
-        test_cost, test_accu = self.but_because_validate(session, q_test)
+        test_cost, test_accu = self.but_because_validate(session, q_test, label_tokens)
         logging.info("Final test cost: %f test accu: %f" % (test_cost, test_accu))
 
         sys.stdout.flush()

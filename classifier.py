@@ -17,17 +17,17 @@ from tensorflow.python.ops import variable_scope as vs
 FLAGS = tf.app.flags.FLAGS
 
 tf.app.flags.DEFINE_integer("state_size", 512, "hidden dimension")
-tf.app.flags.DEFINE_integer("layers", 2, "number of hidden layers")
+tf.app.flags.DEFINE_integer("layers", 1, "number of hidden layers")
 tf.app.flags.DEFINE_integer("epochs", 8, "Number of epochs to train.")
 tf.app.flags.DEFINE_integer("embedding_size", 300, "dimension of GloVE vector to use")
 tf.app.flags.DEFINE_integer("max_seq_len", 50, "max sequence length")
 tf.app.flags.DEFINE_integer("learning_rate_decay_epoch", 1, "Learning rate starts decaying after this epoch.")
 tf.app.flags.DEFINE_float("dropout", 0.2, "probability of dropping units")
-tf.app.flags.DEFINE_integer("batch_size", 100, "batch size")
+tf.app.flags.DEFINE_integer("batch_size", 300, "batch size")
 tf.app.flags.DEFINE_integer("seed", 123, "random seed to use")
 tf.app.flags.DEFINE_float("init_scale", 0.1, "scale for random initialization")
-tf.app.flags.DEFINE_float("learning_rate", 0.01, "initial learning rate")
-tf.app.flags.DEFINE_float("learning_rate_decay", 0.8, "amount to decrease learning rate")
+tf.app.flags.DEFINE_float("learning_rate", 0.003, "initial learning rate")
+tf.app.flags.DEFINE_float("learning_rate_decay", 0.5, "amount to decrease learning rate")
 tf.app.flags.DEFINE_integer("keep", 5, "How many checkpoints to keep, 0 indicates keep all.")
 tf.app.flags.DEFINE_integer("print_every", 5, "How many iterations to do per print.")
 tf.app.flags.DEFINE_float("max_gradient_norm", 5.0, "Clip gradients to this norm.")
@@ -396,7 +396,7 @@ class SequenceClassifier(object):
             #     session.run(self.learning_rate_decay_op)
 
             # use accuracy to guide this part, instead of loss
-            if len(previous_losses) >= 1 and valid_accu < max(valid_accus):
+            if len(previous_losses) >= 1 and valid_cost < min(previous_losses):
                 lr *= FLAGS.learning_rate_decay
                 logging.info("Annealing learning rate at epoch {} to {}".format(epoch, lr))
                 session.run(self.learning_rate_decay_op)

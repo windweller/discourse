@@ -468,7 +468,7 @@ class SequenceClassifier(object):
             valid_accus.append(valid_accu)
 
         logging.info("restore model from best epoch %d" % best_epoch)
-        logging.info("best validation accuracy: %d" % valid_accus[best_epoch])
+        logging.info("best validation accuracy: %f" % valid_accus[best_epoch])
         self.saver.restore(session, checkpoint_path + ("-%d" % best_epoch))
 
         # after training, we test this thing

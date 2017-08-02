@@ -188,7 +188,7 @@ def process_raw_files(args):
         segment_index = args.segment_index
         starting_sentence_index = starting_indices[segment_index]
         ending_sentence_index = ending_indices[segment_index]
-        
+
     print("parsing from {}K to {}K...".format(
         starting_sentence_index/1000,
         ending_sentence_index/1000
@@ -378,11 +378,13 @@ def get_pairs_from_sentence(sent, marker, previous_sentence):
 # "[discourse marker] S2, S1" (needs dependency parse)
 def search_for_reverse_pattern_pair(sent, marker, words, previous_sentence):
     parse_string = get_parse(sent, depparse=True)
-    # book corpus maybe has carriage returns and new lines?
+
+    # book corpus maybe has carriage returns and new lines and other things?
     try: 
         parse = json.loads(parse_string.replace('\r\n', ''))
-    except:
+    except ValueError:
         parse = json.loads(re.sub("[^A-z0-9.,!?\"'*&/\{\}\[\]()=+-]", "", parse_string))
+        
     sentence = Sentence(parse["sentences"][0], sent)
     return sentence.find_pair(marker, "s2 discourse_marker s1", previous_sentence)
 
@@ -406,7 +408,13 @@ using the depparse, look for the desired pattern, in any order
 """
 def search_for_dep_pattern(marker, current_sentence, previous_sentence):  
     parse_string = get_parse(current_sentence, depparse=True)
-    parse = json.loads(parse_string)
+
+    # book corpus maybe has carriage returns and new lines and other things?
+    try: 
+        parse = json.loads(parse_string.replace('\r\n', ''))
+    except ValueError:
+        parse = json.loads(re.sub("[^A-z0-9.,!?\"'*&/\{\}\[\]()=+-]", "", parse_string))
+
     sentence = Sentence(parse["sentences"][0], current_sentence)
     return sentence.find_pair(marker, "any", previous_sentence)
 

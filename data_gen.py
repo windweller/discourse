@@ -136,6 +136,8 @@ def setup_args():
     parser.add_argument("--shortest_sentence_length", default=10, type=int)
     parser.add_argument("--mode", default="process_raw")
     parser.add_argument("--sentences_presegmented", action='store_true')
+    parser.add_argument("--starting_sentence_index", default=None, type=int)
+    parser.add_argument("--ending_sentence_index", default=None, type=int)
     return parser.parse_args()
 
 """
@@ -164,15 +166,29 @@ def process_raw_files(args):
     data_dir = args.data_dir
     corpus_files = args.corpus_files.split()
     corpus_length = args.corpus_length #approx (actual value is a little bit less)
-    n_cores = args.n_cores
 
-    step = int(np.ceil(corpus_length / n_cores))
-    starting_indices = [i for i in range(0, corpus_length, step)]
-    ending_indices = [i+step for i in starting_indices]
+    hard_indices_given = args.starting_sentence_index!=None or args.ending_sentence_index!=None
 
-    segment_index = args.segment_index
-    starting_sentence_index = starting_indices[segment_index]
-    ending_sentence_index = ending_indices[segment_index]
+    if hard_indices_given:
+        if args.starting_sentence_index:
+            starting_sentence_index = args.starting_sentence_index
+        else:
+            starting_sentence_index = 0
+        if args.ending_sentence_index:
+            ending_sentence_index = args.ending_sentence_index
+        else:
+            ending_sentence_index = corpus_length
+    else:
+        n_cores = args.n_cores
+
+        step = int(np.ceil(corpus_length / n_cores))
+        starting_indices = [i for i in range(0, corpus_length, step)]
+        ending_indices = [i+step for i in starting_indices]
+
+        segment_index = args.segment_index
+        starting_sentence_index = starting_indices[segment_index]
+        ending_sentence_index = ending_indices[segment_index]
+        
     print("parsing from {}K to {}K...".format(
         starting_sentence_index/1000,
         ending_sentence_index/1000
@@ -362,7 +378,11 @@ def get_pairs_from_sentence(sent, marker, previous_sentence):
 # "[discourse marker] S2, S1" (needs dependency parse)
 def search_for_reverse_pattern_pair(sent, marker, words, previous_sentence):
     parse_string = get_parse(sent, depparse=True)
-    parse = json.loads(parse_string)
+    # book corpus maybe has carriage returns and new lines?
+    try: 
+        parse = json.loads(parse_string.replace('\r\n', ''))
+    except:
+        parse = json.loads(re.sub("[^A-z0-9.,!?\"'*&/\{\}\[\]()=+-]", "", parse_string))
     sentence = Sentence(parse["sentences"][0], sent)
     return sentence.find_pair(marker, "s2 discourse_marker s1", previous_sentence)
 

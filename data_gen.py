@@ -326,7 +326,10 @@ def get_pairs_from_sentence(sent, marker, previous_sentence):
     words = sent.split()
     # 1. decide whether dependency parsing is needed
     words_to_search = sent.lower().split()
-    marker_index = words_to_search.index(marker)
+    try:
+        marker_index = words_to_search.index(marker)
+    except ValueError:
+        return None
 
     # first, look for the simplest discourse markers, that we can
     # handle with just regexes
@@ -384,8 +387,7 @@ def search_for_reverse_pattern_pair(sent, marker, words, previous_sentence):
     try: 
         parse = json.loads(parse_string.replace('\r\n', ''))
     except ValueError:
-        parse = json.loads(re.sub("[^A-z0-9.,!?\"'*&/\{\}\[\]()=+-]", "", parse_string))
-        
+        parse = json.loads(re.sub("[^A-z0-9.,!:?\"'*&/\{\}\[\]()=+-]", "", parse_string))        
     sentence = Sentence(parse["sentences"][0], sent)
     return sentence.find_pair(marker, "s2 discourse_marker s1", previous_sentence)
 
@@ -414,7 +416,7 @@ def search_for_dep_pattern(marker, current_sentence, previous_sentence):
     try: 
         parse = json.loads(parse_string.replace('\r\n', ''))
     except ValueError:
-        parse = json.loads(re.sub("[^A-z0-9.,!?\"'*&/\{\}\[\]()=+-]", "", parse_string))
+        parse = json.loads(re.sub("[^A-z0-9.,!?:\"'*&/\{\}\[\]()=+-]", "", parse_string))
 
     sentence = Sentence(parse["sentences"][0], current_sentence)
     return sentence.find_pair(marker, "any", previous_sentence)

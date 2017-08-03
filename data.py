@@ -265,7 +265,17 @@ if __name__ == '__main__':
         discourse_markers = args.include.split(",")
         assert(all([d in all_discourse_markers for d in discourse_markers]))
 
-    vocab_path = pjoin(args.vocab_dir, "vocab.dat")
+    if args.exclude == "" and args.include == "":
+        tag = "all"
+    elif args.exclude != "":
+        tag = "no_" + args.exclude.replace(",", "_").replace(" ", "_")
+        # last part is for "for example"
+    elif args.include != "":
+        tag = args.include.replace(",", "_").replace(" ", "_")
+    else:
+        raise Exception("no match state for exclude/include")
+
+    vocab_path = pjoin(args.vocab_dir, "vocab_{}.dat".format(tag))
 
     data_path = pjoin(args.source_dir, "all_sentence_pairs.pkl")
 
@@ -275,12 +285,12 @@ if __name__ == '__main__':
 
         create_vocabulary(vocab_path, sentence_pairs_data)
 
-        vocab, rev_vocab = initialize_vocabulary(pjoin(args.vocab_dir, "vocab.dat"))
+        vocab, rev_vocab = initialize_vocabulary(pjoin(args.vocab_dir, "vocab_{}.dat".format(tag)))
 
         # ======== Trim Distributed Word Representation =======
         # If you use other word representations, you should change the code below
 
-        process_glove(args, vocab, pjoin(args.source_dir, "glove.trimmed.{}".format(args.glove_dim)),
+        process_glove(args, vocab, pjoin(args.source_dir, "glove.trimmed.{}_{}.npz".format(args.glove_dim, tag)),
                       random_init=args.random_init)
 
         # ======== Split =========
@@ -330,16 +340,6 @@ if __name__ == '__main__':
             splits["train"][marker] = all_examples[valid_size+test_size:]
 
         print("overall number of training examples: {}".format(overall))
-
-        if args.exclude == "" and args.include == "":
-            tag = "all"
-        elif args.exclude != "":
-            tag = "no_" + args.exclude.replace(",", "_").replace(" ", "_")
-            # last part is for "for example"
-        elif args.include != "":
-            tag = args.include.replace(",", "_").replace(" ", "_")
-        else:
-            raise Exception("no match state for exclude/include")
 
         # print class labels for reference  
         pickle.dump(class_labels, open(pjoin(args.source_dir, "class_labels_{}.pkl".format(tag)), "wb"))

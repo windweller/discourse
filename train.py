@@ -47,13 +47,6 @@ def main(_):
     file_handler = logging.FileHandler("{0}/log.txt".format(FLAGS.run_dir))
     logging.getLogger().addHandler(file_handler)
 
-    embed_path = FLAGS.embed_path or pjoin("data", FLAGS.dataset, "glove.trimmed.{}.npz".format(FLAGS.embedding_size))
-    vocab_path = pjoin("data", FLAGS.dataset, "vocab.dat")
-    vocab, rev_vocab = initialize_vocab(vocab_path)
-    vocab_size = len(vocab)
-
-    logging.info("vocab size: {}".format(vocab_size))
-
     if FLAGS.exclude == "" and FLAGS.include == "":
         tag = "all"
     elif FLAGS.exclude != "":
@@ -63,6 +56,14 @@ def main(_):
         tag = FLAGS.include.replace(",", "_").replace(" ", "_")
     else:
         raise Exception("no match state for exclude/include")
+
+    # now we load in glove based on tags
+    embed_path = FLAGS.embed_path or pjoin("data", FLAGS.dataset, "glove.trimmed.{}_{}.npz".format(FLAGS.embedding_size, tag))
+    vocab_path = pjoin("data", FLAGS.dataset, "vocab_{}.dat".format(tag))
+    vocab, rev_vocab = initialize_vocab(vocab_path)
+    vocab_size = len(vocab)
+
+    logging.info("vocab size: {}".format(vocab_size))
 
     pkl_train_name = pjoin("data", FLAGS.dataset, "train_{}.ids.pkl".format(tag))
     pkl_val_name = pjoin("data", FLAGS.dataset, "valid_{}.ids.pkl".format(tag))

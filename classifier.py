@@ -41,6 +41,7 @@ tf.app.flags.DEFINE_boolean("dev", False, "if flag true, will run on dev dataset
 tf.app.flags.DEFINE_boolean("correct_example", False, "if flag false, will print error, true will print out success")
 tf.app.flags.DEFINE_integer("best_epoch", 1, "enter the best epoch to use")
 tf.app.flags.DEFINE_integer("num_examples", 30, "enter the best epoch to use")
+tf.app.flags.DEFINE_boolean("log_results", False, "if flag true, will write results to a file for exploring later")
 
 logging.basicConfig(level=logging.INFO)
 
@@ -80,6 +81,15 @@ def pair_iter(q, batch_size, inp_len, query_len):
 
         yield padded_input, input_mask, padded_query, query_mask, labels
         batched_seq1, batched_seq2, batched_label = [], [], []
+
+def write_results_to_file(preds, labels, batch_num, data_dir):
+    results_path = pjoin(data_dir, "results.csv")
+    with open(results_path, "a") as f:
+        for i in range(len(preds)):
+            pred = preds[i]
+            label = labels[i]
+            data = [pred, label, batch_num]
+            f.write(",".join([str(d) for d in data]) + "\n")
 
 class Encoder(object):
     def __init__(self, size, num_layers):
@@ -286,13 +296,18 @@ class SequenceClassifier(object):
 
         total_labels_accu = None
 
+        batch_num = -1
         for seqA_tokens, seqA_mask, seqB_tokens, \
                 seqB_mask, labels in pair_iter(q, self.flags.batch_size, self.max_seq_len, self.max_seq_len):
+            batch_num += 1
             cost, logits = self.test(session, seqA_tokens, seqA_mask, seqB_tokens, seqB_mask, labels)
             valid_costs.append(cost)
             accu = np.mean(np.argmax(logits, axis=1) == labels)
 
             preds = np.argmax(logits, axis=1)
+
+            if self.flags.log_results:
+                write_results_to_file(preds, labels, batch_num)
 
             # TODO: multiclass accuracy
             labels_accu = self.get_multiclass_accuracy(preds, labels)

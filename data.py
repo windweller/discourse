@@ -236,6 +236,16 @@ def filter_examples(orig_pairs, class_label, max_seq_len, min_seq_len, max_ratio
     np.random.shuffle(new_pairs_with_labels)
     return new_pairs_with_labels[:undersamp_cutoff]
 
+def tokenize_sentence_pair_data(sentence_pairs_data):
+    tokenized_sent_pair_data = {}
+    for key, value in sentence_pairs_data.iteritems():
+        sent_pairs = []
+        for sent_pair in value:
+            sent_pair.append(sent_pair[0].split(), sent_pair[1].split())
+        tokenized_sent_pair_data[key] = sent_pairs
+
+    return tokenized_sent_pair_data
+
 """
  - sampling procedure (don't spend too much time on this!)
        - pkl format [[s_1, s_2, label]]
@@ -282,6 +292,8 @@ if __name__ == '__main__':
     if os.path.isfile(data_path):
         print("Loading data %s" % (str(data_path)))
         sentence_pairs_data = pickle.load(open(data_path, mode="rb"))
+
+        sentence_pairs_data = tokenize_sentence_pair_data(sentence_pairs_data)
 
         create_vocabulary(vocab_path, sentence_pairs_data)
 

@@ -221,7 +221,7 @@ def filter_examples(orig_pairs, class_label, max_seq_len, min_seq_len, max_ratio
     new_pairs_with_labels = []
     min_ratio = 1 / max_ratio
     for s1, s2 in orig_pairs:
-        ratio = float(len(s1))/len(s2)
+        ratio = float(len(s1))/max(len(s2), 0.0001)
         if len(s1) < min_seq_len or max_seq_len < len(s1):
             pass
         elif len(s2) < min_seq_len or max_seq_len < len(s2):

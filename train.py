@@ -115,7 +115,6 @@ def main(_):
         if not FLAGS.dev:
             tf.global_variables_initializer().run()
             sc.but_because_train(session, q_train, q_valid, q_test, label_tokens, 0, FLAGS.epochs, FLAGS.run_dir)
-
         else:
             sc.but_because_dev_test(session, data_dir, FLAGS.run_dir, FLAGS.best_epoch, label_tokens)
 

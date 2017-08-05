@@ -241,7 +241,7 @@ def tokenize_sentence_pair_data(sentence_pairs_data):
     for key, value in sentence_pairs_data.iteritems():
         sent_pairs = []
         for sent_pair in value:
-            sent_pair.append(sent_pair[0].split(), sent_pair[1].split())
+            sent_pairs.append((sent_pair[0].split(), sent_pair[1].split()))
         tokenized_sent_pair_data[key] = sent_pairs
 
     return tokenized_sent_pair_data
@@ -293,6 +293,7 @@ if __name__ == '__main__':
         print("Loading data %s" % (str(data_path)))
         sentence_pairs_data = pickle.load(open(data_path, mode="rb"))
 
+        # TODO: remove this line
         sentence_pairs_data = tokenize_sentence_pair_data(sentence_pairs_data)
 
         create_vocabulary(vocab_path, sentence_pairs_data)

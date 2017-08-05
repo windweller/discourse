@@ -58,7 +58,7 @@ def main(_):
         raise Exception("no match state for exclude/include")
 
     # now we load in glove based on tags
-    embed_path = FLAGS.embed_path or pjoin("data", FLAGS.dataset, "glove.trimmed.{}_{}.npz".format(FLAGS.embedding_size, tag))
+    embed_path = pjoin("data", FLAGS.dataset, "glove.trimmed.{}_{}.npz".format(FLAGS.embedding_size, tag))
     vocab_path = pjoin("data", FLAGS.dataset, "vocab_{}.dat".format(tag))
     vocab, rev_vocab = initialize_vocab(vocab_path)
     vocab_size = len(vocab)

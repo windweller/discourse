@@ -45,15 +45,20 @@ def get_wiki_pairs(file_path):
         for sent in sent_list:
             words = sent.split()  # strip puncts and then split (already tokenized)
             if "but" in words[1:]:  # # no sentence from beginning has but
-                but_sents.append(sent)
+                ssplit = sent.split("but")
+                but_sents.append((ssplit[0], ssplit[1]))
             if "because" in words[1:]:  # no sentence has because at beginning
-                because_sents.append(sent)
+                ssplit = sent.split("because")
+                because_sents.append((ssplit[0], ssplit[1]))
             if "when" in words[1:]:  # exclude "When xxxx, xxx"
-                when_sents.append(sent)
+                ssplit = sent.split("when")
+                when_sents.append((ssplit[0], ssplit[1]))
             if "if" in words[1:]:
-                if_sents.append(sent)  # exclude "If xxx, xxx"
+                ssplit = sent.split("if")
+                if_sents.append((ssplit[0], ssplit[1]))  # exclude "If xxx, xxx"
             if "for example" in sent:  # "for example ..."
-                for_example_sents.append(sent)
+                ssplit = sent.split("for example")
+                for_example_sents.append((ssplit[0], ssplit[1]))
 
     return but_sents, because_sents, when_sents, if_sents, for_example_sents
 

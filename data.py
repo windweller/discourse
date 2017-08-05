@@ -74,7 +74,7 @@ def setup_args():
     parser.add_argument("--train_size", default=0.9)
     parser.add_argument("--max_seq_len", default=50)
     parser.add_argument("--min_seq_len", default=5)
-    parser.add_argument("--max_ratio", default=5.0)
+    parser.add_argument("--max_ratio", default=5.0, type=float)
     parser.add_argument("--undersamp_cutoff", default=50000, type=int)
     parser.add_argument("--exclude", default="")
     parser.add_argument("--include", default="")

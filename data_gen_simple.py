@@ -4,11 +4,22 @@ Investigate PTB/Wikitext2 on sentence pairs and build dataset
 
 import re
 import io
+import os
 import sys
 import nltk
 import pickle
 import string
+import argparse
 from os.path import join as pjoin
+
+import sys
+reload(sys)
+sys.setdefaultencoding('utf8')
+
+def setup_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--bookcorpus", action='store_true')
+    return parser.parse_args()
 
 
 def write_to_file_wiki(list_sent, file_path):
@@ -79,20 +90,27 @@ def merge_dict(dict_list1, dict_list2):
 
 
 if __name__ == '__main__':
+    args = setup_args()
+
     # directly use wikitext-103
 
     discourse_markers = ["but", "because", "when", "if", "for example"]
 
-    wikitext_103_train_path = pjoin("data", "wikitext-103", "wiki.train.tokens")
-    wikitext_103_valid_path = pjoin("data", "wikitext-103", "wiki.valid.tokens")
-    wikitext_103_test_path = pjoin("data", "wikitext-103", "wiki.test.tokens")
+    if not args.bookcorpus:
 
-    wikitext_103_train = list_to_dict(discourse_markers, get_wiki_pairs(wikitext_103_train_path))
-    wikitext_103_valid = list_to_dict(discourse_markers, get_wiki_pairs(wikitext_103_valid_path))
-    wikitext_103_test = list_to_dict(discourse_markers, get_wiki_pairs(wikitext_103_test_path))
+        wikitext_103_train_path = pjoin("data", "wikitext-103", "wiki.train.tokens")
+        wikitext_103_valid_path = pjoin("data", "wikitext-103", "wiki.valid.tokens")
+        wikitext_103_test_path = pjoin("data", "wikitext-103", "wiki.test.tokens")
 
-    all_sentences_pairs = merge_dict(merge_dict(wikitext_103_train, wikitext_103_valid), wikitext_103_test)
+        wikitext_103_train = list_to_dict(discourse_markers, get_wiki_pairs(wikitext_103_train_path))
+        wikitext_103_valid = list_to_dict(discourse_markers, get_wiki_pairs(wikitext_103_valid_path))
+        wikitext_103_test = list_to_dict(discourse_markers, get_wiki_pairs(wikitext_103_test_path))
 
-    save_to_pickle(all_sentences_pairs, pjoin("data", "wikitext-103", "all_sentence_pairs.pkl"))
+        all_sentences_pairs = merge_dict(merge_dict(wikitext_103_train, wikitext_103_valid), wikitext_103_test)
+
+        save_to_pickle(all_sentences_pairs, pjoin("data", "wikitext-103", "all_sentence_pairs.pkl"))
 
     # extension to work on Book Corpus
+    else:
+
+        bookcorpus_path = pjoin("data", "bookcorpus", "books_in_sentences")

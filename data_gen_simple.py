@@ -49,12 +49,17 @@ def get_wiki_pairs(file_path):
 
     with io.open(file_path, 'rU', encoding="utf-8") as f:
         tokens = f.read().replace("\n", ". ")
+        print("tokenizing")
         sent_list = nltk.sent_tokenize(tokens)
         print("sent num: " + str(len(sent_list)))
         # prev_sent = None
         # save_to_pickle(pjoin("data", "wikitext-103", "wiki103_sent.pkl"))
+        i = 0
         for sent in sent_list:
-            words = sent.split()  # strip puncts and then split (already tokenized)
+            i += 1
+            if i % 10000 == 0:
+                print("reading sentence {}".format(i))
+            words = sent.replace("for example", "for_example").split()  # strip puncts and then split (already tokenized)
             if "but" in words[1:]:  # # no sentence from beginning has but
                 idx = words.index("but")
                 but_sents.append((words[:idx], words[idx+1:]))
@@ -68,7 +73,7 @@ def get_wiki_pairs(file_path):
                 idx = words.index("if")
                 if_sents.append((words[:idx], words[idx+1:]))  # exclude "If xxx, xxx"
             if "for example" in sent:  # "for example ..."
-                idx = words.index("for example")
+                idx = words.index("for_example")
                 for_example_sents.append((words[:idx], words[idx+1:]))
 
     return but_sents, because_sents, when_sents, if_sents, for_example_sents
@@ -102,13 +107,19 @@ if __name__ == '__main__':
         wikitext_103_valid_path = pjoin("data", "wikitext-103", "wiki.valid.tokens")
         wikitext_103_test_path = pjoin("data", "wikitext-103", "wiki.test.tokens")
 
+        print("extracting sentence pairs from train")
         wikitext_103_train = list_to_dict(discourse_markers, get_wiki_pairs(wikitext_103_train_path))
+        print("extracting sentence pairs from valid")
         wikitext_103_valid = list_to_dict(discourse_markers, get_wiki_pairs(wikitext_103_valid_path))
+        print("extracting sentence pairs from test")
         wikitext_103_test = list_to_dict(discourse_markers, get_wiki_pairs(wikitext_103_test_path))
 
-        all_sentences_pairs = merge_dict(merge_dict(wikitext_103_train, wikitext_103_valid), wikitext_103_test)
+        # all_sentences_pairs = merge_dict(merge_dict(wikitext_103_train, wikitext_103_valid), wikitext_103_test)
 
-        save_to_pickle(all_sentences_pairs, pjoin("data", "wikitext-103", "all_sentence_pairs.pkl"))
+        # save_to_pickle(all_sentences_pairs, pjoin("data", "wikitext-103", "all_sentence_pairs.pkl"))
+        save_to_pickle(wikitext_103_train, pjoin("data", "wikitext-103", "train.pkl"))
+        save_to_pickle(wikitext_103_valid, pjoin("data", "wikitext-103", "valid.pkl"))
+        save_to_pickle(wikitext_103_test, pjoin("data", "wikitext-103", "test.pkl"))
 
     # extension to work on Book Corpus
     else:

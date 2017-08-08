@@ -143,7 +143,7 @@ def merge_dict(dict_list1, dict_list2):
         dict_list1[key].extend(dict_list2[key])
     return dict_list1
 
-def data_to_token_ids(data, class_labels, rev_class_labels, target_path, text_path, vocabulary_path, data_dir):
+def data_to_token_ids(data, discourse_markers, class_labels, rev_class_labels, target_path, text_path, vocabulary_path, data_dir):
     if gfile.Exists(target_path):
         print("file {} already exists".format(target_path))
     else:
@@ -152,7 +152,7 @@ def data_to_token_ids(data, class_labels, rev_class_labels, target_path, text_pa
         # fix me: this will be a list instead
         ids_data = []
         text_data = []
-        for marker in data:
+        for marker in discourse_markers:
             # ids_data[marker] = []
             counter = 0
             for s1, s2 in data[marker]:
@@ -265,7 +265,7 @@ if __name__ == '__main__':
                 "{}_{}.text.txt".format(split, tag)
             )
 
-            data_to_token_ids(data, class_labels, discourse_markers, ids_path, text_path, vocab_path, args.source_dir)
+            data_to_token_ids(data, discourse_markers, class_labels, discourse_markers, ids_path, text_path, vocab_path, args.source_dir)
 
     else:
         if not os.path.isfile(train_path):

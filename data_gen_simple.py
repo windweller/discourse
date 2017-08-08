@@ -19,6 +19,7 @@ sys.setdefaultencoding('utf8')
 def setup_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--bookcorpus", action='store_true')
+    parser.add_argument("--sentence_initial", action='store_true')
     return parser.parse_args()
 
 
@@ -40,7 +41,7 @@ def save_to_pickle(obj, file_path):
     with open(file_path, 'wb') as f:
         pickle.dump(obj, f)
 
-def get_wiki_pairs(file_path):
+def get_wiki_pairs(file_path, sentence_initial=False):
     but_sents = []
     because_sents = []
     when_sents = []
@@ -52,29 +53,38 @@ def get_wiki_pairs(file_path):
         print("tokenizing")
         sent_list = nltk.sent_tokenize(tokens)
         print("sent num: " + str(len(sent_list)))
-        # prev_sent = None
+        prev_words = None
         # save_to_pickle(pjoin("data", "wikitext-103", "wiki103_sent.pkl"))
         i = 0
         for sent in sent_list:
             i += 1
-            if i % 10000 == 0:
+            if i % 100000 == 0:
                 print("reading sentence {}".format(i))
             words = sent.replace("for example", "for_example").split()  # strip puncts and then split (already tokenized)
+            # all of these have try statements, because sometimes the discourse marker will
+            # only be a part of the word, and so it won't show up in the words list
             if "but" in words[1:]:  # # no sentence from beginning has but
                 idx = words.index("but")
                 but_sents.append((words[:idx], words[idx+1:]))
+            elif sentence_initial and prev_words!=None and words[0].lower()=="but":
+                but_sents.append(prev_words, words[1:])
             if "because" in words[1:]:  # no sentence has because at beginning
                 idx = words.index("because")
                 because_sents.append((words[:idx], words[idx+1:]))
+            elif sentence_initial and prev_words!=None and words[0].lower()=="because":
+                because_sents.append(prev_words, words[1:])
             if "when" in words[1:]:  # exclude "When xxxx, xxx"
                 idx = words.index("when")
                 when_sents.append((words[:idx], words[idx+1:]))
             if "if" in words[1:]:
                 idx = words.index("if")
                 if_sents.append((words[:idx], words[idx+1:]))  # exclude "If xxx, xxx"
-            if "for example" in sent:  # "for example ..."
+            if "for_example" in words[1:]:  # "for example ..."
                 idx = words.index("for_example")
                 for_example_sents.append((words[:idx], words[idx+1:]))
+            elif sentence_initial and prev_words!=None and sent[:11].lower()=="for example":
+                because_sents.append(prev_words, words[2:])
+            prev_words = sent.split()
 
     return but_sents, because_sents, when_sents, if_sents, for_example_sents
 
@@ -108,11 +118,11 @@ if __name__ == '__main__':
         wikitext_103_test_path = pjoin("data", "wikitext-103", "wiki.test.tokens")
 
         print("extracting sentence pairs from train")
-        wikitext_103_train = list_to_dict(discourse_markers, get_wiki_pairs(wikitext_103_train_path))
+        wikitext_103_train = list_to_dict(discourse_markers, get_wiki_pairs(wikitext_103_train_path, sentence_initial=args.sentence_initial))
         print("extracting sentence pairs from valid")
-        wikitext_103_valid = list_to_dict(discourse_markers, get_wiki_pairs(wikitext_103_valid_path))
+        wikitext_103_valid = list_to_dict(discourse_markers, get_wiki_pairs(wikitext_103_valid_path, sentence_initial=args.sentence_initial))
         print("extracting sentence pairs from test")
-        wikitext_103_test = list_to_dict(discourse_markers, get_wiki_pairs(wikitext_103_test_path))
+        wikitext_103_test = list_to_dict(discourse_markers, get_wiki_pairs(wikitext_103_test_path, sentence_initial=args.sentence_initial))
 
         # all_sentences_pairs = merge_dict(merge_dict(wikitext_103_train, wikitext_103_valid), wikitext_103_test)
 

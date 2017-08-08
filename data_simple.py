@@ -221,8 +221,8 @@ if __name__ == '__main__':
 
     if all([os.path.isfile(data_path) for data_path in [train_path, valid_path, test_path]]):
 
-        print("Loading data %s" % (str(data_path)))
-        train_data = tokenize_sentence_pair_data(pickle.load(open(train_path, mode="rb")))
+        print("Loading data")
+        train_data = pickle.load(open(train_path, mode="rb"))
         valid_data = pickle.load(open(valid_path, mode="rb"))
         test_data = pickle.load(open(test_path, mode="rb"))
 

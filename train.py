@@ -78,7 +78,7 @@ def main(_):
     with open(pkl_test_name, "rb") as f:
         q_test = pickle.load(f)
 
-    with open(pjoin("data", FLAGS.dataset, "class_labels_dict_{}.pkl".format(tag)), "rb") as f:
+    with open(pjoin("data", FLAGS.dataset, "class_labels_{}.pkl".format(tag)), "rb") as f:
         label_dict = pickle.load(f)
     label_tokens = dict_to_list(label_dict)
     logging.info("classifying markers: {}".format(label_tokens))

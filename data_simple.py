@@ -249,9 +249,9 @@ if __name__ == '__main__':
         class_labels = {discourse_markers[i]: i for i in range(len(discourse_markers))}
 
         # print class labels for reference  
-        pickle.dump(class_labels, open(pjoin(args.source_dir, "class_labels_dict_{}.pkl".format(tag)), "wb"))
+        pickle.dump(class_labels, open(pjoin(args.source_dir, "class_labels_{}.pkl".format(tag)), "wb"))
         # print class labels for reference  
-        pickle.dump(discourse_markers, open(pjoin(args.source_dir, "class_labels_list_{}.pkl".format(tag)), "wb"))
+        # pickle.dump(discourse_markers, open(pjoin(args.source_dir, "class_labels_list_{}.pkl".format(tag)), "wb"))
 
         for split in ["train", "valid", "test"]:
             data = splits[split]

@@ -1,6 +1,3 @@
-#! /usr/bin/env python
-# -*- coding: utf-8 -*-
-
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
@@ -23,7 +20,7 @@ from tqdm import *
 import numpy as np
 from os.path import join as pjoin
 
-_PAD = b"<pad>" # no need to pad
+_PAD = b"<pad>"  # no need to pad
 _UNK = b"<unk>"
 _START_VOCAB = [_PAD, _UNK]
 
@@ -31,33 +28,12 @@ PAD_ID = 0
 UNK_ID = 1
 
 import sys
+
 reload(sys)
 sys.setdefaultencoding('utf8')
 
 np.random.seed(123)
 random.seed(123)
-
-"""
-Loads data in format:
-```
-{
-    "discourse marker": [
-        (["tokens", "in", "s1"], ["tokens", "in", "s2"]),
-        ...
-    ],
-    ...
-}
-```
-
-Exports data (split into valid, train, test files) in format:
-```
-[(s1, s2, label), ...]
-```
-where `label` is class index from {0, ..., number_of_discourse_markers},
-and `s1` and `s2` are lists of word ids
-
-Also creates vocabulary file `vocab.dat` specifying the mapping between glove embeddings and ids.
-"""
 
 
 def setup_args():
@@ -71,16 +47,10 @@ def setup_args():
     parser.add_argument("--vocab_dir", default=vocab_dir)
     parser.add_argument("--glove_dim", default=300, type=int)
     parser.add_argument("--random_init", action='store_true')
-    parser.add_argument("--train_size", default=0.9, type=float)
-    parser.add_argument("--max_seq_len", default=50, type=int)
-    parser.add_argument("--min_seq_len", default=5, type=int)
-    parser.add_argument("--max_ratio", default=5.0, type=float)
-    parser.add_argument("--undersamp_cutoff", default=50000, type=int)
     parser.add_argument("--exclude", default="")
     parser.add_argument("--include", default="")
     return parser.parse_args()
 
-    # train.pkl -> train_no_because.pkl, train.pkl -> train_all.pkl
 
 def basic_tokenizer(sentence):
     words = []
@@ -103,17 +73,6 @@ def initialize_vocabulary(vocabulary_path):
     else:
         raise ValueError("Vocabulary file %s not found.", vocabulary_path)
 
-"""
-once we have vocabulary, go through and make trimmed down word matrix
-
-convert indices in my vocabulary to indices in glove
-not all words will overlap in both vocabs.
-
-trained glove will be somewhere in the directory
-
-(last quarter this was wrong, but this is probably correct. maybe check git history)
-cs224n website has this. pa4 code.
-"""
 def process_glove(args, vocab_dict, save_path, random_init=True):
     """
     :param vocab_list: [vocab]
@@ -175,15 +134,16 @@ def create_vocabulary(vocabulary_path, sentence_pairs_data, discourse_markers=No
             for w in vocab_list:
                 vocab_file.write(w + b"\n")
 
-"""
-map words to ids in vocab
-called by data_to_token_ids
-"""
 def sentence_to_token_ids(sentence, vocabulary):
     return [vocabulary.get(w, UNK_ID) for w in sentence]
 
 
-def data_to_token_ids(data, rev_class_labels, target_path, text_path, vocabulary_path, data_dir):
+def merge_dict(dict_list1, dict_list2):
+    for key, list_sent in dict_list1.iteritems():
+        dict_list1[key].extend(dict_list2[key])
+    return dict_list1
+
+def data_to_token_ids(data, discourse_markers, class_labels, rev_class_labels, target_path, text_path, vocabulary_path, data_dir):
     if gfile.Exists(target_path):
         print("file {} already exists".format(target_path))
     else:
@@ -192,10 +152,11 @@ def data_to_token_ids(data, rev_class_labels, target_path, text_path, vocabulary
         # fix me: this will be a list instead
         ids_data = []
         text_data = []
-        for marker in data:
+        for marker in discourse_markers:
             # ids_data[marker] = []
             counter = 0
-            for s1, s2, label in data[marker]:
+            for s1, s2 in data[marker]:
+                label = class_labels[marker]
                 counter += 1
                 if counter % 10000 == 0:
                     print("converting %s %d" % (marker, counter))
@@ -217,24 +178,6 @@ def data_to_token_ids(data, rev_class_labels, target_path, text_path, vocabulary
                 f.write(str([" ".join(t[0]), " ".join(t[1]), rev_class_labels[t[2]]]) + "\n")
 
 
-def filter_examples(orig_pairs, class_label, max_seq_len, min_seq_len, max_ratio, undersamp_cutoff):
-    new_pairs_with_labels = []
-    min_ratio = 1 / max_ratio
-    for s1, s2 in orig_pairs:
-        ratio = float(len(s1))/max(len(s2), 0.0001)
-        if len(s1) < min_seq_len or max_seq_len < len(s1):
-            pass
-        elif len(s2) < min_seq_len or max_seq_len < len(s2):
-            pass
-        elif ratio < min_ratio or max_ratio < ratio:
-            pass
-        else:
-            new_pairs_with_labels.append((s1, s2, class_label))
-
-    # shuffle sentence pairs within each marker
-    # (otherwise sentences from the same document will end up in the same split)
-    np.random.shuffle(new_pairs_with_labels)
-    return new_pairs_with_labels[:undersamp_cutoff]
 
 def tokenize_sentence_pair_data(sentence_pairs_data):
     tokenized_sent_pair_data = {}
@@ -246,28 +189,13 @@ def tokenize_sentence_pair_data(sentence_pairs_data):
 
     return tokenized_sent_pair_data
 
-"""
- - sampling procedure (don't spend too much time on this!)
-       - pkl format [[s_1, s_2, label]]
-            * label is class index {0, ..., N}
-       - data split and shuffling: train, valid, test
-       - create_vocabulary as in notebook
-       - list_to_indices
-       - np.random.shuffle FIX RANDOM SEED
-       - create_dataset
-             * does the split, writes the files!
-"""
+
 if __name__ == '__main__':
     args = setup_args()
     assert(args.include=="" or args.exclude=="")
 
-    all_discourse_markers = [
-        "because", "although",
-        "but", "when", "for example",
-        "before", "after", "however", "so", "still", "though",
-        "meanwhile",
-        "while", "if"
-    ]
+    all_discourse_markers = ["but", "because", "when", "if", "for example"]
+
     if args.include=="":
         # --exclude "because,for example,algorithm"
         discourse_markers = [d for d in all_discourse_markers if d not in args.exclude.split(",")]
@@ -287,14 +215,18 @@ if __name__ == '__main__':
 
     vocab_path = pjoin(args.vocab_dir, "vocab_{}.dat".format(tag))
 
-    data_path = pjoin(args.source_dir, "all_sentence_pairs.pkl")
+    train_path = pjoin("data", "wikitext-103", "train.pkl")
+    valid_path = pjoin("data", "wikitext-103", "valid.pkl")
+    test_path = pjoin("data", "wikitext-103", "test.pkl")
 
-    if os.path.isfile(data_path):
-        print("Loading data %s" % (str(data_path)))
-        sentence_pairs_data = pickle.load(open(data_path, mode="rb"))
+    if all([os.path.isfile(data_path) for data_path in [train_path, valid_path, test_path]]):
 
-        # TODO: remove this line
-        sentence_pairs_data = tokenize_sentence_pair_data(sentence_pairs_data)
+        print("Loading data")
+        train_data = pickle.load(open(train_path, mode="rb"))
+        valid_data = pickle.load(open(valid_path, mode="rb"))
+        test_data = pickle.load(open(test_path, mode="rb"))
+
+        sentence_pairs_data = merge_dict(merge_dict(train_data, valid_data), test_data)
 
         create_vocabulary(vocab_path, sentence_pairs_data)
 
@@ -306,60 +238,22 @@ if __name__ == '__main__':
         process_glove(args, vocab, pjoin(args.source_dir, "glove.trimmed.{}_{}.npz".format(args.glove_dim, tag)),
                       random_init=args.random_init)
 
-        # ======== Split =========
-
-        assert(args.train_size < 1 and args.train_size > 0)
-        split_proportions = {
-            "train": args.train_size,
-            "valid": (1-args.train_size)/2,
-            "test": (1-args.train_size)/2
-        }
-        assert(sum([split_proportions[split] for split in split_proportions])==1)
-
-        splits = {split: {} for split in split_proportions}
-
-        # gather class labels for reference
-        class_labels = {}
-        rev_class_labels = []
-        i = -1
-
-        # make split, s.t. we have similar distributions over discourse markers for each split
-        overall = 0
-        for marker in discourse_markers:
-            i += 1
-            class_labels[marker] = i
-            rev_class_labels.append(marker)
-
-            # add class label to each example
-            all_examples = filter_examples(
-                sentence_pairs_data[marker],
-                i,
-                args.max_seq_len,
-                args.min_seq_len,
-                args.max_ratio,
-                args.undersamp_cutoff
-            )
-            total_n_examples = len(all_examples)
-            overall += total_n_examples
-            print("total number of {}: {}".format(marker, total_n_examples))
-
-            # make valid and test sets (they will be equal size)
-            valid_size = int(np.floor(split_proportions["valid"]*total_n_examples))
-            test_size = valid_size
-            splits["valid"][marker] = all_examples[0:valid_size]
-            splits["test"][marker] = all_examples[valid_size:valid_size+test_size]
-
-            # make train set with remaining examples
-            splits["train"][marker] = all_examples[valid_size+test_size:]
-
-        print("overall number of training examples: {}".format(overall))
-
-        # print class labels for reference  
-        pickle.dump(class_labels, open(pjoin(args.source_dir, "class_labels_{}.pkl".format(tag)), "wb"))
-
         # ======== Creating Dataset =========
 
-        for split in splits:
+        splits = {
+            "train": train_data,
+            "valid": valid_data,
+            "test": test_data
+        }
+
+        class_labels = {discourse_markers[i]: i for i in range(len(discourse_markers))}
+
+        # print class labels for reference  
+        pickle.dump(class_labels, open(pjoin(args.source_dir, "class_labels_dict_{}.pkl".format(tag)), "wb"))
+        # print class labels for reference  
+        pickle.dump(discourse_markers, open(pjoin(args.source_dir, "class_labels_list_{}.pkl".format(tag)), "wb"))
+
+        for split in ["train", "valid", "test"]:
             data = splits[split]
             print("Converting data in {}".format(split))
             ids_path = pjoin(
@@ -371,8 +265,12 @@ if __name__ == '__main__':
                 "{}_{}.text.txt".format(split, tag)
             )
 
-            data_to_token_ids(data, rev_class_labels, ids_path, text_path, vocab_path, args.source_dir)
+            data_to_token_ids(data, discourse_markers, class_labels, discourse_markers, ids_path, text_path, vocab_path, args.source_dir)
 
     else:
-        print("Data file {} does not exist.".format(data_path))
-
+        if not os.path.isfile(train_path):
+            print("Data file {} does not exist.".format(train_path))
+        if not os.path.isfile(valid_path):
+            print("Data file {} does not exist.".format(valid_path))
+        if not os.path.isfile(test_path):
+            print("Data file {} does not exist.".format(test_path))

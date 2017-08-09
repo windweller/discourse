@@ -41,7 +41,6 @@ tf.app.flags.DEFINE_boolean("dev", False, "if flag true, will run on dev dataset
 tf.app.flags.DEFINE_boolean("correct_example", False, "if flag false, will print error, true will print out success")
 tf.app.flags.DEFINE_integer("best_epoch", 1, "enter the best epoch to use")
 tf.app.flags.DEFINE_integer("num_examples", 30, "enter the best epoch to use")
-tf.app.flags.DEFINE_boolean("log_results", False, "if flag true, will write results to a file for exploring later")
 
 logging.basicConfig(level=logging.INFO)
 
@@ -81,15 +80,6 @@ def pair_iter(q, batch_size, inp_len, query_len):
 
         yield padded_input, input_mask, padded_query, query_mask, labels
         batched_seq1, batched_seq2, batched_label = [], [], []
-
-def write_results_to_file(preds, labels, batch_num, data_dir):
-    results_path = pjoin(data_dir, "results.csv")
-    with open(results_path, "a") as f:
-        for i in range(len(preds)):
-            pred = preds[i]
-            label = labels[i]
-            data = [pred, label, batch_num]
-            f.write(",".join([str(d) for d in data]) + "\n")
 
 class Encoder(object):
     def __init__(self, size, num_layers):
@@ -145,6 +135,17 @@ class Encoder(object):
                 encoder_outputs = tf.add(output_state_fw[-1][1], output_state_bw[-1][1])
 
         return out, encoder_outputs
+
+def write_results(preds, labels, split, epoch, directory):
+    lines = []
+    for i in range(len(preds)):
+        pred = preds[i]
+        label = labels[i]
+        lines.append("{},{}".format(pred, label))
+    if epoch:
+        open(pjoin(directory, "results_{}_{}.csv".format(split, epoch)), "w").write("\n".join(lines))
+    else:
+        open(pjoin(directory, "results_{}.csv".format(split)), "w").write("\n".join(lines))
 
 class SequenceClassifier(object):
     def __init__(self, encoder, flags, vocab_size, vocab, rev_vocab, label_size, embed_path,
@@ -288,7 +289,7 @@ class SequenceClassifier(object):
         for k, v in total_accu.iteritems():
             total_accu[k] = np.mean(total_accu[k])
 
-    def but_because_validate(self, session, q, label_tokens, dev=False):
+    def but_because_validate(self, session, q, label_tokens, split, directory, epoch=None, dev=False):
         # class_label: [because, but, ...]
         valid_costs, valid_accus = [], []
         valid_logits, valid_labels = [], []
@@ -296,18 +297,15 @@ class SequenceClassifier(object):
 
         total_labels_accu = None
 
-        batch_num = -1
         for seqA_tokens, seqA_mask, seqB_tokens, \
                 seqB_mask, labels in pair_iter(q, self.flags.batch_size, self.max_seq_len, self.max_seq_len):
-            batch_num += 1
             cost, logits = self.test(session, seqA_tokens, seqA_mask, seqB_tokens, seqB_mask, labels)
             valid_costs.append(cost)
             accu = np.mean(np.argmax(logits, axis=1) == labels)
 
             preds = np.argmax(logits, axis=1)
 
-            if self.flags.log_results:
-                write_results_to_file(preds, labels, batch_num)
+            write_results(preds, labels, split, epoch, directory)
 
             # TODO: multiclass accuracy
             labels_accu = self.get_multiclass_accuracy(preds, labels)
@@ -389,7 +387,7 @@ class SequenceClassifier(object):
         self.saver.restore(session, checkpoint_path + ("-%d" % best_epoch))
 
         # load into the "dev" files
-        test_cost, test_accu, test_logits, test_labels, valid_sent1, valid_sent2 = self.but_because_validate(session, q, label_tokens, dev=True)
+        test_cost, test_accu, test_logits, test_labels, valid_sent1, valid_sent2 = self.but_because_validate(session, q, label_tokens, "dev", save_train_dir, dev=True)
 
         logging.info("Final dev cost: %f dev accu: %f" % (test_cost, test_accu))
 
@@ -456,7 +454,7 @@ class SequenceClassifier(object):
             checkpoint_path = os.path.join(save_train_dirs, "dis.ckpt")
 
             ## Validate
-            valid_cost, valid_accu = self.but_because_validate(session, q_valid, label_tokens)
+            valid_cost, valid_accu = self.but_because_validate(session, q_valid, label_tokens, "valid", save_train_dirs, epoch=epoch)
 
             logging.info("Epoch %d Validation cost: %f validation accu: %f epoch time: %f" % (epoch, valid_cost,
                                                                                               valid_accu,
@@ -488,7 +486,7 @@ class SequenceClassifier(object):
 
         # after training, we test this thing
         ## Test
-        test_cost, test_accu = self.but_because_validate(session, q_test, label_tokens)
+        test_cost, test_accu = self.but_because_validate(session, q_test, label_tokens, "test", save_train_dirs)
         logging.info("Final test cost: %f test accu: %f" % (test_cost, test_accu))
 
         sys.stdout.flush()

@@ -234,7 +234,7 @@ def aggregate_prcessed_files(args):
         float(len(pairs[key]))/n*100
     ))
 
-    pickle.dump(pairs, open("data/wikitext-103/all_sentence_pairs.pkl", "wb"))
+    pickle.dump(pairs, pjoin(data_dir, open("all_sentence_pairs.pkl", "wb")))
 
 
 

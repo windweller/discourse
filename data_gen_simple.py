@@ -68,12 +68,16 @@ def get_wiki_pairs(file_path, discourse_markers, sentence_initial=False):
             # all of these have try statements, because sometimes the discourse marker will
             # only be a part of the word, and so it won't show up in the words list
             for marker in discourse_markers:
-                if marker in words[1:]: # sentence-internal
-                    idx = words.index(marker)
+                if marker == "for example":
+                    proxy_marker = marker
+                else:
+                    proxy_marker = "for_example"
+                if proxy_marker in words[1:]: # sentence-internal
+                    idx = words.index(proxy_marker)
                     sents[marker].append((undo_rephrase(words[:idx]), undo_rephrase(words[idx+1:])))
                 elif sentence_initial and marker in ["but", "because"] and prev_words!=None and words[0].lower()==marker:
                     sents[marker].append(prev_words, undo_rephrase(words[1:]))
-                elif sentence_initial and marker in ["for_example"] and prev_words!=None and sent[:11].lower()=="for example":
+                elif sentence_initial and proxy_marker in ["for_example"] and prev_words!=None and sent[:11].lower()=="for example":
                     sents[marker].append(prev_words, undo_rephrase(words[2:]))
 
             prev_words = sent.split()

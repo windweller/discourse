@@ -49,8 +49,8 @@ def undo_rephrase(lst):
 def rephrase(str):
     return str.replace("for example", "for_example")
 
-def get_wiki_pairs(file_path, sentence_initial=False):
-    sents = {}
+def get_wiki_pairs(file_path, discourse_markers, sentence_initial=False):
+    sents = {d: [] for d in discourse_markers}
 
     with io.open(file_path, 'rU', encoding="utf-8") as f:
         tokens = f.read().replace("\n", ". ")
@@ -67,7 +67,7 @@ def get_wiki_pairs(file_path, sentence_initial=False):
             words = rephrase(sent).split()  # strip puncts and then split (already tokenized)
             # all of these have try statements, because sometimes the discourse marker will
             # only be a part of the word, and so it won't show up in the words list
-            for marker in ["but", "because", "when", "if", "for_example"]:
+            for marker in discourse_markers:
                 if marker in words[1:]: # sentence-internal
                     idx = words.index(marker)
                     sents[marker].append((undo_rephrase(words[:idx]), undo_rephrase(words[idx+1:])))
@@ -124,11 +124,11 @@ if __name__ == '__main__':
         wikitext_103_test_path = pjoin("data", "wikitext-103", "wiki.test.tokens")
 
         print("extracting sentence pairs from train")
-        wikitext_103_train = get_wiki_pairs(wikitext_103_train_path, sentence_initial=args.sentence_initial)
+        wikitext_103_train = get_wiki_pairs(wikitext_103_train_path, discourse_markers, sentence_initial=args.sentence_initial)
         print("extracting sentence pairs from valid")
-        wikitext_103_valid = get_wiki_pairs(wikitext_103_valid_path, sentence_initial=args.sentence_initial)
+        wikitext_103_valid = get_wiki_pairs(wikitext_103_valid_path, discourse_markers, sentence_initial=args.sentence_initial)
         print("extracting sentence pairs from test")
-        wikitext_103_test = get_wiki_pairs(wikitext_103_test_path, sentence_initial=args.sentence_initial)
+        wikitext_103_test = get_wiki_pairs(wikitext_103_test_path, discourse_markers, sentence_initial=args.sentence_initial)
 
 
         if args.split == "orig":

@@ -215,9 +215,9 @@ if __name__ == '__main__':
 
     vocab_path = pjoin(args.vocab_dir, "vocab_{}.dat".format(tag))
 
-    train_path = pjoin("data", "wikitext-103", "train.pkl")
-    valid_path = pjoin("data", "wikitext-103", "valid.pkl")
-    test_path = pjoin("data", "wikitext-103", "test.pkl")
+    train_path = pjoin(args.source_dir, "train.pkl")
+    valid_path = pjoin(args.source_dir, "valid.pkl")
+    test_path = pjoin(args.source_dir, "test.pkl")
 
     if all([os.path.isfile(data_path) for data_path in [train_path, valid_path, test_path]]):
 

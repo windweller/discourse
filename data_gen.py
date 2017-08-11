@@ -30,6 +30,12 @@ Make files:
 This will later be aggregated into a single `all_sentence_pairs.pkl` file.
 """
 
+# running books:
+# python data_gen.py --data_dir data/books --corpus_files "books_large_p1.txt books_large_p2.txt" --corpus_length 40000000 --n_cores 8 --segment_index 2 --sentences_presegmented
+
+# aggregating books:
+# python data_gen.py --mode aggregate --data_dir "data/books"
+
 import io
 import nltk
 import os

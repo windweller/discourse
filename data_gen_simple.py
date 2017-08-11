@@ -71,10 +71,10 @@ def get_wiki_pairs(file_path, sentence_initial=False):
                 if marker in words[1:]: # sentence-internal
                     idx = words.index(marker)
                     sents[marker].append((undo_rephrase(words[:idx]), undo_rephrase(words[idx+1:])))
-            elif sentence_initial and marker in ["but", "because"] and prev_words!=None and words[0].lower()==marker:
-                sents[marker].append(prev_words, undo_rephrase(words[1:]))
-            elif sentence_initial and marker in ["for_example"] and prev_words!=None and sent[:11].lower()=="for example":
-                sents[marker].append(prev_words, undo_rephrase(words[2:]))
+                elif sentence_initial and marker in ["but", "because"] and prev_words!=None and words[0].lower()==marker:
+                    sents[marker].append(prev_words, undo_rephrase(words[1:]))
+                elif sentence_initial and marker in ["for_example"] and prev_words!=None and sent[:11].lower()=="for example":
+                    sents[marker].append(prev_words, undo_rephrase(words[2:]))
 
             prev_words = sent.split()
 

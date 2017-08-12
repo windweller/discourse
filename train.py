@@ -47,27 +47,36 @@ def main(_):
     file_handler = logging.FileHandler("{0}/log.txt".format(FLAGS.run_dir))
     logging.getLogger().addHandler(file_handler)
 
-    if FLAGS.exclude == "" and FLAGS.include == "":
-        tag = "all"
-    elif FLAGS.exclude != "":
-        tag = "no_" + FLAGS.exclude.replace(",", "_").replace(" ", "_")
-        # last part is for "for example"
-    elif FLAGS.include != "":
-        tag = FLAGS.include.replace(",", "_").replace(" ", "_")
+    if not FLAGS.snli:
+        if FLAGS.exclude == "" and FLAGS.include == "":
+            tag = "all"
+        elif FLAGS.exclude != "":
+            tag = "no_" + FLAGS.exclude.replace(",", "_").replace(" ", "_")
+            # last part is for "for example"
+        elif FLAGS.include != "":
+            tag = FLAGS.include.replace(",", "_").replace(" ", "_")
+        else:
+            raise Exception("no match state for exclude/include")
+        glove_name = "glove.trimmed.{}_{}.npz".format(FLAGS.embedding_size, tag)
+        vocab_name = "vocab_{}.dat".format(tag)
+        tag = "_" + tag
     else:
-        raise Exception("no match state for exclude/include")
+        logging.info("Training on SNLI")
+        tag = "snli"
+        glove_name = "glove.trimmed.300.npz"
+        vocab_name = "vocab.dat"
 
     # now we load in glove based on tags
-    embed_path = pjoin("data", FLAGS.dataset, "glove.trimmed.{}_{}.npz".format(FLAGS.embedding_size, tag))
-    vocab_path = pjoin("data", FLAGS.dataset, "vocab_{}.dat".format(tag))
+    embed_path = pjoin("data", FLAGS.dataset, glove_name)
+    vocab_path = pjoin("data", FLAGS.dataset, vocab_name)
     vocab, rev_vocab = initialize_vocab(vocab_path)
     vocab_size = len(vocab)
 
     logging.info("vocab size: {}".format(vocab_size))
 
-    pkl_train_name = pjoin("data", FLAGS.dataset, "train_{}.ids.pkl".format(tag))
-    pkl_val_name = pjoin("data", FLAGS.dataset, "valid_{}.ids.pkl".format(tag))
-    pkl_test_name = pjoin("data", FLAGS.dataset, "test_{}.ids.pkl".format(tag))
+    pkl_train_name = pjoin("data", FLAGS.dataset, "train{}.ids.pkl".format(tag))
+    pkl_val_name = pjoin("data", FLAGS.dataset, "valid{}.ids.pkl".format(tag))
+    pkl_test_name = pjoin("data", FLAGS.dataset, "test{}.ids.pkl".format(tag))
 
     with open(pkl_train_name, "rb") as f:
         q_train = pickle.load(f)
@@ -78,7 +87,7 @@ def main(_):
     with open(pkl_test_name, "rb") as f:
         q_test = pickle.load(f)
 
-    with open(pjoin("data", FLAGS.dataset, "class_labels_{}.pkl".format(tag)), "rb") as f:
+    with open(pjoin("data", FLAGS.dataset, "class_labels{}.pkl".format(tag)), "rb") as f:
         label_dict = pickle.load(f)
     label_tokens = dict_to_list(label_dict)
     logging.info("classifying markers: {}".format(label_tokens))
@@ -94,6 +103,8 @@ def main(_):
         label_size -= len(FLAGS.exclude.split(","))
     elif FLAGS.include != "":
         label_size = len(FLAGS.include.split(","))
+    elif FLAGS.snli:
+        label_size = 3
 
     with tf.Graph().as_default(), tf.Session() as session:
         tf.set_random_seed(FLAGS.seed)

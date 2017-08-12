@@ -74,9 +74,9 @@ def main(_):
 
     logging.info("vocab size: {}".format(vocab_size))
 
-    pkl_train_name = pjoin("data", FLAGS.dataset, "train.ids.pkl".format(tag))
-    pkl_val_name = pjoin("data", FLAGS.dataset, "valid.ids.pkl".format(tag))
-    pkl_test_name = pjoin("data", FLAGS.dataset, "test.ids.pkl".format(tag))
+    pkl_train_name = pjoin("data", FLAGS.dataset, "train{}.ids.pkl".format(tag))
+    pkl_val_name = pjoin("data", FLAGS.dataset, "valid{}.ids.pkl".format(tag))
+    pkl_test_name = pjoin("data", FLAGS.dataset, "test{}.ids.pkl".format(tag))
 
     with open(pkl_train_name, "rb") as f:
         q_train = pickle.load(f)
@@ -87,7 +87,7 @@ def main(_):
     with open(pkl_test_name, "rb") as f:
         q_test = pickle.load(f)
 
-    with open(pjoin("data", FLAGS.dataset, "class_labels.pkl".format(tag)), "rb") as f:
+    with open(pjoin("data", FLAGS.dataset, "class_labels{}.pkl".format(tag)), "rb") as f:
         label_dict = pickle.load(f)
     label_tokens = dict_to_list(label_dict)
     logging.info("classifying markers: {}".format(label_tokens))

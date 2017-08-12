@@ -23,6 +23,8 @@ import json
 
 from six.moves import urllib
 
+from itertools import izip
+
 from tensorflow.python.platform import gfile
 from tqdm import *
 import numpy as np
@@ -49,8 +51,9 @@ def setup_args():
     code_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)))
     vocab_dir = os.path.join("data", "snli_1.0")
     glove_dir = os.path.join("data", "glove.6B")
-    source_dir = os.path.join("data", "snli_1.0")
-    parser.add_argument("--source_dir", default=source_dir)
+    run_dir = os.path.join("data", "snli_1.0")
+    parser.add_argument("--run_dir", default=run_dir)
+    parser.add_argument("--source_dir", default=run_dir)
     parser.add_argument("--glove_dir", default=glove_dir)
     parser.add_argument("--vocab_dir", default=vocab_dir)
     parser.add_argument("--glove_dim", default=300, type=int)
@@ -205,25 +208,31 @@ if __name__ == '__main__':
     # sentence1
     # sentence2
 
-    paths = {
-        "train": pjoin(args.source_dir, "snli_1.0_train.jsonl"),
-        "valid": pjoin(args.source_dir, "snli_1.0_dev.jsonl"),
-        "test": pjoin(args.source_dir, "snli_1.0_test.jsonl")
-    }
-
     splits = {
         "train": [],
         "valid": [],
         "test": []
     }
 
-    for split in paths:
-        if os.path.isfile(paths[split]):
-            for line in open(paths[split]):
-                data = json.loads(line)
-                label = data["gold_label"]
-                s1 = data["sentence1"].split()
-                s2 = data["sentence2"].split()
+    all_filenames = [tag + "." + split for tag in ["s1", "s2", "labels"] for split in ["train", "dev", "test"]]
+    all_paths = [pjoin(args.source_dir, filename) for filename in all_filenames]
+
+    if not all([os.path.isfile(p) for p in all_paths]):
+        raise Exception("missing files from:" + str(all_paths))
+
+    for split in splits:
+        if split == "valid":
+            split_tag = "dev"
+        else:
+            split_tag = split
+        s1_path = pjoin(args.source_dir, "s2." + split_tag)
+        s2_path = pjoin(args.source_dir, "s1." + split_tag)
+        labels_path = pjoin(args.source_dir, "labels." + split_tag)
+        with open(s1_path) as f1, open(s2_path) as f2, open(labels_path) as flab: 
+            for s1, s2, label in izip(f1, f2, flab):
+                s1 = s1.strip().split()
+                s2 = s2.strip().split()
+                label = label.strip()
                 if label in all_labels:
                     splits[split].append((s1, s2, label))
 
@@ -260,5 +269,4 @@ if __name__ == '__main__':
 
         data_to_token_ids(data, all_labels, class_labels, ids_path, text_path, vocab_path, args.source_dir)
 
-    else:
-        print("missing files")
+

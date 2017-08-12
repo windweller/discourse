@@ -99,7 +99,7 @@ class Encoder(object):
         self.encoder_cell = tf.nn.rnn_cell.MultiRNNCell([cell] * num_layers, state_is_tuple=state_is_tuple)
 
     # could consider instead of averaging, I concatenate
-    def encode(self, inputs, masks, reuse=False, scope_name="", temporal_max_pooling=False):
+    def encode(self, inputs, masks, reuse=False, scope_name="", temp_max=False):
         """
         In a generalized encode function, you pass in your inputs,
         masks, and an initial

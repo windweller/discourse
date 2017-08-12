@@ -136,7 +136,7 @@ class Encoder(object):
             else:
                 # last layer [-1], hidden state [1]
                 # this works with multilayer
-                if temporal_max_pooling:
+                if temp_max:
                     max_forward = tf.reduce_max(fw_out, axis=1)
                     max_backward = tf.reduce_max(bw_out, axis=1)
                     encoder_outputs = max_forward + max_backward

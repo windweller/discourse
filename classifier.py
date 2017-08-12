@@ -41,6 +41,7 @@ tf.app.flags.DEFINE_boolean("dev", False, "if flag true, will run on dev dataset
 tf.app.flags.DEFINE_boolean("temp_max", False, "if flag true, will use Temporal Max Pooling")
 tf.app.flags.DEFINE_boolean("correct_example", False, "if flag false, will print error, true will print out success")
 tf.app.flags.DEFINE_boolean("snli", False, "if flag True, the classifier will train on SNLI")
+tf.app.flags.DEFINE_boolean("concat", False, "if flag True, bidirectional does concatenation not average")
 tf.app.flags.DEFINE_integer("best_epoch", 1, "enter the best epoch to use")
 tf.app.flags.DEFINE_integer("num_examples", 30, "enter the best epoch to use")
 
@@ -139,9 +140,15 @@ class Encoder(object):
                 if temp_max:
                     max_forward = tf.reduce_max(fw_out, axis=1)
                     max_backward = tf.reduce_max(bw_out, axis=1)
-                    encoder_outputs = max_forward + max_backward
+                    if not FLAGS.concat:
+                        encoder_outputs = max_forward + max_backward
+                    else:
+                        encoder_outputs = tf.concat(1, [max_forward, max_backward])
                 else:
-                    encoder_outputs = tf.add(output_state_fw[-1][1], output_state_bw[-1][1])
+                    if not FLAGS.concat:
+                        encoder_outputs = tf.add(output_state_fw[-1][1], output_state_bw[-1][1])
+                    else:
+                        encoder_outputs = tf.concat(1, [output_state_fw[-1][1], output_state_bw[-1][1]])
 
         return out, encoder_outputs
 

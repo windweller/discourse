@@ -39,6 +39,7 @@ tf.app.flags.DEFINE_string("embed_path", "data/wikitext-103/glove.trimmed.300.np
 tf.app.flags.DEFINE_string("restore_checkpoint", None, "checkpoint file to restore model parameters from")
 tf.app.flags.DEFINE_boolean("dev", False, "if flag true, will run on dev dataset in a pure testing mode")
 tf.app.flags.DEFINE_boolean("temp_max", False, "if flag true, will use Temporal Max Pooling")
+tf.app.flags.DEFINE_boolean("temp_mean", False, "if flag true, will use Temporal Mean Pooling")
 tf.app.flags.DEFINE_boolean("correct_example", False, "if flag false, will print error, true will print out success")
 tf.app.flags.DEFINE_boolean("snli", False, "if flag True, the classifier will train on SNLI")
 tf.app.flags.DEFINE_boolean("concat", False, "if flag True, bidirectional does concatenation not average")
@@ -144,6 +145,13 @@ class Encoder(object):
                         encoder_outputs = max_forward + max_backward
                     else:
                         encoder_outputs = tf.concat(1, [max_forward, max_backward])
+                elif FLAGS.temp_mean:
+                    mean_forward = tf.reduce_mean(fw_out, axis=1)
+                    mean_backward = tf.reduce_mean(bw_out, axis=1)
+                    if not FLAGS.concat:
+                        encoder_outputs = mean_forward + mean_backward
+                    else:
+                        encoder_outputs = tf.concat(1, [mean_forward, mean_backward])
                 else:
                     if not FLAGS.concat:
                         encoder_outputs = tf.add(output_state_fw[-1][1], output_state_bw[-1][1])
@@ -151,6 +159,13 @@ class Encoder(object):
                         encoder_outputs = tf.concat(1, [output_state_fw[-1][1], output_state_bw[-1][1]])
 
         return out, encoder_outputs
+
+
+class AttentionEncoder(object):
+    def __init__(self, size, num_layers):
+        self.size = size
+        self.keep_prob = tf.placeholder(tf.float32)
+
 
 class SequenceClassifier(object):
     def __init__(self, encoder, flags, vocab_size, vocab, rev_vocab, label_size, embed_path,

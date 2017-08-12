@@ -247,26 +247,26 @@ if __name__ == '__main__':
     # ======== Trim Distributed Word Representation =======
     # If you use other word representations, you should change the code below
 
-    process_glove(args, vocab, pjoin(args.source_dir, "glove.trimmed.{}.npz".format(args.glove_dim)),
+    process_glove(args, vocab, pjoin(args.run_dir, "glove.trimmed.{}.npz".format(args.glove_dim)),
                   random_init=args.random_init)
 
 
     class_labels = {all_labels[i]: i for i in range(len(all_labels))}
 
-    pickle.dump(class_labels, open(pjoin(args.source_dir, "class_labels.pkl"), "wb"))
+    pickle.dump(class_labels, open(pjoin(args.run_dir, "class_labels.pkl"), "wb"))
 
     for split in splits:
         data = splits[split]
         print("Converting data in {}".format(split))
         ids_path = pjoin(
-            args.source_dir,
+            args.run_dir,
             "{}.ids.pkl".format(split)
         )
         text_path = pjoin(
-            args.source_dir,
+            args.run_dir,
             "{}.text.txt".format(split)
         )
 
-        data_to_token_ids(data, all_labels, class_labels, ids_path, text_path, vocab_path, args.source_dir)
+        data_to_token_ids(data, all_labels, class_labels, ids_path, text_path, vocab_path, args.run_dir)
 
 

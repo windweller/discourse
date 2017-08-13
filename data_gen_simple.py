@@ -49,6 +49,43 @@ def undo_rephrase(lst):
 def rephrase(str):
     return str.replace("for example", "for_example")
 
+def get_books_pairs(file_path, discourse_markers, sentence_initial=False):
+    sents = {d: [] for d in discourse_markers}
+
+    total_pairs_extracted = 0
+    with io.open(file_path, 'rU', encoding="utf-8") as f:
+        prev_words = None
+        i = 0
+        for line in f:
+            sent = line[:-1]
+            i += 1
+            if i % 100000 == 0:
+                print("reading sentence {}".format(i))
+            if total_pairs_extracted >= 2000000:
+                break
+            words = rephrase(sent).split()  # strip puncts and then split (already tokenized)
+            # all of these have try statements, because sometimes the discourse marker will
+            # only be a part of the word, and so it won't show up in the words list
+            for marker in discourse_markers:
+                if marker == "for example":
+                    proxy_marker = marker
+                else:
+                    proxy_marker = "for_example"
+                if proxy_marker in words[1:]: # sentence-internal
+                    idx = words.index(proxy_marker)
+                    sents[marker].append((undo_rephrase(words[:idx]), undo_rephrase(words[idx+1:])))
+                    total_pairs_extracted += 1
+                elif sentence_initial and marker in ["but", "because"] and prev_words!=None and words[0].lower()==marker:
+                    sents[marker].append(prev_words, undo_rephrase(words[1:]))
+                    total_pairs_extracted += 1
+                elif sentence_initial and proxy_marker in ["for_example"] and prev_words!=None and sent[:11].lower()=="for example":
+                    sents[marker].append(prev_words, undo_rephrase(words[2:]))
+                    total_pairs_extracted += 1
+
+            prev_words = sent.split()
+
+    return sents
+
 def get_wiki_pairs(file_path, discourse_markers, sentence_initial=False):
     sents = {d: [] for d in discourse_markers}
 
@@ -118,7 +155,7 @@ if __name__ == '__main__':
     elif args.markers == "five":
         discourse_markers = five_discourse_markers
     else:
-        raise Exception("error in discourse marker set")
+        raise ("error in discourse markerException set")
 
 
     if not args.bookcorpus:
@@ -148,4 +185,6 @@ if __name__ == '__main__':
     # extension to work on Book Corpus
     else:
 
-        bookcorpus_path = pjoin("data", "bookcorpus", "books_in_sentences")
+        bookcorpus_path = pjoin("data", "books", "books_large_p1.txt")
+        all_sentences_pairs = get_books_pairs(bookcorpus_path, discourse_markers, sentence_initial=args.sentence_initial)
+        save_to_pickle(all_sentences_pairs, pjoin("data", "wikitext-103", "all_sentence_pairs.pkl"))

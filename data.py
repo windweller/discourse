@@ -76,6 +76,7 @@ def setup_args():
     parser.add_argument("--min_seq_len", default=5, type=int)
     parser.add_argument("--max_ratio", default=5.0, type=float)
     parser.add_argument("--undersamp_cutoff", default=50000, type=int)
+    parser.add_argument("--no_cutoff", action='store_true')
     parser.add_argument("--exclude", default="")
     parser.add_argument("--include", default="")
     return parser.parse_args()
@@ -234,6 +235,8 @@ def filter_examples(orig_pairs, class_label, max_seq_len, min_seq_len, max_ratio
     # shuffle sentence pairs within each marker
     # (otherwise sentences from the same document will end up in the same split)
     np.random.shuffle(new_pairs_with_labels)
+    if args.no_cutoff:
+        return new_pairs_with_labels
     return new_pairs_with_labels[:undersamp_cutoff]
 
 def tokenize_sentence_pair_data(sentence_pairs_data):

@@ -223,24 +223,31 @@ def process_raw_files(args):
 
 def aggregate_prcessed_files(args):
     data_dir = args.data_dir
-    pairs = {d: [] for d in discourse_markers}
-    for file_path in glob.glob(pjoin(data_dir, "*_*-*.pkl")):
-        print(file_path)
-        file_data = pickle.load(open(file_path, "rb"))
-        for key in pairs:
-            pairs[key] += file_data[key]
 
-    n=0
-    for key in pairs: n+=len(pairs[key])
-    print("total pairs extracted: {}".format(n))
+    def get_all_pairs():
 
-    for key in pairs: print("{} ~ {} ({}%)".format(
-        key,
-        len(pairs[key]),
-        float(len(pairs[key]))/n*100
-    ))
+        pairs = {d: [] for d in discourse_markers}
+        for file_path in glob.glob(pjoin(data_dir, "*_*-*.pkl")):
+            print(file_path)
+            file_data = pickle.load(open(file_path, "rb"))
+            for key in pairs:
+                pairs[key] += file_data[key]
 
-    pickle.dump(pairs, pjoin(data_dir, open("all_sentence_pairs.pkl", "wb")))
+        n=0
+        for key in pairs: n+=len(pairs[key])
+        print("total pairs extracted: {}".format(n))
+
+        for key in pairs: print("{} ~ {} ({}%)".format(
+            key,
+            len(pairs[key]),
+            float(len(pairs[key]))/n*100
+        ))
+
+        return pairs
+
+    all_pairs = get_all_pairs()
+
+    pickle.dump(all_pairs, open(pjoin(data_dir, "all_sentence_pairs.pkl"), "wb"))
 
 
 
@@ -554,7 +561,9 @@ class Sentence():
         return [d["dep"] for d in deps]
     def __str__(self):
         return " ".join([t["word"] for t in self.tokens])
-    def get_subordinate_indices(self, acc, explore, exclude_indices=[]):
+    def get_subordinate_indices(self, acc, explore, depth=0, exclude_indices=[]):
+        if depth>10:
+            return None
         children = [c for i in explore for c in self.find_children(i) if not c in exclude_indices]
         if len(children)==0:
             return acc
@@ -562,11 +571,12 @@ class Sentence():
             return self.get_subordinate_indices(
                 acc=acc + children,
                 explore=children,
+		depth=depth+1,
                 exclude_indices=exclude_indices
             )
 
     def get_phrase_from_head(self, head_index, exclude_indices=[]):
-
+        
         # given an index,
         # grab every index that's a child of it in the dependency graph
         subordinate_indices = self.get_subordinate_indices(
@@ -574,8 +584,10 @@ class Sentence():
             explore=[head_index],
             exclude_indices=exclude_indices
         )
+        if not subordinate_indices:
+            return None
         subordinate_indices.sort()
-
+        
         # make string of subordinate phrase from parse
         parse_subordinate_string = " ".join([self.word(i) for i in subordinate_indices])
 

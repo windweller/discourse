@@ -30,6 +30,12 @@ Make files:
 This will later be aggregated into a single `all_sentence_pairs.pkl` file.
 """
 
+# running books:
+# python data_gen.py --data_dir data/books --corpus_files "books_large_p1.txt books_large_p2.txt" --corpus_length 40000000 --n_cores 8 --segment_index 2 --sentences_presegmented
+
+# aggregating books:
+# python data_gen.py --mode aggregate --data_dir "data/books"
+
 import io
 import nltk
 import os
@@ -217,24 +223,31 @@ def process_raw_files(args):
 
 def aggregate_prcessed_files(args):
     data_dir = args.data_dir
-    pairs = {d: [] for d in discourse_markers}
-    for file_path in glob.glob(pjoin(data_dir, "*_*-*.pkl")):
-        print(file_path)
-        file_data = pickle.load(open(file_path, "rb"))
-        for key in pairs:
-            pairs[key] += file_data[key]
 
-    n=0
-    for key in pairs: n+=len(pairs[key])
-    print("total pairs extracted: {}".format(n))
+    def get_all_pairs():
 
-    for key in pairs: print("{} ~ {} ({}%)".format(
-        key,
-        len(pairs[key]),
-        float(len(pairs[key]))/n*100
-    ))
+        pairs = {d: [] for d in discourse_markers}
+        for file_path in glob.glob(pjoin(data_dir, "*_*-*.pkl")):
+            print(file_path)
+            file_data = pickle.load(open(file_path, "rb"))
+            for key in pairs:
+                pairs[key] += file_data[key]
 
-    pickle.dump(pairs, open("data/wikitext-103/all_sentence_pairs.pkl", "wb"))
+        n=0
+        for key in pairs: n+=len(pairs[key])
+        print("total pairs extracted: {}".format(n))
+
+        for key in pairs: print("{} ~ {} ({}%)".format(
+            key,
+            len(pairs[key]),
+            float(len(pairs[key]))/n*100
+        ))
+
+        return pairs
+
+    all_pairs = get_all_pairs()
+
+    pickle.dump(all_pairs, pjoin(data_dir, open("all_sentence_pairs.pkl", "wb")))
 
 
 

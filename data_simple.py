@@ -215,9 +215,9 @@ if __name__ == '__main__':
 
     vocab_path = pjoin(args.vocab_dir, "vocab_{}.dat".format(tag))
 
-    train_path = pjoin("data", "wikitext-103", "train.pkl")
-    valid_path = pjoin("data", "wikitext-103", "valid.pkl")
-    test_path = pjoin("data", "wikitext-103", "test.pkl")
+    train_path = pjoin(args.source_dir, "train.pkl")
+    valid_path = pjoin(args.source_dir, "valid.pkl")
+    test_path = pjoin(args.source_dir, "test.pkl")
 
     if all([os.path.isfile(data_path) for data_path in [train_path, valid_path, test_path]]):
 
@@ -249,9 +249,9 @@ if __name__ == '__main__':
         class_labels = {discourse_markers[i]: i for i in range(len(discourse_markers))}
 
         # print class labels for reference  
-        pickle.dump(class_labels, open(pjoin(args.source_dir, "class_labels_dict_{}.pkl".format(tag)), "wb"))
+        pickle.dump(class_labels, open(pjoin(args.source_dir, "class_labels_{}.pkl".format(tag)), "wb"))
         # print class labels for reference  
-        pickle.dump(discourse_markers, open(pjoin(args.source_dir, "class_labels_list_{}.pkl".format(tag)), "wb"))
+        # pickle.dump(discourse_markers, open(pjoin(args.source_dir, "class_labels_list_{}.pkl".format(tag)), "wb"))
 
         for split in ["train", "valid", "test"]:
             data = splits[split]

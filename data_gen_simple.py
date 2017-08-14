@@ -20,6 +20,8 @@ def setup_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--bookcorpus", action='store_true')
     parser.add_argument("--sentence_initial", action='store_true')
+    parser.add_argument("--split", default='orig')
+    parser.add_argument("--markers", default='five')
     return parser.parse_args()
 
 
@@ -41,12 +43,51 @@ def save_to_pickle(obj, file_path):
     with open(file_path, 'wb') as f:
         pickle.dump(obj, f)
 
-def get_wiki_pairs(file_path, sentence_initial=False):
-    but_sents = []
-    because_sents = []
-    when_sents = []
-    if_sents = []
-    for_example_sents = []
+def undo_rephrase(lst):
+    return " ".join(lst).replace("for_example", "for example").split()
+
+def rephrase(str):
+    return str.replace("for example", "for_example")
+
+def get_books_pairs(file_path, discourse_markers, sentence_initial=False):
+    sents = {d: [] for d in discourse_markers}
+
+    total_pairs_extracted = 0
+    with io.open(file_path, 'rU', encoding="utf-8") as f:
+        prev_words = None
+        i = 0
+        for line in f:
+            sent = line[:-1]
+            i += 1
+            if i % 100000 == 0:
+                print("reading sentence {}".format(i))
+            if total_pairs_extracted >= 2000000:
+                break
+            words = rephrase(sent).split()  # strip puncts and then split (already tokenized)
+            # all of these have try statements, because sometimes the discourse marker will
+            # only be a part of the word, and so it won't show up in the words list
+            for marker in discourse_markers:
+                if marker == "for example":
+                    proxy_marker = marker
+                else:
+                    proxy_marker = "for_example"
+                if proxy_marker in words[1:]: # sentence-internal
+                    idx = words.index(proxy_marker)
+                    sents[marker].append((undo_rephrase(words[:idx]), undo_rephrase(words[idx+1:])))
+                    total_pairs_extracted += 1
+                elif sentence_initial and marker in ["but", "because"] and prev_words!=None and words[0].lower()==marker:
+                    sents[marker].append(prev_words, undo_rephrase(words[1:]))
+                    total_pairs_extracted += 1
+                elif sentence_initial and proxy_marker in ["for_example"] and prev_words!=None and sent[:11].lower()=="for example":
+                    sents[marker].append(prev_words, undo_rephrase(words[2:]))
+                    total_pairs_extracted += 1
+
+            prev_words = sent.split()
+
+    return sents
+
+def get_wiki_pairs(file_path, discourse_markers, sentence_initial=False):
+    sents = {d: [] for d in discourse_markers}
 
     with io.open(file_path, 'rU', encoding="utf-8") as f:
         tokens = f.read().replace("\n", ". ")
@@ -60,33 +101,25 @@ def get_wiki_pairs(file_path, sentence_initial=False):
             i += 1
             if i % 100000 == 0:
                 print("reading sentence {}".format(i))
-            words = sent.replace("for example", "for_example").split()  # strip puncts and then split (already tokenized)
+            words = rephrase(sent).split()  # strip puncts and then split (already tokenized)
             # all of these have try statements, because sometimes the discourse marker will
             # only be a part of the word, and so it won't show up in the words list
-            if "but" in words[1:]:  # # no sentence from beginning has but
-                idx = words.index("but")
-                but_sents.append((words[:idx], words[idx+1:]))
-            elif sentence_initial and prev_words!=None and words[0].lower()=="but":
-                but_sents.append(prev_words, words[1:])
-            if "because" in words[1:]:  # no sentence has because at beginning
-                idx = words.index("because")
-                because_sents.append((words[:idx], words[idx+1:]))
-            elif sentence_initial and prev_words!=None and words[0].lower()=="because":
-                because_sents.append(prev_words, words[1:])
-            if "when" in words[1:]:  # exclude "When xxxx, xxx"
-                idx = words.index("when")
-                when_sents.append((words[:idx], words[idx+1:]))
-            if "if" in words[1:]:
-                idx = words.index("if")
-                if_sents.append((words[:idx], words[idx+1:]))  # exclude "If xxx, xxx"
-            if "for_example" in words[1:]:  # "for example ..."
-                idx = words.index("for_example")
-                for_example_sents.append((words[:idx], words[idx+1:]))
-            elif sentence_initial and prev_words!=None and sent[:11].lower()=="for example":
-                because_sents.append(prev_words, words[2:])
+            for marker in discourse_markers:
+                if marker == "for example":
+                    proxy_marker = marker
+                else:
+                    proxy_marker = "for_example"
+                if proxy_marker in words[1:]: # sentence-internal
+                    idx = words.index(proxy_marker)
+                    sents[marker].append((undo_rephrase(words[:idx]), undo_rephrase(words[idx+1:])))
+                elif sentence_initial and marker in ["but", "because"] and prev_words!=None and words[0].lower()==marker:
+                    sents[marker].append(prev_words, undo_rephrase(words[1:]))
+                elif sentence_initial and proxy_marker in ["for_example"] and prev_words!=None and sent[:11].lower()=="for example":
+                    sents[marker].append(prev_words, undo_rephrase(words[2:]))
+
             prev_words = sent.split()
 
-    return but_sents, because_sents, when_sents, if_sents, for_example_sents
+    return sents
 
 
 def list_to_dict(key_words, list_of_sent, print_stats=True):
@@ -109,7 +142,21 @@ if __name__ == '__main__':
 
     # directly use wikitext-103
 
-    discourse_markers = ["but", "because", "when", "if", "for example"]
+    all_discourse_markers = [
+        "because", "although",
+        "but", "when", "for example",
+        "before", "after", "however", "so", "still", "though",
+        "meanwhile",
+        "while", "if"
+    ]
+    five_discourse_markers = ["but", "because", "when", "if", "for example"]
+    if args.markers == "all":
+        discourse_markers = all_discourse_markers
+    elif args.markers == "five":
+        discourse_markers = five_discourse_markers
+    else:
+        raise ("error in discourse markerException set")
+
 
     if not args.bookcorpus:
 
@@ -118,20 +165,26 @@ if __name__ == '__main__':
         wikitext_103_test_path = pjoin("data", "wikitext-103", "wiki.test.tokens")
 
         print("extracting sentence pairs from train")
-        wikitext_103_train = list_to_dict(discourse_markers, get_wiki_pairs(wikitext_103_train_path, sentence_initial=args.sentence_initial))
+        wikitext_103_train = get_wiki_pairs(wikitext_103_train_path, discourse_markers, sentence_initial=args.sentence_initial)
         print("extracting sentence pairs from valid")
-        wikitext_103_valid = list_to_dict(discourse_markers, get_wiki_pairs(wikitext_103_valid_path, sentence_initial=args.sentence_initial))
+        wikitext_103_valid = get_wiki_pairs(wikitext_103_valid_path, discourse_markers, sentence_initial=args.sentence_initial)
         print("extracting sentence pairs from test")
-        wikitext_103_test = list_to_dict(discourse_markers, get_wiki_pairs(wikitext_103_test_path, sentence_initial=args.sentence_initial))
+        wikitext_103_test = get_wiki_pairs(wikitext_103_test_path, discourse_markers, sentence_initial=args.sentence_initial)
 
-        # all_sentences_pairs = merge_dict(merge_dict(wikitext_103_train, wikitext_103_valid), wikitext_103_test)
 
-        # save_to_pickle(all_sentences_pairs, pjoin("data", "wikitext-103", "all_sentence_pairs.pkl"))
-        save_to_pickle(wikitext_103_train, pjoin("data", "wikitext-103", "train.pkl"))
-        save_to_pickle(wikitext_103_valid, pjoin("data", "wikitext-103", "valid.pkl"))
-        save_to_pickle(wikitext_103_test, pjoin("data", "wikitext-103", "test.pkl"))
+        if args.split == "orig":
+            save_to_pickle(wikitext_103_train, pjoin("data", "wikitext-103", "train.pkl"))
+            save_to_pickle(wikitext_103_valid, pjoin("data", "wikitext-103", "valid.pkl"))
+            save_to_pickle(wikitext_103_test, pjoin("data", "wikitext-103", "test.pkl"))
+        elif split == "rand":
+            all_sentences_pairs = merge_dict(merge_dict(wikitext_103_train, wikitext_103_valid), wikitext_103_test)
+            save_to_pickle(all_sentences_pairs, pjoin("data", "wikitext-103", "all_sentence_pairs.pkl"))
+        else:
+            raise Exception("error in train/valid/test split option")
 
     # extension to work on Book Corpus
     else:
 
-        bookcorpus_path = pjoin("data", "bookcorpus", "books_in_sentences")
+        bookcorpus_path = pjoin("data", "books", "books_large_p1.txt")
+        all_sentences_pairs = get_books_pairs(bookcorpus_path, discourse_markers, sentence_initial=args.sentence_initial)
+        save_to_pickle(all_sentences_pairs, pjoin("data", "wikitext-103", "all_sentence_pairs.pkl"))

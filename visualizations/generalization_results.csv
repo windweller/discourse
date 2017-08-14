@@ -1,0 +1,153 @@
+marker_set,performance,task,layers,ssplit,split,initialization,model
+but/because,70.73,SST,1,dep,rand,zero,base LSTM
+but/because,75.2,TREC,1,dep,rand,zero,base LSTM
+but/because,67.7,MR,1,dep,rand,zero,base LSTM
+but/because,72.12,CR,1,dep,rand,zero,base LSTM
+but/because,85.06,SUBJ,1,dep,rand,zero,base LSTM
+but/because,83.65,MPQA,1,dep,rand,zero,base LSTM
+but/because,0.648,SICK-Relatedness,1,dep,rand,zero,base LSTM
+but/because,72.44,SICK-Entailment,1,dep,rand,zero,base LSTM
+but/because,71.88,SST,1,string,orig,unknown (probably rand),base LSTM
+but/because,76.2,TREC,1,string,orig,unknown (probably rand),base LSTM
+but/because,67.81,MR,1,string,orig,unknown (probably rand),base LSTM
+but/because,71.71,CR,1,string,orig,unknown (probably rand),base LSTM
+but/because,85.32,SUBJ,1,string,orig,unknown (probably rand),base LSTM
+but/because,85.32,MPQA,1,string,orig,unknown (probably rand),base LSTM
+but/because,0.68,SICK-Relatedness,1,string,orig,unknown (probably rand),base LSTM
+but/because,73.15,SICK-Entailment,1,string,orig,unknown (probably rand),base LSTM
+but/because,71.22,SST,1,string,rand,zero,base LSTM
+but/because,75.8,TREC,1,string,rand,zero,base LSTM
+but/because,67.15,MR,1,string,rand,zero,base LSTM
+but/because,69.62,CR,1,string,rand,zero,base LSTM
+but/because,83.14,SUBJ,1,string,rand,zero,base LSTM
+but/because,83.38,MPQA,1,string,rand,zero,base LSTM
+but/because,0.612,SICK-Relatedness,1,string,rand,zero,base LSTM
+but/because,69.8,SICK-Entailment,1,string,rand,zero,base LSTM
+all,68.81,SST,2,dep,rand,zero,base LSTM
+all,73.4,TREC,2,dep,rand,zero,base LSTM
+all,67.92,MR,2,dep,rand,zero,base LSTM
+all,70.2,CR,2,dep,rand,zero,base LSTM
+all,83.24,SUBJ,2,dep,rand,zero,base LSTM
+all,81.48,MPQA,2,dep,rand,zero,base LSTM
+all,0.54,SICK-Relatedness,2,dep,rand,zero,base LSTM
+all,69.11,SICK-Entailment,2,dep,rand,zero,base LSTM
+five,69.36,SST,2,string,rand,zero,base LSTM
+five,72.2,TREC,2,string,rand,zero,base LSTM
+five,67.34,MR,2,string,rand,zero,base LSTM
+five,70.44,CR,2,string,rand,zero,base LSTM
+five,79.76,SUBJ,2,string,rand,zero,base LSTM
+five,81.84,MPQA,2,string,rand,zero,base LSTM
+five,0.5465,SICK-Relatedness,2,string,rand,zero,base LSTM
+five,66.77,SICK-Entailment,2,string,rand,zero,base LSTM
+five,68.75,SST,2,dep,rand,zero,base LSTM
+five,75.2,TREC,2,dep,rand,zero,base LSTM
+five,65.77,MR,2,dep,rand,zero,base LSTM
+five,68.85,CR,2,dep,rand,zero,base LSTM
+five,80.65,SUBJ,2,dep,rand,zero,base LSTM
+five,80.36,MPQA,2,dep,rand,zero,base LSTM
+five,0.541,SICK-Relatedness,2,dep,rand,zero,base LSTM
+five,67.16,SICK-Entailment,2,dep,rand,zero,base LSTM
+all w/o 4,63.98,SST,2,dep,rand,zero,base LSTM
+all w/o 4,70.8,TREC,2,dep,rand,zero,base LSTM
+all w/o 4,64.53,MR,2,dep,rand,zero,base LSTM
+all w/o 4,69.38,CR,2,dep,rand,zero,base LSTM
+all w/o 4,83.82,SUBJ,2,dep,rand,zero,base LSTM
+all w/o 4,79.8,MPQA,2,dep,rand,zero,base LSTM
+all w/o 4,0.55,SICK-Relatedness,2,dep,rand,zero,base LSTM
+all w/o 4,69.56,SICK-Entailment,2,dep,rand,zero,base LSTM
+but/because,66.34,SST,2,string,rand,zero,base LSTM
+but/because,61.4,TREC,2,string,rand,zero,base LSTM
+but/because,62.23,MR,2,string,rand,zero,base LSTM
+but/because,66.86,CR,2,string,rand,zero,base LSTM
+but/because,77.06,SUBJ,2,string,rand,zero,base LSTM
+but/because,80.94,MPQA,2,string,rand,zero,base LSTM
+but/because,0.515,SICK-Relatedness,2,string,rand,zero,base LSTM
+but/because,65.9,SICK-Entailment,2,string,rand,zero,base LSTM
+five,72.21,SST,1,string,rand,zero,base LSTM
+five,72.6,TREC,1,string,rand,zero,base LSTM
+five,69.18,MR,1,string,rand,zero,base LSTM
+five,72.02,CR,1,string,rand,zero,base LSTM
+five,84.41,SUBJ,1,string,rand,zero,base LSTM
+five,83.51,MPQA,1,string,rand,zero,base LSTM
+five,0.6723,SICK-Relatedness,1,string,rand,zero,base LSTM
+five,72.03,SICK-Entailment,1,string,rand,zero,base LSTM
+but/because,65.18,SST,2,dep,rand,zero,base LSTM
+but/because,60.8,TREC,2,dep,rand,zero,base LSTM
+but/because,62.48,MR,2,dep,rand,zero,base LSTM
+but/because,66.57,CR,2,dep,rand,zero,base LSTM
+but/because,77,SUBJ,2,dep,rand,zero,base LSTM
+but/because,80.3,MPQA,2,dep,rand,zero,base LSTM
+but/because,0.512,SICK-Relatedness,2,dep,rand,zero,base LSTM
+but/because,66.19,SICK-Entailment,2,dep,rand,zero,base LSTM
+all,66.94,SST,1,dep,rand,zero,base LSTM
+all,73,TREC,1,dep,rand,zero,base LSTM
+all,66.61,MR,1,dep,rand,zero,base LSTM
+all,69.88,CR,1,dep,rand,zero,base LSTM
+all,84.08,SUBJ,1,dep,rand,zero,base LSTM
+all,82.55,MPQA,1,dep,rand,zero,base LSTM
+all,0.6186,SICK-Relatedness,1,dep,rand,zero,base LSTM
+all,71.14,SICK-Entailment,1,dep,rand,zero,base LSTM
+five,70.29,SST,1,dep,rand,zero,base LSTM
+five,78.4,TREC,1,dep,rand,zero,base LSTM
+five,67.52,MR,1,dep,rand,zero,base LSTM
+five,70.83,CR,1,dep,rand,zero,base LSTM
+five,83.76,SUBJ,1,dep,rand,zero,base LSTM
+five,83.81,MPQA,1,dep,rand,zero,base LSTM
+five,0.662,SICK-Relatedness,1,dep,rand,zero,base LSTM
+five,73.17,SICK-Entailment,1,dep,rand,zero,base LSTM
+InferSent,82.9,SST,NA,NA,orig,NA,InferSent
+InferSent,88.2,TREC,NA,NA,orig,NA,InferSent
+InferSent,81.1,MR,NA,NA,orig,NA,InferSent
+InferSent,86.3,CR,NA,NA,orig,NA,InferSent
+InferSent,92.4,SUBJ,NA,NA,orig,NA,InferSent
+InferSent,90.2,MPQA,NA,NA,orig,NA,InferSent
+InferSent,0.884,SICK-Relatedness,NA,NA,orig,NA,InferSent
+InferSent,86.1,SICK-Entailment,NA,NA,orig,NA,InferSent
+five,71.77,SST,1,string,rand,zero,temporal max pooling
+five,72.8,TREC,1,string,rand,zero,temporal max pooling
+five,72.74,MR,1,string,rand,zero,temporal max pooling
+five,76.16,CR,1,string,rand,zero,temporal max pooling
+five,86.09,SUBJ,1,string,rand,zero,temporal max pooling
+five,85.68,MPQA,1,string,rand,zero,temporal max pooling
+five,0.741,SICK-Relatedness,1,string,rand,zero,temporal max pooling
+five,78.04,SICK-Entailment,1,string,rand,zero,temporal max pooling
+SNLI,74.68,SST,1,NA,orig,zero,temporal max pooling
+SNLI,73.8,TREC,1,NA,orig,zero,temporal max pooling
+SNLI,71.12,MR,1,NA,orig,zero,temporal max pooling
+SNLI,76.66,CR,1,NA,orig,zero,temporal max pooling
+SNLI,85.2,SUBJ,1,NA,orig,zero,temporal max pooling
+SNLI,85.7,MPQA,1,NA,orig,zero,temporal max pooling
+SNLI,0.841,SICK-Relatedness,1,NA,orig,zero,temporal max pooling
+SNLI,82.02,SICK-Entailment,1,NA,orig,zero,temporal max pooling
+SNLI,72.27,SST,1,NA,orig,zero,base LSTM
+SNLI,64.6,TREC,1,NA,orig,zero,base LSTM
+SNLI,67.91,MR,1,NA,orig,zero,base LSTM
+SNLI,74.44,CR,1,NA,orig,zero,base LSTM
+SNLI,81.66,SUBJ,1,NA,orig,zero,base LSTM
+SNLI,84.03,MPQA,1,NA,orig,zero,base LSTM
+SNLI,0.756,SICK-Relatedness,1,NA,orig,zero,base LSTM
+SNLI,77.73,SICK-Entailment,1,NA,orig,zero,base LSTM
+five,73.42,SST,1,string,rand,zero,temporal mean pooling
+five,78,TREC,1,string,rand,zero,temporal mean pooling
+five,70.84,MR,1,string,rand,zero,temporal mean pooling
+five,71.87,CR,1,string,rand,zero,temporal mean pooling
+five,86.74,SUBJ,1,string,rand,zero,temporal mean pooling
+five,84.43,MPQA,1,string,rand,zero,temporal mean pooling
+five,0.601,SICK-Relatedness,1,string,rand,zero,temporal mean pooling
+five,70.2,SICK-Entailment,1,string,rand,zero,temporal mean pooling
+five (books),78.53,SST,1,string,rand,zero,temporal max pooling
+five (books),82.4,TREC,1,string,rand,zero,temporal max pooling
+five (books),77.16,MR,1,string,rand,zero,temporal max pooling
+five (books),80.9,CR,1,string,rand,zero,temporal max pooling
+five (books),90.55,SUBJ,1,string,rand,zero,temporal max pooling
+five (books),88.49,MPQA,1,string,rand,zero,temporal max pooling
+five (books),0.759,SICK-Relatedness,1,string,rand,zero,temporal max pooling
+five (books),79.58,SICK-Entailment,1,string,rand,zero,temporal max pooling
+SkipThought,84.6,SST,NA,NA,NA,NA,SkipThought
+SkipThought,88.4,TREC,NA,NA,NA,NA,SkipThought
+SkipThought,79.4,MR,NA,NA,NA,NA,SkipThought
+SkipThought,83.1,CR,NA,NA,NA,NA,SkipThought
+SkipThought,93.7,SUBJ,NA,NA,NA,NA,SkipThought
+SkipThought,89.3,MPQA,NA,NA,NA,NA,SkipThought
+SkipThought,0.858,SICK-Relatedness,NA,NA,NA,NA,SkipThought
+SkipThought,79.5,SICK-Entailment,NA,NA,NA,NA,SkipThought

@@ -293,9 +293,6 @@ if __name__ == '__main__':
         print("Loading data %s" % (str(data_path)))
         sentence_pairs_data = pickle.load(open(data_path, mode="rb"))
 
-        # TODO: remove this line
-        sentence_pairs_data = tokenize_sentence_pair_data(sentence_pairs_data)
-
         create_vocabulary(vocab_path, sentence_pairs_data)
 
         vocab, rev_vocab = initialize_vocabulary(pjoin(args.vocab_dir, "vocab_{}.dat".format(tag)))

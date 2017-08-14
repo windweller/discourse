@@ -38,7 +38,11 @@ tf.app.flags.DEFINE_string("dataset", "wikitext-103", "ptb/wikitext-103 select t
 tf.app.flags.DEFINE_string("embed_path", "data/wikitext-103/glove.trimmed.300.npz", "Path to the trimmed GLoVe embedding")
 tf.app.flags.DEFINE_string("restore_checkpoint", None, "checkpoint file to restore model parameters from")
 tf.app.flags.DEFINE_boolean("dev", False, "if flag true, will run on dev dataset in a pure testing mode")
+tf.app.flags.DEFINE_boolean("temp_max", False, "if flag true, will use Temporal Max Pooling")
+tf.app.flags.DEFINE_boolean("temp_mean", False, "if flag true, will use Temporal Mean Pooling")
 tf.app.flags.DEFINE_boolean("correct_example", False, "if flag false, will print error, true will print out success")
+tf.app.flags.DEFINE_boolean("snli", False, "if flag True, the classifier will train on SNLI")
+tf.app.flags.DEFINE_boolean("concat", False, "if flag True, bidirectional does concatenation not average")
 tf.app.flags.DEFINE_integer("best_epoch", 1, "enter the best epoch to use")
 tf.app.flags.DEFINE_integer("num_examples", 30, "enter the best epoch to use")
 
@@ -96,7 +100,8 @@ class Encoder(object):
         cell = DropoutWrapper(cell, input_keep_prob=self.keep_prob, seed=123)
         self.encoder_cell = tf.nn.rnn_cell.MultiRNNCell([cell] * num_layers, state_is_tuple=state_is_tuple)
 
-    def encode(self, inputs, masks, reuse=False, scope_name=""):
+    # could consider instead of averaging, I concatenate
+    def encode(self, inputs, masks, reuse=False, scope_name="", temp_max=False):
         """
         In a generalized encode function, you pass in your inputs,
         masks, and an initial
@@ -122,6 +127,7 @@ class Encoder(object):
                 (fw_out, bw_out), (output_state_fw, output_state_bw) = tf.nn.bidirectional_dynamic_rnn(self.encoder_cell,
                                                                                          self.encoder_cell, inp, srclen,
                                                                                          scope=scope, dtype=tf.float32)
+                # (batch_size, T, hidden_size)
                 out = fw_out + bw_out
 
             # before we are using state_is_tuple=True, meaning we only chose top layer
@@ -132,7 +138,25 @@ class Encoder(object):
             else:
                 # last layer [-1], hidden state [1]
                 # this works with multilayer
-                encoder_outputs = tf.add(output_state_fw[-1][1], output_state_bw[-1][1])
+                if temp_max:
+                    max_forward = tf.reduce_max(fw_out, axis=1)
+                    max_backward = tf.reduce_max(bw_out, axis=1)
+                    if not FLAGS.concat:
+                        encoder_outputs = max_forward + max_backward
+                    else:
+                        encoder_outputs = tf.concat(1, [max_forward, max_backward])
+                elif FLAGS.temp_mean:
+                    mean_forward = tf.reduce_mean(fw_out, axis=1)
+                    mean_backward = tf.reduce_mean(bw_out, axis=1)
+                    if not FLAGS.concat:
+                        encoder_outputs = mean_forward + mean_backward
+                    else:
+                        encoder_outputs = tf.concat(1, [mean_forward, mean_backward])
+                else:
+                    if not FLAGS.concat:
+                        encoder_outputs = tf.add(output_state_fw[-1][1], output_state_bw[-1][1])
+                    else:
+                        encoder_outputs = tf.concat(1, [output_state_fw[-1][1], output_state_bw[-1][1]])
 
         return out, encoder_outputs
 
@@ -146,6 +170,11 @@ def write_results(preds, labels, split, epoch, directory):
         open(pjoin(directory, "results_{}_{}.csv".format(split, epoch)), "w").write("\n".join(lines))
     else:
         open(pjoin(directory, "results_{}.csv".format(split)), "w").write("\n".join(lines))
+
+class AttentionEncoder(object):
+    def __init__(self, size, num_layers):
+        self.size = size
+        self.keep_prob = tf.placeholder(tf.float32)
 
 class SequenceClassifier(object):
     def __init__(self, encoder, flags, vocab_size, vocab, rev_vocab, label_size, embed_path,
@@ -207,8 +236,8 @@ class SequenceClassifier(object):
     def setup_but_because(self):
         # For Erin: this is the MODEL!!!
         # seqA: but, seqB: because, this will learn to differentiate them
-        seqA_w_matrix, seqA_c_vec = self.encoder.encode(self.seqA_inputs, self.seqA_mask)
-        seqB_w_matrix, seqB_c_vec = self.encoder.encode(self.seqB_inputs, self.seqB_mask, reuse=True)
+        seqA_w_matrix, seqA_c_vec = self.encoder.encode(self.seqA_inputs, self.seqA_mask, temp_max=FLAGS.temp_max)
+        seqB_w_matrix, seqB_c_vec = self.encoder.encode(self.seqB_inputs, self.seqB_mask, reuse=True , temp_max=FLAGS.temp_max)
 
         self.seqA_rep = seqA_c_vec
         self.seqB_rep = seqB_c_vec
@@ -481,7 +510,7 @@ class SequenceClassifier(object):
             valid_accus.append(valid_accu)
 
         logging.info("restore model from best epoch %d" % best_epoch)
-        logging.info("best validation accuracy: %f" % valid_accus[best_epoch])
+        logging.info("best validation accuracy: %f" % valid_accus[best_epoch - 1])
         self.saver.restore(session, checkpoint_path + ("-%d" % best_epoch))
 
         # after training, we test this thing

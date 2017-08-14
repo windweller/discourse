@@ -124,9 +124,11 @@ def main(_):
 
         if FLAGS.restore_checkpoint is not None:
             model_saver.restore(session, FLAGS.restore_checkpoint)
+            logging.info("model loaded")
+        else:
+            tf.global_variables_initializer().run()
 
         if not FLAGS.dev:
-            tf.global_variables_initializer().run()
             # restore_epoch by default is 0
             sc.but_because_train(session, q_train, q_valid, q_test, label_tokens, FLAGS.restore_epoch, FLAGS.epochs, FLAGS.run_dir)
         else:

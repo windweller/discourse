@@ -63,20 +63,19 @@ Also creates vocabulary file `vocab.dat` specifying the mapping between glove em
 def setup_args():
     parser = argparse.ArgumentParser()
     code_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)))
-    vocab_dir = os.path.join("data", "wikitext-103")
     glove_dir = os.path.join("data", "glove.6B")
-    source_dir = os.path.join("data", "wikitext-103")
-    parser.add_argument("--source_dir", default=source_dir)
+    parser.add_argument("--dataset", default="wikitext-103", type=str)
+    parser.add_argument("--data_name", default="all_sentence_pairs.pkl", type=str)
+    parser.add_argument("--data_tag", default="2M", type=str)
     parser.add_argument("--glove_dir", default=glove_dir)
-    parser.add_argument("--vocab_dir", default=vocab_dir)
     parser.add_argument("--glove_dim", default=300, type=int)
     parser.add_argument("--random_init", action='store_true')
     parser.add_argument("--train_size", default=0.9, type=float)
     parser.add_argument("--max_seq_len", default=50, type=int)
     parser.add_argument("--min_seq_len", default=5, type=int)
     parser.add_argument("--max_ratio", default=5.0, type=float)
-    parser.add_argument("--filename", default=None)
     parser.add_argument("--undersamp_cutoff", default=50000, type=int)
+    parser.add_argument("--no_cutoff", action='store_true')
     parser.add_argument("--exclude", default="")
     parser.add_argument("--include", default="")
     return parser.parse_args()
@@ -235,6 +234,8 @@ def filter_examples(orig_pairs, class_label, max_seq_len, min_seq_len, max_ratio
     # shuffle sentence pairs within each marker
     # (otherwise sentences from the same document will end up in the same split)
     np.random.shuffle(new_pairs_with_labels)
+    if args.no_cutoff:
+        return new_pairs_with_labels
     return new_pairs_with_labels[:undersamp_cutoff]
 
 def tokenize_sentence_pair_data(sentence_pairs_data):
@@ -260,6 +261,10 @@ def tokenize_sentence_pair_data(sentence_pairs_data):
 """
 if __name__ == '__main__':
     args = setup_args()
+
+    vocab_dir = os.path.join("data", args.dataset)
+    source_dir = os.path.join("data", args.dataset)
+
     assert(args.include=="" or args.exclude=="")
 
     all_discourse_markers = [
@@ -286,12 +291,9 @@ if __name__ == '__main__':
     else:
         raise Exception("no match state for exclude/include")
 
-    vocab_path = pjoin(args.vocab_dir, "vocab_{}.dat".format(tag))
+    vocab_path = pjoin(vocab_dir, "vocab_{}.dat".format(tag))
 
-    if args.filename:
-        data_path = pjoin(args.source_dir, args.filename)
-    else:
-        data_path = pjoin(args.source_dir, "all_sentence_pairs.pkl")
+    data_path = pjoin(source_dir, args.data_name)
 
     if os.path.isfile(data_path):
         print("Loading data %s" % (str(data_path)))
@@ -299,12 +301,12 @@ if __name__ == '__main__':
 
         create_vocabulary(vocab_path, sentence_pairs_data)
 
-        vocab, rev_vocab = initialize_vocabulary(pjoin(args.vocab_dir, "vocab_{}.dat".format(tag)))
+        vocab, rev_vocab = initialize_vocabulary(pjoin(vocab_dir, "vocab_{}.dat".format(tag)))
 
         # ======== Trim Distributed Word Representation =======
         # If you use other word representations, you should change the code below
 
-        process_glove(args, vocab, pjoin(args.source_dir, "glove.trimmed.{}_{}.npz".format(args.glove_dim, tag)),
+        process_glove(args, vocab, pjoin(source_dir, "glove.trimmed.{}_{}.npz".format(args.glove_dim, tag)),
                       random_init=args.random_init)
 
         # ======== Split =========
@@ -358,7 +360,7 @@ if __name__ == '__main__':
         print("overall number of training examples: {}".format(overall))
 
         # print class labels for reference  
-        pickle.dump(class_labels, open(pjoin(args.source_dir, "class_labels_{}.pkl".format(tag)), "wb"))
+        pickle.dump(class_labels, open(pjoin(source_dir, "class_labels_{}.pkl".format(tag)), "wb"))
 
         # ======== Creating Dataset =========
 
@@ -366,15 +368,15 @@ if __name__ == '__main__':
             data = splits[split]
             print("Converting data in {}".format(split))
             ids_path = pjoin(
-                args.source_dir,
+                source_dir,
                 "{}_{}.ids.pkl".format(split, tag)
             )
             text_path = pjoin(
-                args.source_dir,
+                source_dir,
                 "{}_{}.text.txt".format(split, tag)
             )
 
-            data_to_token_ids(data, rev_class_labels, ids_path, text_path, vocab_path, args.source_dir)
+            data_to_token_ids(data, rev_class_labels, ids_path, text_path, vocab_path, source_dir)
 
         for s in stats_strings:
             print(s)

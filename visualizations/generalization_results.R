@@ -162,3 +162,26 @@ new_df %>%
   theme(axis.text.x = element_text(angle = 90, hjust = 1))
 ggsave("all_generalization_experiments.png", width=12, height=8)
 
+
+
+df %>% 
+  filter(marker_set %in% c("SNLI", "five", "five (books)", "InferSent", "SkipThought")) %>%
+  filter(ssplit=="string" | is.na(ssplit)) %>%
+  filter( (marker_set=="SNLI" | split=="rand") | marker_set%in%c("SkipThought", "InferSent") ) %>%
+  filter(layers==1 | is.na(layers)) %>%
+  filter(!(task %in% c("SICK-Relatedness", "SICK-Entailment"))) %>%
+  rename( training_task = marker_set) %>%
+  mutate(performance = ifelse(task=="SICK-Relatedness",
+                              performance*100, performance)) %>%
+  mutate(group = paste(training_task, model)) %>%
+  # mutate(split = factor(ifelse(is.na(split), "unknown", char(split)))) %>%
+  ggplot(., aes(x=task, y=performance, colour=group, shape=group)) +
+  # geom_bar(stat="identity", position="dodge") +
+  geom_point(alpha=0.7) +
+  # geom_line(aes(group=group)) +
+  # facet_wrap(~ model) +
+  scale_shape_manual(values=1:15) +
+  # ylim(0,100) +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+ggsave("task_and_model.png", width=8, height=4)
+

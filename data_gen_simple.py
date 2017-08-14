@@ -22,6 +22,7 @@ def setup_args():
     parser.add_argument("--sentence_initial", action='store_true')
     parser.add_argument("--split", default='orig')
     parser.add_argument("--markers", default='five')
+    parser.add_argument("--max_pairs", defulat=None)
     return parser.parse_args()
 
 
@@ -49,7 +50,7 @@ def undo_rephrase(lst):
 def rephrase(str):
     return str.replace("for example", "for_example")
 
-def get_books_pairs(file_path, discourse_markers, sentence_initial=False):
+def get_books_pairs(file_path, discourse_markers, max_pairs, sentence_initial=False):
     sents = {d: [] for d in discourse_markers}
 
     total_pairs_extracted = 0
@@ -61,7 +62,7 @@ def get_books_pairs(file_path, discourse_markers, sentence_initial=False):
             i += 1
             if i % 100000 == 0:
                 print("reading sentence {}".format(i))
-            if total_pairs_extracted >= 200:
+            if max_pairs and total_pairs_extracted >= max_pairs:
                 break
             words = rephrase(sent).split()  # strip puncts and then split (already tokenized)
             # all of these have try statements, because sometimes the discourse marker will
@@ -186,5 +187,5 @@ if __name__ == '__main__':
     else:
 
         bookcorpus_path = pjoin("data", "books", "books_large_p1.txt")
-        all_sentences_pairs = get_books_pairs(bookcorpus_path, discourse_markers, sentence_initial=args.sentence_initial)
+        all_sentences_pairs = get_books_pairs(bookcorpus_path, discourse_markers, args.max_pairs, sentence_initial=args.sentence_initial)
         save_to_pickle(all_sentences_pairs, pjoin("data", "books", "all_sentence_pairs_string_ssplit.pkl"))

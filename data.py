@@ -75,6 +75,7 @@ def setup_args():
     parser.add_argument("--max_seq_len", default=50, type=int)
     parser.add_argument("--min_seq_len", default=5, type=int)
     parser.add_argument("--max_ratio", default=5.0, type=float)
+    parser.add_argument("--filename", default=None)
     parser.add_argument("--undersamp_cutoff", default=50000, type=int)
     parser.add_argument("--exclude", default="")
     parser.add_argument("--include", default="")
@@ -287,7 +288,10 @@ if __name__ == '__main__':
 
     vocab_path = pjoin(args.vocab_dir, "vocab_{}.dat".format(tag))
 
-    data_path = pjoin(args.source_dir, "all_sentence_pairs.pkl")
+    if args.filename:
+        data_path = pjoin(args.source_dir, args.filename)
+    else:
+        data_path = pjoin(args.source_dir, "all_sentence_pairs.pkl")
 
     if os.path.isfile(data_path):
         print("Loading data %s" % (str(data_path)))

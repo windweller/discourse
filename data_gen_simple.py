@@ -23,6 +23,7 @@ def setup_args():
     parser.add_argument("--split", default='orig')
     parser.add_argument("--markers", default='five')
     parser.add_argument("--max_pairs", default=None)
+    parser.add_argument("--output_filename", default="all_sentence_pairs_string_ssplit.pkl")
     return parser.parse_args()
 
 
@@ -188,4 +189,4 @@ if __name__ == '__main__':
 
         bookcorpus_path = pjoin("data", "books", "books_large_p1.txt")
         all_sentences_pairs = get_books_pairs(bookcorpus_path, discourse_markers, args.max_pairs, sentence_initial=args.sentence_initial)
-        save_to_pickle(all_sentences_pairs, pjoin("data", "books", "all_sentence_pairs_string_ssplit.pkl"))
+        save_to_pickle(all_sentences_pairs, pjoin("data", "books", args.output_filename))

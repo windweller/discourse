@@ -132,7 +132,7 @@ def main(_):
             # restore_epoch by default is 0
             sc.but_because_train(session, q_train, q_valid, q_test, label_tokens, FLAGS.restore_epoch, FLAGS.epochs, FLAGS.run_dir)
         else:
-            sc.but_because_dev_test(session, data_dir, FLAGS.run_dir, FLAGS.best_epoch, label_tokens)
+            sc.but_because_dev_test(session, q_test, FLAGS.run_dir, label_tokens)
 
 if __name__ == "__main__":
     tf.app.run()

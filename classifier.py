@@ -45,6 +45,7 @@ tf.app.flags.DEFINE_boolean("snli", False, "if flag True, the classifier will tr
 tf.app.flags.DEFINE_boolean("concat", False, "if flag True, bidirectional does concatenation not average")
 tf.app.flags.DEFINE_integer("best_epoch", 1, "enter the best epoch to use")
 tf.app.flags.DEFINE_integer("num_examples", 30, "enter the best epoch to use")
+tf.app.flags.DEFINE_boolean("confusion", False, "whether to generate and save csv of prediction/gold, only used with dev")
 
 logging.basicConfig(level=logging.INFO)
 
@@ -312,8 +313,8 @@ class SequenceClassifier(object):
     def but_because_validate(self, session, q, label_tokens, dev=False):
         # class_label: [because, but, ...]
         valid_costs, valid_accus = [], []
-        valid_logits, valid_labels = [], []
-        valid_sent1, valid_sent2 = [], []
+        valid_preds, valid_labels = [], []
+        # valid_sent1, valid_sent2 = [], []
 
         total_labels_accu = None
 
@@ -325,17 +326,11 @@ class SequenceClassifier(object):
 
             preds = np.argmax(logits, axis=1)
 
-            # TODO: multiclass accuracy
             labels_accu = self.get_multiclass_accuracy(preds, labels)
             if total_labels_accu is None:
                 total_labels_accu = labels_accu
             else:
                 self.cumulate_multiclass_accuracy(total_labels_accu, labels_accu)
-
-            if FLAGS.correct_example:
-                positions = preds == labels
-            else:
-                positions = preds != labels
 
             # wrong_preds = np.extract(positions, preds)
             # print(wrong_preds)
@@ -345,10 +340,11 @@ class SequenceClassifier(object):
             # print(preds.tolist())
             # print(list(labels))
 
-            valid_logits.extend(np.extract(positions, preds).tolist())
-            valid_labels.extend(np.extract(positions, labels).tolist())
-            valid_sent1.extend(self.detokenize_batch(self.extract_sent(positions, seqA_tokens)))
-            valid_sent2.extend(self.detokenize_batch(self.extract_sent(positions, seqB_tokens)))
+            # TODO: if we need to print out examples again, just git revert,
+            # TODO: check an earlier version of this file
+
+            valid_preds.extend(preds.tolist())
+            valid_labels.extend(labels.tolist())
 
             valid_accus.append(accu)
 
@@ -363,7 +359,7 @@ class SequenceClassifier(object):
         logging.info(multiclass_accu_msg)
 
         if dev:
-            return valid_cost, valid_accu, valid_logits, valid_labels, valid_sent1, valid_sent2
+            return valid_cost, valid_accu, valid_preds, valid_labels
 
         return valid_cost, valid_accu
 
@@ -397,24 +393,35 @@ class SequenceClassifier(object):
             return outsent
         return [detok_sent(s) for s in sent]
 
-    def but_because_dev_test(self, session, q, save_train_dir, best_epoch, label_tokens):
+    def but_because_dev_test(self, session, q, save_train_dir, label_tokens):
         ## Checkpoint
-        checkpoint_path = os.path.join(save_train_dir, "dis.ckpt")
+        import csv
 
-        logging.info("restore model from best epoch %d" % best_epoch)
-        self.saver.restore(session, checkpoint_path + ("-%d" % best_epoch))
+        # checkpoint_path = os.path.join(save_train_dir, "dis.ckpt")
+        #
+        # logging.info("restore model from best epoch %d" % best_epoch)
+        # self.saver.restore(session, checkpoint_path + ("-%d" % best_epoch))
 
         # load into the "dev" files
-        test_cost, test_accu, test_logits, test_labels, valid_sent1, valid_sent2 = self.but_because_validate(session, q, label_tokens, dev=True)
+        # , valid_sent1, valid_sent2
+        test_cost, test_accu, test_preds, test_labels= self.but_because_validate(session, q, label_tokens, dev=True)
 
-        logging.info("Final dev cost: %f dev accu: %f" % (test_cost, test_accu))
+        logging.info("Final test cost: %f test accu: %f" % (test_cost, test_accu))
 
         examples = 0
-        for pair in zip(test_logits, test_labels, valid_sent1, valid_sent2):
-            print("true label: {}, predicted: {}, sent1: {}, sent2: {}".format(pair[1], pair[0], pair[2], pair[3]))
-            examples += 1
-            if examples >= FLAGS.num_examples:
-                break
+
+        with open(pjoin(save_train_dir, 'confusion_test.csv'), 'wb') as csvfile:
+            fieldnames = ['preds', 'labels']
+            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+            writer.writeheader()
+
+            for pair in zip(test_preds, test_labels):
+                writer.writerow({'preds': pair[0], 'labels': pair[1]})
+
+            # print("true label: {}, predicted: {}, sent1: {}, sent2: {}".format(pair[1], pair[0], pair[2], pair[3]))
+            # examples += 1
+            # if examples >= FLAGS.num_examples:
+            #     break
 
         sys.stdout.flush()
 

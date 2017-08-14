@@ -61,16 +61,16 @@ def get_books_pairs(file_path, discourse_markers, sentence_initial=False):
             i += 1
             if i % 100000 == 0:
                 print("reading sentence {}".format(i))
-            if total_pairs_extracted >= 2000000:
+            if total_pairs_extracted >= 200:
                 break
             words = rephrase(sent).split()  # strip puncts and then split (already tokenized)
             # all of these have try statements, because sometimes the discourse marker will
             # only be a part of the word, and so it won't show up in the words list
             for marker in discourse_markers:
                 if marker == "for example":
-                    proxy_marker = marker
-                else:
                     proxy_marker = "for_example"
+                else:
+                    proxy_marker = marker
                 if proxy_marker in words[1:]: # sentence-internal
                     idx = words.index(proxy_marker)
                     sents[marker].append((undo_rephrase(words[:idx]), undo_rephrase(words[idx+1:])))
@@ -106,9 +106,9 @@ def get_wiki_pairs(file_path, discourse_markers, sentence_initial=False):
             # only be a part of the word, and so it won't show up in the words list
             for marker in discourse_markers:
                 if marker == "for example":
-                    proxy_marker = marker
+                    proxy_marker = "for_example" 
                 else:
-                    proxy_marker = "for_example"
+                    proxy_marker = marker
                 if proxy_marker in words[1:]: # sentence-internal
                     idx = words.index(proxy_marker)
                     sents[marker].append((undo_rephrase(words[:idx]), undo_rephrase(words[idx+1:])))
@@ -187,4 +187,4 @@ if __name__ == '__main__':
 
         bookcorpus_path = pjoin("data", "books", "books_large_p1.txt")
         all_sentences_pairs = get_books_pairs(bookcorpus_path, discourse_markers, sentence_initial=args.sentence_initial)
-        save_to_pickle(all_sentences_pairs, pjoin("data", "wikitext-103", "all_sentence_pairs.pkl"))
+        save_to_pickle(all_sentences_pairs, pjoin("data", "books", "all_sentence_pairs_string_ssplit.pkl"))

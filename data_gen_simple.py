@@ -22,7 +22,7 @@ def setup_args():
     parser.add_argument("--sentence_initial", action='store_true')
     parser.add_argument("--split", default='orig')
     parser.add_argument("--markers", default='five')
-    parser.add_argument("--max_pairs", defulat=None)
+    parser.add_argument("--max_pairs", default=None)
     return parser.parse_args()
 
 

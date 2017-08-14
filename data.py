@@ -66,6 +66,7 @@ def setup_args():
     glove_dir = os.path.join("data", "glove.6B")
     parser.add_argument("--dataset", default="wikitext-103", type=str)
     parser.add_argument("--data_name", default="all_sentence_pairs.pkl", type=str)
+    parser.add_argument("--data_tag", default="2M", type=str)
     parser.add_argument("--glove_dir", default=glove_dir)
     parser.add_argument("--glove_dim", default=300, type=int)
     parser.add_argument("--random_init", action='store_true')

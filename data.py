@@ -322,6 +322,8 @@ if __name__ == '__main__':
 
         # make split, s.t. we have similar distributions over discourse markers for each split
         overall = 0
+
+        stats_strings = []
         for marker in discourse_markers:
             i += 1
             class_labels[marker] = i
@@ -338,7 +340,7 @@ if __name__ == '__main__':
             )
             total_n_examples = len(all_examples)
             overall += total_n_examples
-            print("total number of {}: {}".format(marker, total_n_examples))
+            stats_strings.append( "total number of {}: {}".format(marker, total_n_examples))
 
             # make valid and test sets (they will be equal size)
             valid_size = int(np.floor(split_proportions["valid"]*total_n_examples))
@@ -369,6 +371,9 @@ if __name__ == '__main__':
             )
 
             data_to_token_ids(data, rev_class_labels, ids_path, text_path, vocab_path, args.source_dir)
+
+        for s in stats_strings:
+            print(s)
 
     else:
         print("Data file {} does not exist.".format(data_path))

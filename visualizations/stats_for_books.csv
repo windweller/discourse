@@ -1,0 +1,37 @@
+marker,location,file1,file2,clean
+after,initial,132019,104392,F
+after,internal,382659,315392,T
+also,initial,8349,6025,T
+also,internal,163721,127932,F
+although,initial,24548,18661,F
+although,internal,43001,30844,T
+and,initial,627095,536802,T
+and,internal,9196773,7418362,F
+as,initial,243892,199459,F
+as,internal,2278077,1914057,F
+because,initial,53262,48985,F
+because,internal,398761,334889,T
+before,initial,45134,37741,F
+before,internal,661039,550493,T
+but,initial,639577,556369,T
+but,internal,2155205,1761883,T
+for example,initial,1260,973,T
+for example,internal,2721,1898,T
+however,initial,23190,17470,T
+however,internal,41500,32974,F
+if,initial,285683,234244,F
+if,internal,1112996,932867,T
+meanwhile,initial,4253,3246,T
+meanwhile,internal,2028,1183,F
+so,initial,204211,161201,F
+so,internal,1314667,1083875,F
+still,initial,38719,32879,F
+still,internal,519404,433731,F
+then,initial,253476,205293,T
+then,internal,895742,739857,F
+though,initial,26911,23114,F
+though,internal,260084,209392,F
+when,initial,266571,214830,F
+when,internal,949927,783143,T
+while,initial,31004,24702,F
+while,internal,300832,241688,T

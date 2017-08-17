@@ -18,7 +18,7 @@ sys.setdefaultencoding('utf8')
 
 def setup_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--max_pairs", default=3000000, type=int)
+    parser.add_argument("--max_pairs", default=None, type=int)
     parser.add_argument("--segment_index", default=0, type=int)
     parser.add_argument("--n_segments", default=1, type=int)
     parser.add_argument("--aggregate", action='store_true')

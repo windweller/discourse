@@ -21,6 +21,8 @@ def setup_args():
     parser.add_argument("--max_pairs", default=None, type=int)
     parser.add_argument("--segment_index", default=0, type=int)
     parser.add_argument("--n_segments", default=1, type=int)
+    parser.add_argument("--cutoff", default=None, type=int) #300000
+    parser.add_argument("--subsample", action='store_true')
     parser.add_argument("--aggregate", action='store_true')
     return parser.parse_args()
 

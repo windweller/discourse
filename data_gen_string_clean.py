@@ -70,28 +70,29 @@ def get_books_pairs(file_path, start_index, end_index):
         i = 0
         for line in f:
             i += 1
+            sent = line[:-1]
             if i < start_index:
                 pass
             elif i > end_index:
                 break
-            sent = line[:-1]
-            if i % 1000000 == 0:
-                print("reading sentence {}".format(i))
-            words = rephrase(sent).split()  # strip puncts and then split (already tokenized)
-            # all of these have try statements, because sometimes the discourse marker will
-            # only be a part of the word, and so it won't show up in the words list
-            for marker in discourse_markers:
-                if marker == "for example":
-                    proxy_marker = "for_example"
-                else:
-                    proxy_marker = marker
-                if proxy_marker in words[1:] and marker in clean_internal: # sentence-internal
-                    idx = words.index(proxy_marker)
-                    sents[marker].append((undo_rephrase(words[:idx]), undo_rephrase(words[idx+1:])))
-                    total_pairs_extracted += 1
-                elif marker in clean_initial and prev_words!=None and words[0].lower()==marker:
-                    sents[marker].append((prev_words, undo_rephrase(words[1:])))
-                    total_pairs_extracted += 1
+            else:
+                if i % 1000000 == 0:
+                    print("reading sentence {}".format(i))
+                words = rephrase(sent).split()  # strip puncts and then split (already tokenized)
+                # all of these have try statements, because sometimes the discourse marker will
+                # only be a part of the word, and so it won't show up in the words list
+                for marker in discourse_markers:
+                    if marker == "for example":
+                        proxy_marker = "for_example"
+                    else:
+                        proxy_marker = marker
+                    if proxy_marker in words[1:] and marker in clean_internal: # sentence-internal
+                        idx = words.index(proxy_marker)
+                        sents[marker].append((undo_rephrase(words[:idx]), undo_rephrase(words[idx+1:])))
+                        total_pairs_extracted += 1
+                    elif marker in clean_initial and prev_words!=None and words[0].lower()==marker:
+                        sents[marker].append((prev_words, undo_rephrase(words[1:])))
+                        total_pairs_extracted += 1
 
             prev_words = sent.split()
 

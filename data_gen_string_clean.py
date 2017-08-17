@@ -21,6 +21,7 @@ def setup_args():
     parser.add_argument("--max_pairs", default=3000000, type=int)
     parser.add_argument("--segment_index", default=0, type=int)
     parser.add_argument("--n_segments", default=1, type=int)
+    parser.add_argument("--aggregate", action='store_true')
     return parser.parse_args()
 
 
@@ -114,20 +115,48 @@ def merge_dict(dict_list1, dict_list2):
 if __name__ == '__main__':
     args = setup_args()
 
-    # directly use wikitext-103
+    if args.aggregate:
+        pairs = {}
+        for file_path in glob.glob(pjoin(data_dir, "*_*-*.pkl")):
+            print(file_path)
+            file_data = pickle.load(open(file_path, "rb"))
+            for key in file_data:
+                if not key in pairs:
+                    pairs[key] = []
+                pairs[key] += file_data[key]
 
-    hard_indices_given = args.start_index!=None or args.end_index!=None
+        n=0
+        for key in pairs: n+=len(pairs[key])
+        print("total pairs extracted: {}".format(n))
 
-    total = 40000000
-    segment_length = total / round(args.n_segments)
+        for key in pairs: print("{} ~ {} ({}%)".format(
+            key,
+            len(pairs[key]),
+            float(len(pairs[key]))/n*100
+        ))
 
-    start_index = segment_length*args.segment_index
-    end_index =  segment_length*(args.segment_index + 1)
+        pickle.dump(pairs, open(args.output_filename, "wb"))
 
-    bookcorpus_path = pjoin("data", "books", "books_large_p1.txt")
-    all_sentences_pairs_1 = get_books_pairs(bookcorpus_path, start_index, end_index, sentence_initial=args.sentence_initial)
+    else:
 
-    bookcorpus_path = pjoin("data", "books", "books_large_p2.txt")
-    all_sentences_pairs_2 = get_books_pairs(bookcorpus_path, start_index, end_index, sentence_initial=args.sentence_initial)
+        # directly use wikitext-103
 
-    save_to_pickle(all_sentences_pairs, pjoin("data", "books", args.output_filename))
+        hard_indices_given = args.start_index!=None or args.end_index!=None
+
+        total = 40000000
+        segment_length = total / round(args.n_segments)
+
+        start_index = segment_length*args.segment_index
+        end_index =  segment_length*(args.segment_index + 1)
+
+        bookcorpus_path = pjoin("data", "books", "books_large_p1.txt")
+        all_sentences_pairs_1 = get_books_pairs(bookcorpus_path, start_index, end_index, sentence_initial=args.sentence_initial)
+
+        bookcorpus_path = pjoin("data", "books", "books_large_p2.txt")
+        all_sentences_pairs_2 = get_books_pairs(bookcorpus_path, start_index, end_index, sentence_initial=args.sentence_initial)
+
+        all_sentences_pairs = merge_dict(all_sentences_pairs_1, all_sentences_pairs_2)
+
+        output_filename = "books_{}_{}.pkl".format(start_index, end_index)
+
+        save_to_pickle(all_sentences_pairs, pjoin("data", "books", output_filename))

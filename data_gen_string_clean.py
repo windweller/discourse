@@ -10,6 +10,7 @@ import nltk
 import pickle
 import string
 import argparse
+import numpy as np
 from os.path import join as pjoin
 
 import sys
@@ -20,7 +21,8 @@ def setup_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--segment_index", default=0, type=int)
     parser.add_argument("--n_segments", default=1, type=int)
-    parser.add_argument("--cutoff", default=None, type=int) #300000
+    parser.add_argument("--cutoff", default=300000, type=int)
+    parser.add_argument("--output_fileame", default="cutoff_sample_pairs_all_markers_clean_ssplit.pkl")
     parser.add_argument("--subsample", action='store_true')
     parser.add_argument("--aggregate", action='store_true')
     return parser.parse_args()
@@ -134,7 +136,19 @@ if __name__ == '__main__':
             float(len(pairs[key]))/n*100
         ))
 
-        pickle.dump(pairs, open(args.output_filename, "wb"))
+        pickle.dump(pairs, open("all_pairs_all_markers_clean_ssplit.pkl", "wb"))
+
+    elif args.subsample:
+        data_path = pjoin("data", "books", "all_pairs_all_markers_clean_ssplit.pkl")
+        data = pickle.load(open("all_pairs_all_markers_clean_ssplit.pkl", "rb"))
+        new_data = {}
+        for marker in data:
+            if len(data[marker]) < args.cutoff:
+                new_data[marker] = data[marker]
+            else:
+                np.random.shuffle(data[marker])
+                new_data[marker] = data[marker][0:args.cutoff]
+        pickle.dump(new_data, open(args.output_filename, "wb"))
 
     else:
 

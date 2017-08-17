@@ -18,7 +18,6 @@ sys.setdefaultencoding('utf8')
 
 def setup_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--max_pairs", default=None, type=int)
     parser.add_argument("--segment_index", default=0, type=int)
     parser.add_argument("--n_segments", default=1, type=int)
     parser.add_argument("--aggregate", action='store_true')
@@ -40,7 +39,7 @@ def undo_rephrase(lst):
 def rephrase(str):
     return str.replace("for example", "for_example")
 
-def get_books_pairs(file_path, start_index, end_index, sentence_initial=False):
+def get_books_pairs(file_path, start_index, end_index):
     # these words, when they appear sentence-initially,
     # are almost certainly discourse markers between the
     # previous sentence and this one
@@ -74,8 +73,6 @@ def get_books_pairs(file_path, start_index, end_index, sentence_initial=False):
             sent = line[:-1]
             if i % 1000000 == 0:
                 print("reading sentence {}".format(i))
-            if max_pairs and total_pairs_extracted >= max_pairs:
-                break
             words = rephrase(sent).split()  # strip puncts and then split (already tokenized)
             # all of these have try statements, because sometimes the discourse marker will
             # only be a part of the word, and so it won't show up in the words list
@@ -88,8 +85,8 @@ def get_books_pairs(file_path, start_index, end_index, sentence_initial=False):
                     idx = words.index(proxy_marker)
                     sents[marker].append((undo_rephrase(words[:idx]), undo_rephrase(words[idx+1:])))
                     total_pairs_extracted += 1
-                elif sentence_initial and marker in clean_initial and prev_words!=None and words[0].lower()==marker:
-                    sents[marker].append(prev_words, undo_rephrase(words[1:]))
+                elif marker in clean_initial and prev_words!=None and words[0].lower()==marker:
+                    sents[marker].append((prev_words, undo_rephrase(words[1:])))
                     total_pairs_extracted += 1
 
             prev_words = sent.split()
@@ -141,8 +138,6 @@ if __name__ == '__main__':
 
         # directly use wikitext-103
 
-        hard_indices_given = args.start_index!=None or args.end_index!=None
-
         total = 40000000
         segment_length = total / round(args.n_segments)
 
@@ -150,10 +145,10 @@ if __name__ == '__main__':
         end_index =  segment_length*(args.segment_index + 1)
 
         bookcorpus_path = pjoin("data", "books", "books_large_p1.txt")
-        all_sentences_pairs_1 = get_books_pairs(bookcorpus_path, start_index, end_index, sentence_initial=args.sentence_initial)
+        all_sentences_pairs_1 = get_books_pairs(bookcorpus_path, start_index, end_index)
 
         bookcorpus_path = pjoin("data", "books", "books_large_p2.txt")
-        all_sentences_pairs_2 = get_books_pairs(bookcorpus_path, start_index, end_index, sentence_initial=args.sentence_initial)
+        all_sentences_pairs_2 = get_books_pairs(bookcorpus_path, start_index, end_index)
 
         all_sentences_pairs = merge_dict(all_sentences_pairs_1, all_sentences_pairs_2)
 

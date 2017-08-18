@@ -43,11 +43,10 @@ tf.app.flags.DEFINE_boolean("temp_mean", False, "if flag true, will use Temporal
 tf.app.flags.DEFINE_boolean("correct_example", False, "if flag false, will print error, true will print out success")
 tf.app.flags.DEFINE_boolean("snli", False, "if flag True, the classifier will train on SNLI")
 tf.app.flags.DEFINE_boolean("concat", False, "if flag True, bidirectional does concatenation not average")
-tf.app.flags.DEFINE_integer("best_epoch", 1, "enter the best epoch to use")
 tf.app.flags.DEFINE_integer("num_examples", 30, "enter the best epoch to use")
-tf.app.flags.DEFINE_boolean("confusion", False, "whether to generate and save csv of prediction/gold, only used with dev")
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(format='[%(asctime)s] %(levelname)s: %(message)s',
+                    datefmt='%m/%d/%Y %I:%M:%S %p', level=logging.INFO)
 
 def get_optimizer(opt):
     if opt == "adam":

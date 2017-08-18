@@ -513,4 +513,7 @@ class SequenceClassifier(object):
         test_cost, test_accu = self.but_because_validate(session, q_test, label_tokens)
         logging.info("Final test cost: %f test accu: %f" % (test_cost, test_accu))
 
+        logging.info("Saving confusion matrix csv")
+        self.but_because_dev_test(session, q_test, FLAGS.run_dir, label_tokens)
+
         sys.stdout.flush()

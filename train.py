@@ -80,12 +80,6 @@ def main(_):
     pkl_val_name = pjoin("data", FLAGS.dataset, "valid{}.ids.pkl".format(tag))
     pkl_test_name = pjoin("data", FLAGS.dataset, "test{}.ids.pkl".format(tag))
 
-    with open(pkl_train_name, "rb") as f:
-        q_train = pickle.load(f)
-
-    with open(pkl_val_name, "rb") as f:
-        q_valid = pickle.load(f)
-
     with open(pkl_test_name, "rb") as f:
         q_test = pickle.load(f)
 
@@ -130,6 +124,12 @@ def main(_):
 
         if not FLAGS.dev:
             # restore_epoch by default is 0
+            with open(pkl_train_name, "rb") as f:
+                q_train = pickle.load(f)
+
+            with open(pkl_val_name, "rb") as f:
+                q_valid = pickle.load(f)
+
             sc.but_because_train(session, q_train, q_valid, q_test, label_tokens, FLAGS.restore_epoch, FLAGS.epochs, FLAGS.run_dir)
         else:
             sc.but_because_dev_test(session, q_test, FLAGS.run_dir, label_tokens)

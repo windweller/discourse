@@ -44,6 +44,7 @@ tf.app.flags.DEFINE_boolean("correct_example", False, "if flag false, will print
 tf.app.flags.DEFINE_boolean("snli", False, "if flag True, the classifier will train on SNLI")
 tf.app.flags.DEFINE_boolean("concat", False, "if flag True, bidirectional does concatenation not average")
 tf.app.flags.DEFINE_integer("num_examples", 30, "enter the best epoch to use")
+tf.app.flags.DEFINE_string("prefix", "", "provide the prefix to the data/glove embeddings, used for Deep Clusters")
 
 logging.basicConfig(format='[%(asctime)s] %(levelname)s: %(message)s',
                     datefmt='%m/%d/%Y %I:%M:%S %p', level=logging.INFO)

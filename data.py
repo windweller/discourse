@@ -64,6 +64,7 @@ def setup_args():
     parser = argparse.ArgumentParser()
     code_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)))
     glove_dir = os.path.join("data", "glove.6B")
+    parser.add_argument("--prefix", default="", type=str)
     parser.add_argument("--dataset", default="wikitext-103", type=str)
     parser.add_argument("--data_name", default="all_sentence_pairs.pkl", type=str)
     parser.add_argument("--data_tag", default="2M", type=str)
@@ -262,8 +263,8 @@ def tokenize_sentence_pair_data(sentence_pairs_data):
 if __name__ == '__main__':
     args = setup_args()
 
-    vocab_dir = os.path.join("data", args.dataset)
-    source_dir = os.path.join("data", args.dataset)
+    vocab_dir = os.path.join(args.prefix, "data", args.dataset)
+    source_dir = os.path.join(args.prefix, "data", args.dataset)
 
     assert(args.include=="" or args.exclude=="")
 

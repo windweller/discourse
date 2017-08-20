@@ -122,8 +122,21 @@ def main(_):
                                     optimizer=FLAGS.opt)
 
         with tf.variable_scope("snli", reuse=None, initializer=initializer):
+            # preparation for SNLI
+            
+            snli_glove_name = "glove.trimmed.300.npz"
+            snli_embed_path = pjoin("data", "snli", snli_glove_name)
+
+            vocab_name = "vocab.dat"
+
+            vocab_path = pjoin("data", "snli", vocab_name)
+            vocab, rev_vocab = initialize_vocab(vocab_path)
+            vocab_size = len(vocab)
+
+            logging.info("SNLI vocab size: {}".format(vocab_size))
+
             snli_encoder = Encoder(size=FLAGS.state_size, num_layers=FLAGS.layers)
-            snli_sc = SequenceClassifier(snli_encoder, FLAGS, vocab_size, vocab, rev_vocab, discourse_label_size, embed_path,
+            snli_sc = SequenceClassifier(snli_encoder, FLAGS, vocab_size, vocab, rev_vocab, snli_label_size, snli_embed_path,
                                     optimizer=FLAGS.opt)
 
         model_saver = tf.train.Saver(max_to_keep=FLAGS.epochs)
@@ -153,16 +166,6 @@ def main(_):
             pkl_train_name = pjoin("data", "snli", "train.ids.pkl")
             pkl_val_name = pjoin("data", "snli", "valid.ids.pkl")
             pkl_test_name = pjoin("data", "snli", "test.ids.pkl")
-
-            glove_name = "glove.trimmed.300.npz"
-            vocab_name = "vocab.dat"
-
-            embed_path = pjoin("data", "snli", glove_name)
-            vocab_path = pjoin("data", "snli", vocab_name)
-            vocab, rev_vocab = initialize_vocab(vocab_path)
-            vocab_size = len(vocab)
-
-            logging.info("vocab size: {}".format(vocab_size))
 
             with open(pkl_train_name, "rb") as f:
                 q_train = pickle.load(f)

@@ -69,26 +69,24 @@ def main(_):
         vocab_name = "vocab.dat"
 
     # now we load in glove based on tags
-    embed_path = pjoin("data", FLAGS.dataset, glove_name)
-    vocab_path = pjoin("data", FLAGS.dataset, vocab_name)
+    embed_path = pjoin(FLAGS.prefix, "data", FLAGS.dataset, glove_name)
+    vocab_path = pjoin(FLAGS.prefix, "data", FLAGS.dataset, vocab_name)
     vocab, rev_vocab = initialize_vocab(vocab_path)
     vocab_size = len(vocab)
 
     logging.info("vocab size: {}".format(vocab_size))
 
-    pkl_train_name = pjoin("data", FLAGS.dataset, "train{}.ids.pkl".format(tag))
-    pkl_val_name = pjoin("data", FLAGS.dataset, "valid{}.ids.pkl".format(tag))
-    pkl_test_name = pjoin("data", FLAGS.dataset, "test{}.ids.pkl".format(tag))
+    pkl_train_name = pjoin(FLAGS.prefix, "data", FLAGS.dataset, "train{}.ids.pkl".format(tag))
+    pkl_val_name = pjoin(FLAGS.prefix, "data", FLAGS.dataset, "valid{}.ids.pkl".format(tag))
+    pkl_test_name = pjoin(FLAGS.prefix, "data", FLAGS.dataset, "test{}.ids.pkl".format(tag))
 
     with open(pkl_test_name, "rb") as f:
         q_test = pickle.load(f)
 
-    with open(pjoin("data", FLAGS.dataset, "class_labels{}.pkl".format(tag)), "rb") as f:
+    with open(pjoin(FLAGS.prefix, "data", FLAGS.dataset, "class_labels{}.pkl".format(tag)), "rb") as f:
         label_dict = pickle.load(f)
     label_tokens = dict_to_list(label_dict)
     logging.info("classifying markers: {}".format(label_tokens))
-
-    data_dir = pjoin("data", FLAGS.dataset)
 
     with open(os.path.join(FLAGS.run_dir, "flags.json"), 'w') as fout:
         json.dump(FLAGS.__flags, fout)

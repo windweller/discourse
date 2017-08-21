@@ -174,7 +174,7 @@ def main(_):
             with open(pkl_test_name, "rb") as f:
                 q_test = pickle.load(f)
 
-            snli_sc.but_because_train(session, q_train, q_valid, q_test, label_tokens, FLAGS.restore_epoch, FLAGS.epochs, FLAGS.run_dir)
+            snli_sc.but_because_train(session, q_train, q_valid, q_test, label_tokens, FLAGS.restore_epoch + FLAGS.epochs, FLAGS.epochs, FLAGS.run_dir)
 
 if __name__ == "__main__":
     tf.app.run()

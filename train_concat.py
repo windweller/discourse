@@ -1,3 +1,7 @@
+"""
+Train a joint model of SNLI and discourse
+"""
+
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
@@ -64,7 +68,7 @@ def main(_):
         tag = "_" + tag
     else:
         logging.info("Training on SNLI")
-        tag = ""  # ha, makes me wonder if the SNLI result is solid...
+        tag = ""
         glove_name = "glove.trimmed.300.npz"
         vocab_name = "vocab.dat"
 
@@ -92,13 +96,16 @@ def main(_):
         json.dump(FLAGS.__flags, fout)
 
     # auto-adjust label size
-    label_size = 14
+    discourse_label_size = 14
     if FLAGS.exclude != "":
-        label_size -= len(FLAGS.exclude.split(","))
+        discourse_label_size -= len(FLAGS.exclude.split(","))
     elif FLAGS.include != "":
-        label_size = len(FLAGS.include.split(","))
+        discourse_label_size = len(FLAGS.include.split(","))
     elif FLAGS.snli:
-        label_size = 3
+        discourse_label_size = 3
+
+    # SNLI
+    snli_label_size = 3
 
     with tf.Graph().as_default(), tf.Session() as session:
         tf.set_random_seed(FLAGS.seed)
@@ -107,9 +114,27 @@ def main(_):
 
         initializer = tf.uniform_unit_scaling_initializer(FLAGS.init_scale, seed=FLAGS.seed)
 
-        with tf.variable_scope("model", reuse=None, initializer=initializer):
+        with tf.variable_scope("discourse", reuse=None, initializer=initializer):
             encoder = Encoder(size=FLAGS.state_size, num_layers=FLAGS.layers)
-            sc = SequenceClassifier(encoder, FLAGS, vocab_size, vocab, rev_vocab, label_size, embed_path,
+            discourse_sc = SequenceClassifier(encoder, FLAGS, vocab_size, vocab, rev_vocab, discourse_label_size, embed_path,
+                                    optimizer=FLAGS.opt)
+
+        with tf.variable_scope("snli", reuse=None, initializer=initializer):
+            # preparation for SNLI
+
+            snli_glove_name = "glove.trimmed.300.npz"
+            snli_embed_path = pjoin(FLAGS.prefix, "data", "snli", snli_glove_name)
+
+            vocab_name = "vocab.dat"
+
+            vocab_path = pjoin(FLAGS.prefix, "data", "snli", vocab_name)
+            vocab, rev_vocab = initialize_vocab(vocab_path)
+            vocab_size = len(vocab)
+
+            logging.info("SNLI vocab size: {}".format(vocab_size))
+
+            snli_encoder = Encoder(size=FLAGS.state_size, num_layers=FLAGS.layers)
+            snli_sc = SequenceClassifier(snli_encoder, FLAGS, vocab_size, vocab, rev_vocab, snli_label_size, snli_embed_path,
                                     optimizer=FLAGS.opt)
 
         model_saver = tf.train.Saver(max_to_keep=FLAGS.epochs)
@@ -128,9 +153,28 @@ def main(_):
             with open(pkl_val_name, "rb") as f:
                 q_valid = pickle.load(f)
 
-            sc.but_because_train(session, q_train, q_valid, q_test, label_tokens, FLAGS.restore_epoch, FLAGS.epochs, FLAGS.run_dir)
+            discourse_sc.but_because_train(session, q_train, q_valid, q_test, label_tokens, FLAGS.restore_epoch, FLAGS.epochs, FLAGS.run_dir)
         else:
-            sc.but_because_dev_test(session, q_test, FLAGS.run_dir, label_tokens)
+            discourse_sc.but_because_dev_test(session, q_test, FLAGS.run_dir, label_tokens)
+
+        logging.info("entering SNLI training")
+
+        if not FLAGS.dev:
+            # load in SNLI files (change this when we load in Multi-NLI)
+            pkl_train_name = pjoin(FLAGS.prefix, "data", "snli", "train.ids.pkl")
+            pkl_val_name = pjoin(FLAGS.prefix, "data", "snli", "valid.ids.pkl")
+            pkl_test_name = pjoin(FLAGS.prefix, "data", "snli", "test.ids.pkl")
+
+            with open(pkl_train_name, "rb") as f:
+                q_train = pickle.load(f)
+
+            with open(pkl_val_name, "rb") as f:
+                q_valid = pickle.load(f)
+
+            with open(pkl_test_name, "rb") as f:
+                q_test = pickle.load(f)
+
+            snli_sc.but_because_train(session, q_train, q_valid, q_test, label_tokens, FLAGS.restore_epoch + FLAGS.epochs, FLAGS.epochs, FLAGS.run_dir)
 
 if __name__ == "__main__":
     tf.app.run()

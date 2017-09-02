@@ -1,0 +1,29 @@
+run,marker,performance
+all,because,0.638122604772
+all,although,0.71634493177
+all,but,0.680575933861
+all,for example,0.901404560831
+all,when,0.735447974596
+all,before,0.698623986941
+all,after,0.787339487566
+all,however,0.869997217842
+all,so,0.558681664419
+all,still,0.850694035806
+all,though,0.796132679839
+all,meanwhile,0.864027777778
+all,while,0.6580563392
+all,if,0.781771895975
+exclude_low,because,0.581878252314
+exclude_low,although,0.739239010689
+exclude_low,but,0.710459955964
+exclude_low,when,0.710799663198
+exclude_low,before,0.73702777827
+exclude_low,after,0.766993949821
+exclude_low,however,0.878126544621
+exclude_low,still,0.815838412213
+exclude_low,though,0.856698950767
+exclude_low,while,0.587780131964
+exclude_low,if,0.788413084829
+exclude_low,meanwhile,NA
+exclude_low,for example,NA
+exclude_low,so,NA

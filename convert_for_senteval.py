@@ -39,17 +39,44 @@ def initialize_vocabulary(vocabulary_path):
         raise ValueError("Vocabulary file %s not found.", vocabulary_path)
 
 
-def ids_to_strings(rev_vocab, rev_labels):
-    old_data_test = pickle.load(open("data/books/test_but_because_when_if_for_example_so_before_still.ids.pkl", "rb"))
-    old_data_val = pickle.load(open("data/books/valid_but_because_when_if_for_example_so_before_still.ids.pkl", "rb"))
-    old_data = old_data_val + old_data_test
-    new_data = []
-    for s1, s2, label in old_data:
-        marker = rev_labels[label]
-        words1 = " ".join([rev_vocab[i] for i in s1])
-        words2 = " ".join([rev_vocab[i] for i in s2])
-        new_data.append((words1, words2, marker))
-    return new_data
+def load_data(rev_vocab, rev_labels):
+	print("(books)")
+	old_data_test = pickle.load(open("data/books/test_but_because_when_if_for_example_so_before_still.ids.pkl", "rb"))
+	old_data_val = pickle.load(open("data/books/valid_but_because_when_if_for_example_so_before_still.ids.pkl", "rb"))
+
+	# get for example from wikitext
+	print("(wiki)")
+	wiki_data1 = pickle.load(open("data/wikitext-103/train_all.ids.pkl", "rb"))
+	wiki_data2 = pickle.load(open("data/wikitext-103/valid_all.ids.pkl", "rb"))
+	wiki_data3 = pickle.load(open("data/wikitext-103/test_all.ids.pkl", "rb"))
+	wiki_data = wiki_data1 + wiki_data2 + wiki_data3
+
+	wiki_class_labels = pickle.load(open("data/wikitext-103/class_labels_all.pkl", "rb"))
+	print(wiki_class_labels)
+	wiki_rev_labels = [marker for marker in wiki_class_labels]
+	for marker in wiki_class_labels:
+		class_index = wiki_class_labels[marker]
+		wiki_rev_labels[class_index] = marker
+
+	wiki_vocab, wiki_rev_vocab = initialize_vocabulary( "data/wikitext-103/vocab_all.dat")
+
+	new_data = []
+	for s1, s2, label in wiki_data:
+		marker = wiki_rev_labels[label]
+		if marker == "for example":
+			words1 = " ".join([wiki_rev_vocab[i] for i in s1])
+			words2 = " ".join([wiki_rev_vocab[i] for i in s2])
+			new_data.append((words1, words2, marker))
+
+	old_data = old_data_test #+ old_data_val
+	for s1, s2, label in old_data:
+		marker = rev_labels[label]
+		# if marker != "for example":
+		words1 = " ".join([rev_vocab[i] for i in s1])
+		words2 = " ".join([rev_vocab[i] for i in s2])
+		new_data.append((words1, words2, marker))
+
+	return new_data
 
 
 if __name__ == '__main__':
@@ -64,9 +91,9 @@ if __name__ == '__main__':
 	vocab, rev_vocab = initialize_vocabulary( "data/books/vocab_but_because_when_if_for_example_so_before_still.dat")
 
 	print("load data")
-	full_dataset = ids_to_strings(rev_vocab, rev_labels)
+	full_dataset = load_data(rev_vocab, rev_labels)
 
-	train_proportion = 0.95
+	train_proportion = 0.9
 
 	n_pairs = len(full_dataset)
 	n_test = round((1-train_proportion)*n_pairs / 2)

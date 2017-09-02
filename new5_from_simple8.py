@@ -285,6 +285,9 @@ if __name__ == '__main__':
     print("loading test")
     test = extract_new5("test", source_dir, new5_markers, rev_vocab, rev_labels)
 
+    print(len(valid["but"] + train["but"] + test["but"]))
+    stop
+
 
     new_vocab_path = pjoin(vocab_dir, "vocab_but_because_when_if_so.dat")
     if not gfile.Exists(new_vocab_path):

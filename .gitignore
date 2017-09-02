@@ -141,3 +141,7 @@ ENV/
 # Created by .ignore support plugin (hsz.mobi)
 
 .DS_Store
+
+*.png
+*.RData
+*.Rhistory

@@ -22,7 +22,7 @@ def setup_args():
     parser.add_argument("--segment_index", default=0, type=int)
     parser.add_argument("--n_segments", default=1, type=int)
     parser.add_argument("--cutoff", default=300000, type=int)
-    parser.add_argument("--output_fileame", default="cutoff_sample_pairs_all_markers_clean_ssplit.pkl")
+    parser.add_argument("--output_filename", default="cutoff_sample_pairs_all_markers_clean_ssplit.pkl")
     parser.add_argument("--subsample", action='store_true')
     parser.add_argument("--aggregate", action='store_true')
     return parser.parse_args()
@@ -79,8 +79,6 @@ def get_books_pairs(file_path, start_index, end_index):
                 if i % 1000000 == 0:
                     print("reading sentence {}".format(i))
                 words = rephrase(sent).split()  # strip puncts and then split (already tokenized)
-                # all of these have try statements, because sometimes the discourse marker will
-                # only be a part of the word, and so it won't show up in the words list
                 for marker in discourse_markers:
                     if marker == "for example":
                         proxy_marker = "for_example"
@@ -90,7 +88,7 @@ def get_books_pairs(file_path, start_index, end_index):
                         idx = words.index(proxy_marker)
                         sents[marker].append((undo_rephrase(words[:idx]), undo_rephrase(words[idx+1:])))
                         total_pairs_extracted += 1
-                    elif marker in clean_initial and prev_words!=None and words[0].lower()==marker:
+                    elif marker in clean_initial and prev_words!=None and words[0].lower()==proxy_marker:
                         sents[marker].append((prev_words, undo_rephrase(words[1:])))
                         total_pairs_extracted += 1
 
@@ -137,11 +135,11 @@ if __name__ == '__main__':
             float(len(pairs[key]))/n*100
         ))
 
-        pickle.dump(pairs, open("all_pairs_all_markers_clean_ssplit.pkl", "wb"))
+        pickle.dump(pairs, pjoin("data", "books", open("all_pairs_all_markers_clean_ssplit.pkl", "wb")))
 
     elif args.subsample:
         data_path = pjoin("data", "books", "all_pairs_all_markers_clean_ssplit.pkl")
-        data = pickle.load(open("all_pairs_all_markers_clean_ssplit.pkl", "rb"))
+        data = pickle.load(pjoin("data", "books", open("all_pairs_all_markers_clean_ssplit.pkl", "rb")))
         new_data = {}
         for marker in data:
             if len(data[marker]) < args.cutoff:
@@ -149,7 +147,7 @@ if __name__ == '__main__':
             else:
                 np.random.shuffle(data[marker])
                 new_data[marker] = data[marker][0:args.cutoff]
-        pickle.dump(new_data, open(args.output_filename, "wb"))
+        pickle.dump(new_data, pjoin("data", "books", open(args.output_filename, "wb")))
 
     else:
 

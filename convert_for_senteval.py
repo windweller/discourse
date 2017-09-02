@@ -46,27 +46,14 @@ def load_data(rev_vocab, rev_labels):
 
 	# get for example from wikitext
 	print("(wiki)")
-	wiki_data1 = pickle.load(open("data/wikitext-103/train_all.ids.pkl", "rb"))
-	wiki_data2 = pickle.load(open("data/wikitext-103/valid_all.ids.pkl", "rb"))
-	wiki_data3 = pickle.load(open("data/wikitext-103/test_all.ids.pkl", "rb"))
-	wiki_data = wiki_data1 + wiki_data2 + wiki_data3
-
-	wiki_class_labels = pickle.load(open("data/wikitext-103/class_labels_all.pkl", "rb"))
-	print(wiki_class_labels)
-	wiki_rev_labels = [marker for marker in wiki_class_labels]
-	for marker in wiki_class_labels:
-		class_index = wiki_class_labels[marker]
-		wiki_rev_labels[class_index] = marker
-
-	wiki_vocab, wiki_rev_vocab = initialize_vocabulary( "data/wikitext-103/vocab_all.dat")
+	wiki_data = pickle.load(open("data/wikitext-103/dep_all_sentence_pairs.pkl", "rb"))
 
 	new_data = []
-	for s1, s2, label in wiki_data:
-		marker = wiki_rev_labels[label]
-		if marker == "for example":
-			words1 = " ".join([wiki_rev_vocab[i] for i in s1])
-			words2 = " ".join([wiki_rev_vocab[i] for i in s2])
-			new_data.append((words1, words2, marker))
+	for s1, s2 in wiki_data["for example"]:
+		marker = "for example"
+		words1 = " ".join(s1)
+		words2 = " ".join(s2)
+		new_data.append((words1, words2, marker))
 
 	old_data = old_data_test #+ old_data_val
 	for s1, s2, label in old_data:

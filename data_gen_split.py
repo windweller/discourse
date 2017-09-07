@@ -45,6 +45,10 @@ def setup_args():
     parser.add_argument("--caching", action='store_true')
     return parser.parse_args()
 
+def save_to_pickle(obj, file_path):
+    with open(file_path, 'wb') as f:
+        pickle.dump(obj, f)
+
 def undo_rephrase(lst):
     return " ".join(lst).replace("for_example", "for example").split()
 
@@ -133,6 +137,9 @@ def split_dictionary(data_dict, train_size):
     n_total = 0
     for marker in data_dict:
         examples_for_this_marker = data_dict[marker]
+        
+        np.random.shuffle(examples_for_this_marker)
+
         n_marker = len(examples_for_this_marker)
         n_total += n_marker
 
@@ -179,12 +186,12 @@ if __name__ == '__main__':
 
     for split in splits:
         data = splits[split]
-        filename = "{}_all_pairs_{}_train{}{}".format(
+        filename = pjoin(source_dir, "{}_all_pairs_{}_train{}{}".format(
             split,
             args.method,
             args.train_size,
             extra_tag
-        )
+        ))
         pickle.dump(data, open(filename, "wb"))
 
 

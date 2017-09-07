@@ -96,7 +96,7 @@ low priority:
 	sudo adduser anie
 	```
 	* add ssh keys to `~/.ssh/authorized_keys` for each user (see, e.g. [github.com/windweller.keys](https://github.com/windweller.keys))
-* get tensorflow from [?](?)
+* get cuDNN from [NVIDIA](https://developer.nvidia.com/rdp/cudnn-download)
 * setup tensorflow with CUDA
 	```
 	scp ~/Downloads/cudnn-8.0-linux-x64-v5.1.tgz erindb@52.38.236.178:~/

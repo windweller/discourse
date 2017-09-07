@@ -70,7 +70,7 @@ def get_wiki_pairs(file_path, sentence_initial=False, caching=False):
             sent_list = nltk.sent_tokenize(tokens)
             print("sent num: " + str(len(sent_list)))
             if caching:
-                save_to_pickle(sentences_cache_file)
+                save_to_pickle(sentences_cache_file, sentences_cache_file)
 
         # check each sentence for discourse markers and collect sentence pairs
         prev_words = None

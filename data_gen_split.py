@@ -62,16 +62,17 @@ def get_wiki_pairs(file_path, sentence_initial=False, caching=False):
     with io.open(file_path, 'rU', encoding="utf-8") as f:
 
         # tokenize sentences
-        sentences_cache_file = pjoin("data", "wikitext-103", "wiki103_sent.pkl")
+        sentences_cache_file = file_path + ".CACHE_SENTS"
         if caching and os.path.isfile(sentences_cache_file):
             sent_list = pickle.load(open(sentences_cache_file, "rb"))
         else:
             tokens = f.read().replace("\n", ". ")
             print("tokenizing")
             sent_list = nltk.sent_tokenize(tokens)
-            print("sent num: " + str(len(sent_list)))
             if caching:
-                save_to_pickle(sentences_cache_file, sentences_cache_file)
+                pickle.dump(sent_list, open(sentences_cache_file, "wb"))
+
+        print("sent num: " + str(len(sent_list)))
 
         # check each sentence for discourse markers and collect sentence pairs
         prev_words = None
@@ -114,6 +115,8 @@ def string_ssplit_int_init(dataset, caching=False):
         wikitext_103_valid = get_wiki_pairs(wikitext_103_valid_path, sentence_initial=True, caching=caching)
         print("extracting sentence pairs from test")
         wikitext_103_test = get_wiki_pairs(wikitext_103_test_path, sentence_initial=True, caching=caching)
+
+        return merge_dict(wikitext_103_train, merge_dict(wikitext_103_valid, wikitext_103_test))
 
     elif dataset == "books":
         raise Exception("haven't written how to parse dataset {}".format(dataset))
@@ -159,6 +162,12 @@ def split_dictionary(data_dict, train_size):
     return splits
 
 
+def merge_dict(dict_list1, dict_list2):
+    for key, list_sent in dict_list1.iteritems():
+        dict_list1[key].extend(dict_list2[key])
+    return dict_list1
+
+
 if __name__ == '__main__':
     args = setup_args()
 
@@ -187,7 +196,7 @@ if __name__ == '__main__':
 
     for split in splits:
         data = splits[split]
-        filename = pjoin(source_dir, "{}_all_pairs_{}_train{}{}".format(
+        filename = pjoin(source_dir, "{}_allpairs_allmarkers_{}_train{}{}.pkl".format(
             split,
             args.method,
             args.train_size,

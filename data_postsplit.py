@@ -43,7 +43,7 @@ def setup_args():
     parser.add_argument("--prefix", default="", type=str)
     parser.add_argument("--dataset", default="wikitext-103", type=str)
     parser.add_argument("--data_name", default="all_sentence_pairs.pkl", type=str)
-    parser.add_argument("--data_tag", default="2M", type=str)
+    parser.add_argument("--data_tag", default="", type=str)
     parser.add_argument("--glove_dir", default=glove_dir)
     parser.add_argument("--glove_dim", default=300, type=int)
     parser.add_argument("--random_init", action='store_true')
@@ -54,9 +54,6 @@ def setup_args():
     parser.add_argument("--no_cutoff", action='store_true')
     parser.add_argument("--exclude", default="")
     parser.add_argument("--include", default="")
-
-    parser.add_argument("--dataset", default="wikitext-103", type=str)
-    parser.add_argument("--data_tag", default="", type=str)
     parser.add_argument("--train_size", default=0.9, type=float)
     parser.add_argument("--method", default="string_ssplit_int_init", type=str)
 
@@ -277,7 +274,7 @@ if __name__ == '__main__':
         raise Exception("no match state for exclude/include")
 
     # ======== Load data =======
-    print("Loading data %s" % (str(data_path)))
+    print("Loading data")
 
     if args.data_tag == "":
         extra_tag = ""
@@ -286,7 +283,7 @@ if __name__ == '__main__':
 
     splits = {}
     for split in ["train", "valid", "test"]:
-        filename = pjoin(source_dir, "{}_all_pairs_{}_train{}{}".format(
+        filename = pjoin(source_dir, "{}_allpairs_allmarkers_{}_train{}{}.pkl".format(
             split,
             args.method,
             args.train_size,

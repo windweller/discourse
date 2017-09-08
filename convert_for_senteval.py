@@ -23,6 +23,10 @@ _START_VOCAB = [_PAD, _UNK]
 PAD_ID = 0
 UNK_ID = 1
 
+max_ratio = 5.00
+min_seq_len = 5
+max_seq_len = 50
+
 np.random.seed(123)
 
 
@@ -55,18 +59,22 @@ def load_data(rev_vocab, rev_labels):
 	# for s1, s2 in wiki_data["for example"]:
 		n_pairs = 0
 		for s1, s2 in wiki_data[marker]:
-			n_pairs += 1
-			if n_pairs < 10:
-				print(" ".join(s1))
-				print(marker.upper())
-				print(" ".join(s2))
-				print("***********")
-			if n_pairs > max_pairs:
-				break
-			# marker = "for example"
-			words1 = " ".join(s1)
-			words2 = " ".join(s2)
-			new_data.append((words1, words2, marker))
+			if float(len(s1))/len(s2) <= max_ratio and \
+						float(len(s2))/len(s1) <= max_ratio and \
+						len(s1)<max_seq_len and len(s2)<max_seq_len and \
+						len(s1)>min_seq_len and len(s2)>min_seq_len:
+				n_pairs += 1
+				if n_pairs < 10:
+					print(" ".join(s1))
+					print(marker.upper())
+					print(" ".join(s2))
+					print("***********")
+				if n_pairs > max_pairs:
+					break
+				# marker = "for example"
+				words1 = " ".join(s1)
+				words2 = " ".join(s2)
+				new_data.append((words1, words2, marker))
 		print("***********")
 		print("***********")
 		print("***********")

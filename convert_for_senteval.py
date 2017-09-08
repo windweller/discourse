@@ -118,9 +118,9 @@ if __name__ == '__main__':
 
 		s1, s2, label = full_dataset[i]
 
-		if i < n_train:
+		if i <= n_train:
 			split = "train"
-		elif i < n_train + n_dev:
+		elif i <= n_train + n_dev:
 			split = "dev"
 		else:
 			split = "test"

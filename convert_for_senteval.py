@@ -54,7 +54,7 @@ def load_data(rev_vocab, rev_labels):
 	wiki_data = pickle.load(open("data/wikitext-103/wikitext-103_all_sentence_pairs.pkl", "rb"))
 
 	new_data = []
-	max_pairs = 5200
+	# max_pairs = 5200
 	max_pretty_len = 15
 	for marker in ["but", "because", "if", "when", "so"]:
 	# for s1, s2 in wiki_data["for example"]:
@@ -73,8 +73,8 @@ def load_data(rev_vocab, rev_labels):
 						print("&" + marker + "&" )
 						print(" ".join(s2))
 						print("***********")
-				if n_pairs > max_pairs:
-					break
+				# if n_pairs > max_pairs:
+				# 	break
 				# marker = "for example"
 				words1 = " ".join(s1)
 				words2 = " ".join(s2)

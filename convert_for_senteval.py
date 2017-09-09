@@ -130,7 +130,7 @@ if __name__ == '__main__':
 	print("load data")
 	full_dataset = load_data(rev_vocab, rev_labels)
 
-	train_proportion = 0.9
+	train_proportion = 0.8
 
 	n_pairs = len(full_dataset)
 	n_test = round((1-train_proportion)*n_pairs / 2)

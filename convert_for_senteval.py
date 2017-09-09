@@ -46,6 +46,7 @@ def initialize_vocabulary(vocabulary_path):
 def load_data(rev_vocab, rev_labels):
 	max_pretty_len = 15
 	new_data = []
+	markers = ["but", "because", "if", "when", "so"]
 
 	print("(books)")
 	old_data_test = pickle.load(open("data/books/test_but_because_when_if_for_example_so_before_still.ids.pkl", "rb"))
@@ -57,7 +58,7 @@ def load_data(rev_vocab, rev_labels):
 	wiki_data = pickle.load(open("data/wikitext-103/wikitext-103_all_sentence_pairs.pkl", "rb"))
 
 	max_pairs = 5000
-	for marker in ["but", "because", "if", "when", "so"]:
+	for marker in markers:
 	# for s1, s2 in wiki_data["for example"]:
 		n_pairs = 0
 		n_pretty_examples = 0
@@ -67,43 +68,44 @@ def load_data(rev_vocab, rev_labels):
 						len(s1)<max_seq_len and len(s2)<max_seq_len and \
 						len(s1)>min_seq_len and len(s2)>min_seq_len:
 				n_pairs += 1
-				if n_pretty_examples < 15:
-					if len(s1) < max_pretty_len and len(s2) < max_pretty_len:
-						n_pretty_examples += 1
-						print(" ".join(s1))
-						print("&" + marker + "&" )
-						print(" ".join(s2))
-						print("***********")
+				# if n_pretty_examples < 15:
+				# 	if len(s1) < max_pretty_len and len(s2) < max_pretty_len:
+				# 		n_pretty_examples += 1
+				# 		print(" ".join(s1))
+				# 		print("&" + marker + "&" )
+				# 		print(" ".join(s2))
+				# 		print("***********")
 				if n_pairs > max_pairs:
 					break
-				marker = "for example"
+				# marker = "for example"
 				words1 = " ".join(s1)
 				words2 = " ".join(s2)
 				new_data.append((words1, words2, marker))
-		print("***********")
-		print("***********")
-		print("***********")
-		print("***********")
+		# print("***********")
+		# print("***********")
+		# print("***********")
+		# print("***********")
 
-	max_pairs = 8000
+	max_pairs = {marker: 8000 for marker in markers}
+	n_pairs = {marker: 0 for marker in markers}
 	old_data = old_data_test #+ old_data_val
 	n_pretty_examples = 0
 	for s1, s2, label in old_data:
 		marker = rev_labels[label]
-		# if marker != "for example":
-		words1 = " ".join([rev_vocab[i] for i in s1])
-		words2 = " ".join([rev_vocab[i] for i in s2])
-		new_data.append((words1, words2, marker))
-		n_pairs += 1
-		if n_pairs > max_pairs:
-			break
-		if n_pretty_examples < 15:
-			if len(s1) < max_pretty_len and len(s2) < max_pretty_len:
-				n_pretty_examples += 1
-				print(words1)
-				print("&" + marker + "&" )
-				print(words2)
-				print("***********")
+		if marker in markers:
+			if n_pairs[marker] < max_pairs[marker]:
+				# if marker != "for example":
+				words1 = " ".join([rev_vocab[i] for i in s1])
+				words2 = " ".join([rev_vocab[i] for i in s2])
+				new_data.append((words1, words2, marker))
+				n_pairs[marker] += 1
+				# if n_pretty_examples < 15:
+				# 	if len(s1) < max_pretty_len and len(s2) < max_pretty_len:
+				# 		n_pretty_examples += 1
+				# 		print(words1)
+				# 		print("&" + marker + "&" )
+				# 		print(words2)
+				# 		print("***********")
 
 	return new_data
 

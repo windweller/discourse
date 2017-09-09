@@ -51,40 +51,41 @@ def load_data(rev_vocab, rev_labels):
 	old_data_test = pickle.load(open("data/books/test_but_because_when_if_for_example_so_before_still.ids.pkl", "rb"))
 	# old_data_val = pickle.load(open("data/books/valid_but_because_when_if_for_example_so_before_still.ids.pkl", "rb"))
 
-	# # get for example from wikitext
-	# print("(wiki)")
-	# # wiki_data = pickle.load(open("data/wikitext-103/dep_all_sentence_pairs.pkl", "rb"))
-	# wiki_data = pickle.load(open("data/wikitext-103/wikitext-103_all_sentence_pairs.pkl", "rb"))
+	# get for example from wikitext
+	print("(wiki)")
+	# wiki_data = pickle.load(open("data/wikitext-103/dep_all_sentence_pairs.pkl", "rb"))
+	wiki_data = pickle.load(open("data/wikitext-103/wikitext-103_all_sentence_pairs.pkl", "rb"))
 
-	# # max_pairs = 5200
-	# for marker in ["but", "because", "if", "when", "so"]:
-	# # for s1, s2 in wiki_data["for example"]:
-	# 	n_pairs = 0
-	# 	n_pretty_examples = 0
-	# 	for s1, s2 in wiki_data[marker]:
-	# 		if float(len(s1))/len(s2) <= max_ratio and \
-	# 					float(len(s2))/len(s1) <= max_ratio and \
-	# 					len(s1)<max_seq_len and len(s2)<max_seq_len and \
-	# 					len(s1)>min_seq_len and len(s2)>min_seq_len:
-	# 			n_pairs += 1
-	# 			if n_pretty_examples < 15:
-	# 				if len(s1) < max_pretty_len and len(s2) < max_pretty_len:
-	# 					n_pretty_examples += 1
-	# 					print(" ".join(s1))
-	# 					print("&" + marker + "&" )
-	# 					print(" ".join(s2))
-	# 					print("***********")
-	# 			# if n_pairs > max_pairs:
-	# 			# 	break
-	# 			# marker = "for example"
-	# 			words1 = " ".join(s1)
-	# 			words2 = " ".join(s2)
-	# 			new_data.append((words1, words2, marker))
-	# 	print("***********")
-	# 	print("***********")
-	# 	print("***********")
-	# 	print("***********")
+	max_pairs = 5000
+	for marker in ["but", "because", "if", "when", "so"]:
+	# for s1, s2 in wiki_data["for example"]:
+		n_pairs = 0
+		n_pretty_examples = 0
+		for s1, s2 in wiki_data[marker]:
+			if float(len(s1))/len(s2) <= max_ratio and \
+						float(len(s2))/len(s1) <= max_ratio and \
+						len(s1)<max_seq_len and len(s2)<max_seq_len and \
+						len(s1)>min_seq_len and len(s2)>min_seq_len:
+				n_pairs += 1
+				if n_pretty_examples < 15:
+					if len(s1) < max_pretty_len and len(s2) < max_pretty_len:
+						n_pretty_examples += 1
+						print(" ".join(s1))
+						print("&" + marker + "&" )
+						print(" ".join(s2))
+						print("***********")
+				if n_pairs > max_pairs:
+					break
+				marker = "for example"
+				words1 = " ".join(s1)
+				words2 = " ".join(s2)
+				new_data.append((words1, words2, marker))
+		print("***********")
+		print("***********")
+		print("***********")
+		print("***********")
 
+	max_pairs = 8000
 	old_data = old_data_test #+ old_data_val
 	n_pretty_examples = 0
 	for s1, s2, label in old_data:
@@ -93,6 +94,9 @@ def load_data(rev_vocab, rev_labels):
 		words1 = " ".join([rev_vocab[i] for i in s1])
 		words2 = " ".join([rev_vocab[i] for i in s2])
 		new_data.append((words1, words2, marker))
+		n_pairs += 1
+		if n_pairs > max_pairs:
+			break
 		if n_pretty_examples < 15:
 			if len(s1) < max_pretty_len and len(s2) < max_pretty_len:
 				n_pretty_examples += 1
@@ -106,9 +110,9 @@ def load_data(rev_vocab, rev_labels):
 
 if __name__ == '__main__':
 
-	dataset = "books"
+	dataset = "wiki_and_books"
 
-	if dataset=="books":
+	if dataset=="books" or dataset =="wiki_and_books":
 		class_labels = pickle.load(open("data/books/class_labels_but_because_when_if_for_example_so_before_still.pkl", "rb"))
 		rev_labels = [marker for marker in class_labels]
 		for marker in class_labels:

@@ -199,7 +199,7 @@ def string_ssplit_int_init(sentence, previous_sentence, marker):
             idx = [w.lower() for w in words].index(marker)
             s1 = " ".join(words[:idx])
             s2 = " ".join(words[idx+1:])
-    return (s1.strip(), s2.strip(), label)
+    return (s1.strip(), s2.strip(), marker)
 
 def string_ssplit_clean_markers():
     raise Exception("haven't included clean ssplit in this script yet")
@@ -336,7 +336,7 @@ def ssplit(method, source_dir, train_size):
     assert(args.method in methods)
 
     marker_dir = pjoin(source_dir, "markers_" + DISCOURSE_MARKER_SET_TAG)
-    split_dir = pjoin(marker_dir, "split_train" + train_size)
+    split_dir = pjoin(marker_dir, "split_train{}".format(train_size))
     ssplit_dir = pjoin(split_dir, "ssplit_" + method)
 
     if not os.path.exists(ssplit_dir):

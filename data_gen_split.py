@@ -212,8 +212,12 @@ def depparse_ssplit_v2():
 
 def collect_raw_sentences(source_dir, dataset, caching):
     markers_dir = pjoin(source_dir, "markers_" + DISCOURSE_MARKER_SET_TAG)
+    output_dir = pjoin(markers_dir, "files")
+
     if not os.path.exists(markers_dir):
         os.makedirs(markers_dir)
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
 
     if dataset == "wikitext-103":
         filenames = [
@@ -259,8 +263,8 @@ def collect_raw_sentences(source_dir, dataset, caching):
     print('writing files')
     statistics_lines = []
     for marker in sentences:
-        sentence_path = pjoin(markers_dir, "{}_s.txt".format(marker))
-        previous_path = pjoin(markers_dir, "{}_prev.txt".format(marker))
+        sentence_path = pjoin(output_dir, "{}_s.txt".format(marker))
+        previous_path = pjoin(output_dir, "{}_prev.txt".format(marker))
         n_sentences = len(sentences[marker]["sentence"])
         statistics_lines.append("{}\t{}".format(marker, n_sentences))
         with open(sentence_path, "w") as sentence_file:
@@ -278,16 +282,20 @@ def collect_raw_sentences(source_dir, dataset, caching):
 def split_raw(source_dir, train_size):
     assert(train_size < 1 and train_size > 0)
 
-    marker_dir = pjoin(source_dir, "markers_" + DISCOURSE_MARKER_SET_TAG)
+    markers_dir = pjoin(source_dir, "markers_" + DISCOURSE_MARKER_SET_TAG)
+    input_dir = pjoin(markers_dir, "files")
 
-    split_dir = pjoin(marker_dir, "split_train{}".format(train_size))
+    split_dir = pjoin(markers_dir, "split_train{}".format(train_size))
+    output_dir = pjoin(split_dir, "files")
     if not os.path.exists(split_dir):
         os.makedirs(split_dir)
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
 
     statistics_lines = []
     for marker in DISCOURSE_MARKERS:
-        sentences = open(pjoin(marker_dir, "{}_s.txt".format(marker)), "rU").readlines()
-        previous_sentences = open(pjoin(marker_dir, "{}_prev.txt".format(marker)), "rU").readlines()
+        sentences = open(pjoin(input_dir, "{}_s.txt".format(marker)), "rU").readlines()
+        previous_sentences = open(pjoin(input_dir, "{}_prev.txt".format(marker)), "rU").readlines()
         assert(len(sentences)==len(previous_sentences))
 
         indices = range(len(sentences))
@@ -317,7 +325,7 @@ def split_raw(source_dir, train_size):
             n_sentences = len(splits[split]["s"])
             statistics_lines.append("{}\t{}\t{}".format(split, marker, n_sentences))
             for sentence_type in ["s", "prev"]:
-                write_path = pjoin(split_dir, "{}_{}_{}.txt".format(split, marker, sentence_type))
+                write_path = pjoin(output_dir, "{}_{}_{}.txt".format(split, marker, sentence_type))
                 with open(write_path, "w") as write_file:
                     for sentence in splits[split][sentence_type]:
                         write_file.write(sentence)

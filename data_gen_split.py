@@ -293,9 +293,10 @@ def split_raw(source_dir, train_size):
         indices = range(len(sentences))
         np.random.shuffle(indices)
 
-        n_test = len(indices) * train_size
+        test_proportion = (1-train_size)/2
+        n_test = round(len(indices) * test_proportion)
         n_valid = n_test
-        n_train = len(indices) - n_test - n_valid
+        n_train = len(indices) - (n_test + n_valid)
 
         splits = {split: {"s": [], "prev": []} for split in ["train", "valid", "test"]}
 

@@ -51,17 +51,17 @@ def setup_args():
     parser.add_argument("--action", default='collect_raw', type=str)
     return parser.parse_args()
 
+def undo_rephrase(lst):
+    return " ".join(lst).replace("for_example", "for example").split()
+
+def rephrase(str):
+    return str.replace("for example", "for_example")
+
 def string_ssplit_int_init(source_dir, split, train_size):
-
-    def undo_rephrase(lst):
-        return " ".join(lst).replace("for_example", "for example").split()
-
-    def rephrase(str):
-        return str.replace("for example", "for_example")
 
     def get_data(source_dir, marker, sentence_type, split, train_size):
         filename = "{}_raw_{}_{}_{}.txt".format(marker, sentence_type, split, train_size)
-        file_path = pjoin(source_dir, "raw", filename)
+        file_path = pjoin(source_dir, "raw", "split", filename)
         return open(file_path, "rU").readlines()
 
     data = {"s1": [], "s2": [], "label": []}
@@ -109,9 +109,12 @@ def depparse_ssplit_v2():
 
 def collect_raw_sentences(source_dir, dataset, caching):
     raw_dir = pjoin(source_dir, "raw")
-
     if not os.path.exists(raw_dir):
         os.makedirs(raw_dir)
+
+    collection_dir = pjoin(raw_dir, "collection")
+    if not os.path.exists(collection_dir):
+        os.makedirs(collection_dir)
 
     if dataset == "wikitext-103":
         filenames = [
@@ -156,8 +159,8 @@ def collect_raw_sentences(source_dir, dataset, caching):
 
     print('writing files')
     for marker in sentences:
-        sentence_path = pjoin(raw_dir, "{}_raw_s.txt".format(marker))
-        previous_path = pjoin(raw_dir, "{}_raw_prev.txt".format(marker))
+        sentence_path = pjoin(collection_dir, "{}_raw_s.txt".format(marker))
+        previous_path = pjoin(collection_dir, "{}_raw_prev.txt".format(marker))
         with open(sentence_path, "w") as sentence_file:
             for s in sentences[marker]["sentence"]:
                 sentence_file.write(s + "\n")
@@ -168,9 +171,13 @@ def collect_raw_sentences(source_dir, dataset, caching):
 def split_raw(source_dir, train_size):
     assert(train_size < 1 and train_size > 0)
 
+    split_dir = pjoin(source_dir, "raw", "split")
+    if not os.path.exists(split_dir):
+        os.makedirs(split_dir)
+
     for marker in DISCOURSE_MARKERS:
-        sentences = open(pjoin(source_dir, "raw", "{}_raw_s.txt".format(marker)), "rU").readlines()
-        previous_sentences = open(pjoin(source_dir, "raw", "{}_raw_prev.txt".format(marker)), "rU").readlines()
+        sentences = open(pjoin(source_dir, "raw", "collection", "{}_raw_s.txt".format(marker)), "rU").readlines()
+        previous_sentences = open(pjoin(source_dir, "raw", "collection", "{}_raw_prev.txt".format(marker)), "rU").readlines()
         assert(len(sentences)==len(previous_sentences))
 
         indices = range(len(sentences))
@@ -197,7 +204,7 @@ def split_raw(source_dir, train_size):
 
         for split in splits:
             for sentence_type in ["s", "prev"]:
-                write_path = pjoin(source_dir, "raw", "{}_raw_{}_{}_{}.txt".format(marker, sentence_type, split, train_size))
+                write_path = pjoin(split_dir, "{}_raw_{}_{}_{}.txt".format(marker, sentence_type, split, train_size))
                 with open(write_path, "w") as write_file:
                     for sentence in splits[split][sentence_type]:
                         write_file.write(sentence)
@@ -223,6 +230,10 @@ def ssplit(method, source_dir, data_tag, train_size):
         train_size,
         extra_tag
     )
+
+    if not os.path.exists(sub_directory):
+        os.makedirs(sub_directory)
+
     for split in splits:
         # randomize the order at this point
         labels = splits[split]["label"]

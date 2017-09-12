@@ -35,6 +35,7 @@ DISCOURSE_MARKERS = [
     "when",
     "while"
 ]
+DISCOURSE_MARKER_SET_TAG = "ALL18"
 
 # patterns = {
 #     "because": ("IN", "mark", "advcl"),
@@ -135,7 +136,7 @@ def merge_dict(dict_list1, dict_list2):
         dict_list1[key].extend(dict_list2[key])
     return dict_list1
 
-def data_to_token_ids(data, all_labels, class_label_dict, target_path, text_path, vocabulary_path, data_dir):
+def data_to_token_ids(data, all_labels, class_label_dict, target_path, vocabulary_path, data_dir):
     rev_class_labels = all_labels
     if gfile.Exists(target_path):
         print("file {} already exists".format(target_path))
@@ -226,13 +227,13 @@ def depparse_ssplit_v2():
     raise Exception("haven't included new depparse ssplit in this script yet")
 
 def collect_raw_sentences(source_dir, dataset, caching):
-    raw_dir = pjoin(source_dir, "raw")
-    if not os.path.exists(raw_dir):
-        os.makedirs(raw_dir)
+    markers_dir = pjoin(source_dir, "markers_" + DISCOURSE_MARKER_SET_TAG)
+    if not os.path.exists(markers_dir):
+        os.makedirs(markers_dir)
 
-    collection_dir = pjoin(raw_dir, "collection")
-    if not os.path.exists(collection_dir):
-        os.makedirs(collection_dir)
+    open(pjoin(markers_dir, "VERSION.txt"), "w").write(
+        "commit: \n\n\ncommand: \n\n\nmarkers:\n".join(DISCOURSE_MARKERS)
+    )
 
     if dataset == "wikitext-103":
         filenames = [
@@ -247,7 +248,7 @@ def collect_raw_sentences(source_dir, dataset, caching):
     
     for filename in filenames:
         print("reading {}".format(filename))
-        file_path = pjoin(source_dir, filename)
+        file_path = pjoin(source_dir, "orig", filename)
         with io.open(file_path, 'rU', encoding="utf-8") as f:
             # tokenize sentences
             sentences_cache_file = file_path + ".CACHE_SENTS"
@@ -277,8 +278,8 @@ def collect_raw_sentences(source_dir, dataset, caching):
 
     print('writing files')
     for marker in sentences:
-        sentence_path = pjoin(collection_dir, "{}_raw_s.txt".format(marker))
-        previous_path = pjoin(collection_dir, "{}_raw_prev.txt".format(marker))
+        sentence_path = pjoin(markers_dir, "{}_s.txt".format(marker))
+        previous_path = pjoin(markers_dir, "{}_prev.txt".format(marker))
         with open(sentence_path, "w") as sentence_file:
             for s in sentences[marker]["sentence"]:
                 sentence_file.write(s + "\n")
@@ -429,12 +430,7 @@ def conversion(method, source_dir, data_tag, train_size, glove_dim, random_init)
             args.run_dir,
             "{}.ids.pkl".format(split)
         )
-        text_path = pjoin(
-            args.run_dir,
-            "{}.text.txt".format(split)
-        )
-
-        data_to_token_ids(data, all_labels, class_labels, ids_path, text_path, vocab_path, args.run_dir)
+        data_to_token_ids(data, all_labels, class_labels, ids_path, vocab_path, args.run_dir)
 
 
 if __name__ == '__main__':
@@ -448,6 +444,8 @@ if __name__ == '__main__':
         split_raw(source_dir, args.train_size)
     elif args.action == "ssplit":
         ssplit(args.method, source_dir, args.data_tag, args.train_size)
+    elif args.action == "filtering":
+        filter()
     elif args.action == "convert":
         convert(args.method, source_dir, args.data_tag, args.train_size, args.glove_dim, args.random_init)
 

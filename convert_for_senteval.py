@@ -44,7 +44,7 @@ def initialize_vocabulary(vocabulary_path):
 
 
 def load_data(rev_vocab, rev_labels):
-	max_pretty_len = 15
+	max_pretty_len = 12
 	new_data = []
 	markers = ["but", "because", "if", "when", "so"]
 
@@ -87,9 +87,9 @@ def load_data(rev_vocab, rev_labels):
 	# 	# print("***********")
 
 	# max_pairs = {marker: 8000 for marker in markers}
+	n_pretty_examples = {marker: 0 for marker in markers}
 	n_pairs = {marker: 0 for marker in markers}
 	old_data = old_data_test #+ old_data_val
-	n_pretty_examples = 0
 	for s1, s2, label in old_data:
 		marker = rev_labels[label]
 		if marker in markers:
@@ -99,13 +99,13 @@ def load_data(rev_vocab, rev_labels):
 			words2 = " ".join([rev_vocab[i] for i in s2])
 			new_data.append((words1, words2, marker))
 			n_pairs[marker] += 1
-				# if n_pretty_examples < 15:
-				# 	if len(s1) < max_pretty_len and len(s2) < max_pretty_len:
-				# 		n_pretty_examples += 1
-				# 		print(words1)
-				# 		print("&" + marker + "&" )
-				# 		print(words2)
-				# 		print("***********")
+			if n_pretty_examples[marker] < 15:
+				if marker in ["because", "if", "so"] and len(s1) < max_pretty_len and len(s2) < max_pretty_len:
+					n_pretty_examples[marker] += 1
+					print(words1)
+					print("&" + marker + "&" )
+					print(words2)
+					print("***********")
 
 	return new_data
 

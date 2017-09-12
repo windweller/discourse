@@ -231,10 +231,6 @@ def collect_raw_sentences(source_dir, dataset, caching):
     if not os.path.exists(markers_dir):
         os.makedirs(markers_dir)
 
-    open(pjoin(markers_dir, "VERSION.txt"), "w").write(
-        "commit: \n\n\ncommand: \n\n\nmarkers:\n".join(DISCOURSE_MARKERS)
-    )
-
     if dataset == "wikitext-103":
         filenames = [
             "wiki.train.tokens",
@@ -277,9 +273,12 @@ def collect_raw_sentences(source_dir, dataset, caching):
             previous_sentence = sentence
 
     print('writing files')
+    statistics_lines = []
     for marker in sentences:
         sentence_path = pjoin(markers_dir, "{}_s.txt".format(marker))
         previous_path = pjoin(markers_dir, "{}_prev.txt".format(marker))
+        n_sentences = len(sentences[marker]["sentence"])
+        statistics_lines.append("{}\t{}".format(marker, n_sentences))
         with open(sentence_path, "w") as sentence_file:
             for s in sentences[marker]["sentence"]:
                 sentence_file.write(s + "\n")
@@ -287,10 +286,17 @@ def collect_raw_sentences(source_dir, dataset, caching):
             for s in sentences[marker]["previous"]:
                 previous_file.write(s + "\n")
 
+    statistics_report = "\n".join(statistics_lines)
+    open(pjoin(markers_dir, "VERSION.txt"), "w").write(
+        "commit: \n\ncommand: \n\nmarkers:\n" + statistics_report
+    )
+
 def split_raw(source_dir, train_size):
     assert(train_size < 1 and train_size > 0)
 
-    split_dir = pjoin(source_dir, "raw", "split")
+    marker_dir = pjoin(source_dir, "markers_" + DISCOURSE_MARKER_SET_TAG)
+
+    split_dir = pjoin(marker_dir, "split_" + train_size)
     if not os.path.exists(split_dir):
         os.makedirs(split_dir)
 
@@ -327,6 +333,9 @@ def split_raw(source_dir, train_size):
                 with open(write_path, "w") as write_file:
                     for sentence in splits[split][sentence_type]:
                         write_file.write(sentence)
+
+    statistics_report = ""
+    open(pjoin(split_dir, "VERSION.txt"), "w").write("commit:\n\ncommand:\n\nstatistics:\n" + statistics_report)
 
 def ssplit(method, source_dir, data_tag, train_size):
     methods = {

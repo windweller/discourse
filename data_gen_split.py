@@ -45,13 +45,16 @@ def setup_args():
     parser = argparse.ArgumentParser()
     code_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)))
     parser.add_argument("--dataset", default="wikitext-103", type=str)
-    parser.add_argument("--data_tag", default="", type=str)
     parser.add_argument("--train_size", default=0.9, type=float)
     parser.add_argument("--method", default="string_ssplit_int_init", type=str)
     parser.add_argument("--caching", action='store_true')
     parser.add_argument("--action", default='collect_raw', type=str)
     parser.add_argument("--glove_dim", default=300, type=int)
     parser.add_argument("--random_init", action='store_true')
+    parser.add_argument("--max_seq_len", default=50, type=int)
+    parser.add_argument("--min_seq_len", default=5, type=int)
+    parser.add_argument("--max_ratio", default=5.0, type=float)
+    parser.add_argument("--undersamp_cutoff", default=0, type=int)
     return parser.parse_args()
 
 def initialize_vocabulary(vocabulary_path):
@@ -176,46 +179,27 @@ def undo_rephrase(lst):
 def rephrase(str):
     return str.replace("for example", "for_example")
 
-def string_ssplit_int_init(source_dir, split, train_size):
+def string_ssplit_int_init(sentence, previous_sentence, marker):
 
-    def get_data(source_dir, marker, sentence_type, split, train_size):
-        filename = "{}_raw_{}_{}_{}.txt".format(marker, sentence_type, split, train_size)
-        file_path = pjoin(source_dir, "raw", "split", filename)
-        return open(file_path, "rU").readlines()
-
-    data = {"s1": [], "s2": [], "label": []}
-    for marker in DISCOURSE_MARKERS:
-        sentences = get_data(source_dir, marker, "s", split, train_size)
-        previous = get_data(source_dir, marker, "prev", split, train_size)
-        assert(len(sentences) == len(previous))
-
-        for i in range(len(sentences)):
-            sentence = sentences[i]
-            previous_sentence = previous[i]
-
-            if marker=="for example":
-                words = rephrase(sentence).split()
-                if "for_example"==words[0].lower():
-                    s1 = previous_sentence
-                    s2 = " ".join(undo_rephrase(words[1:]))
-                else:
-                    idx = [w.lower() for w in words].index("for_example")
-                    s1 = " ".join(undo_rephrase(words[:idx]))
-                    s2 = " ".join(undo_rephrase(words[idx+1:]))
-            else:
-                words = sentence.split()
-                if marker==words[0].lower(): # sentence-initial
-                    s1 = previous_sentence
-                    s2 = " ".join(words[1:])
-                else: # sentence-internal
-                    idx = [w.lower() for w in words].index(marker)
-                    s1 = " ".join(words[:idx])
-                    s2 = " ".join(words[idx+1:])
-            data["label"].append(marker)
-            data["s1"].append(s1.strip())
-            data["s2"].append(s2.strip())
-
-    return data
+    if marker=="for example":
+        words = rephrase(sentence).split()
+        if "for_example"==words[0].lower():
+            s1 = previous_sentence
+            s2 = " ".join(undo_rephrase(words[1:]))
+        else:
+            idx = [w.lower() for w in words].index("for_example")
+            s1 = " ".join(undo_rephrase(words[:idx]))
+            s2 = " ".join(undo_rephrase(words[idx+1:]))
+    else:
+        words = sentence.split()
+        if marker==words[0].lower(): # sentence-initial
+            s1 = previous_sentence
+            s2 = " ".join(words[1:])
+        else: # sentence-internal
+            idx = [w.lower() for w in words].index(marker)
+            s1 = " ".join(words[:idx])
+            s2 = " ".join(words[idx+1:])
+    return (s1.strip(), s2.strip(), label)
 
 def string_ssplit_clean_markers():
     raise Exception("haven't included clean ssplit in this script yet")
@@ -296,13 +280,14 @@ def split_raw(source_dir, train_size):
 
     marker_dir = pjoin(source_dir, "markers_" + DISCOURSE_MARKER_SET_TAG)
 
-    split_dir = pjoin(marker_dir, "split_" + train_size)
+    split_dir = pjoin(marker_dir, "split_train{}".format(train_size))
     if not os.path.exists(split_dir):
         os.makedirs(split_dir)
 
+    statistics_lines = []
     for marker in DISCOURSE_MARKERS:
-        sentences = open(pjoin(source_dir, "raw", "collection", "{}_raw_s.txt".format(marker)), "rU").readlines()
-        previous_sentences = open(pjoin(source_dir, "raw", "collection", "{}_raw_prev.txt".format(marker)), "rU").readlines()
+        sentences = open(pjoin(marker_dir, "{}_s.txt".format(marker)), "rU").readlines()
+        previous_sentences = open(pjoin(marker_dir, "{}_prev.txt".format(marker)), "rU").readlines()
         assert(len(sentences)==len(previous_sentences))
 
         indices = range(len(sentences))
@@ -328,16 +313,20 @@ def split_raw(source_dir, train_size):
             splits[split]["prev"].append(previous)
 
         for split in splits:
+            n_sentences = len(splits[split]["s"])
+            statistics_lines.append("{}\t{}\t{}".format(split, marker, n_sentences))
             for sentence_type in ["s", "prev"]:
-                write_path = pjoin(split_dir, "{}_raw_{}_{}_{}.txt".format(marker, sentence_type, split, train_size))
+                write_path = pjoin(split_dir, "{}_{}_{}.txt".format(split, marker, sentence_type))
                 with open(write_path, "w") as write_file:
                     for sentence in splits[split][sentence_type]:
                         write_file.write(sentence)
 
-    statistics_report = ""
-    open(pjoin(split_dir, "VERSION.txt"), "w").write("commit:\n\ncommand:\n\nstatistics:\n" + statistics_report)
+    statistics_report = "\n".join(statistics_lines)
+    open(pjoin(split_dir, "VERSION.txt"), "w").write(
+        "commit: \n\ncommand: \n\nstatistics:\n" + statistics_report
+    )
 
-def ssplit(method, source_dir, data_tag, train_size):
+def ssplit(method, source_dir, train_size):
     methods = {
         "string_ssplit_int_init": string_ssplit_int_init,
         "string_ssplit_clean_markers": string_ssplit_clean_markers,
@@ -345,22 +334,33 @@ def ssplit(method, source_dir, data_tag, train_size):
     }
     assert(args.method in methods)
 
+    marker_dir = pjoin(source_dir, "markers_" + DISCOURSE_MARKER_SET_TAG)
+    split_dir = pjoin(marker_dir, "split_train" + train_size)
+    ssplit_dir = pjoin(split_dir, "ssplit_" + method)
+
+    if not os.path.exists(ssplit_dir):
+        os.makedirs(ssplit_dir)
+
+    def get_data(split, marker, sentence_type):
+        filename = "{}_{}_{}.txt".format(split, marker, sentence_type)
+        file_path = pjoin(split_dir, filename)
+        return open(file_path, "rU").readlines()
+
     # (a dictionary {train: {...}, valid: {...}, test: {...}})
-    splits = {split: methods[args.method](source_dir, split, train_size) for split in ["train", "valid", "test"]}
-
-    if data_tag == "":
-        extra_tag = ""
-    else:
-        extra_tag = "_" + data_tag
-
-    sub_directory = "{}_train{}{}".format(
-        args.method,
-        train_size,
-        extra_tag
-    )
-
-    if not os.path.exists(sub_directory):
-        os.makedirs(sub_directory)
+    splits = {}
+    for split in ["train", "valid", "test"]:
+        data = {"s1": [], "s2": [], "label": []}
+        for marker in DISCOURSE_MARKERS:
+            sentences = get_data(split, marker, "s")
+            previous = get_data(split, marker, "prev")
+            assert(len(sentences) == len(previous))
+            for i in range(len(sentences)):
+                sentence = sentences[i]
+                previous_sentence = previous[i]
+                s1, s2, label = methods[method](sentence, previous_sentence, marker)
+                data["label"].append(marker)
+                data["s1"].append(s1)
+                data["s2"].append(s2)
 
     for split in splits:
         # randomize the order at this point
@@ -373,14 +373,56 @@ def ssplit(method, source_dir, data_tag, train_size):
         np.random.shuffle(indices)
 
         for element_type in ["label", "s1", "s2"]:
-            filename = sub_directory + "_{}_{}.txt".format(split, element_type)
-            file_path = pjoin(source_dir, sub_directory, filename)
+            filename = "{}_{}_{}.txt".format(method, split, element_type)
+            file_path = pjoin(ssplit_dir, filename)
             with open(file_path, "w") as write_file:
                 for index in indices:
                     element = splits[split][element_type][index]
                     write_file.write(element + "\n")
 
-def conversion(method, source_dir, data_tag, train_size, glove_dim, random_init):
+    open(pjoin(ssplit_dir, "VERSION.txt"), "w").write("commit: \n\ncommand: \n\n")
+
+def filtering(source_dir, train_size, method, max_seq_len, min_seq_len, max_ratio, undersamp_cutoff):
+
+    min_ratio = 1/max_ratio
+
+    marker_dir = pjoin(source_dir, "markers_" + DISCOURSE_MARKER_SET_TAG)
+    split_dir = pjoin(marker_dir, "split_train" + train_size)
+    ssplit_dir = pjoin(split_dir, "ssplit_" + method)
+    filter_dir = pjoin(ssplit_dir, "filter_max{}_min{}_ratio{}_undersamp{}".format(
+        max_seq_len,
+        min_seq_len,
+        max_ratio,
+        undersamp_cutoff
+    ))
+    
+    for split in ["train", "valid", "test"]:
+        for element_type in ["s", "prev"]:
+            filename = "{}_{}_{}.txt".format(method, split, element_type)
+            file_path = pjoin(ssplit_dir, filename)
+
+    # length-based filtering
+
+    # write new filtered files
+
+def indexify(method, source_dir, train_size, glove_dim, random_init):
+
+    marker_dir = pjoin(source_dir, "markers_" + DISCOURSE_MARKER_SET_TAG)
+    split_dir = pjoin(marker_dir, "split_train" + train_size)
+    ssplit_dir = pjoin(split_dir, "ssplit_" + method)
+    filter_dir = pjoin(ssplit_dir, "filter_max{}_min{}_ratio{}_undersamp{}".format(
+        max_seq_len,
+        min_seq_len,
+        max_ratio,
+        undersamp_cutoff
+    ))
+    indexified_dir = pjoin(filter_dir, "indexified")
+
+    # marker_dir = pjoin(source_dir, "markers_" + DISCOURSE_MARKER_SET_TAG)
+    # split_dir = pjoin(marker_dir, "split_train" + train_size)
+    # ssplit_dir = pjoin(split_dir, "ssplit_" + method)
+
+    # "{}_{}_{}.txt".format(method, split, element_type)
 
     sub_directory = "{}_train{}{}".format(
         args.method,
@@ -441,7 +483,6 @@ def conversion(method, source_dir, data_tag, train_size, glove_dim, random_init)
         )
         data_to_token_ids(data, all_labels, class_labels, ids_path, vocab_path, args.run_dir)
 
-
 if __name__ == '__main__':
     args = setup_args()
 
@@ -452,10 +493,10 @@ if __name__ == '__main__':
     elif args.action == "split":
         split_raw(source_dir, args.train_size)
     elif args.action == "ssplit":
-        ssplit(args.method, source_dir, args.data_tag, args.train_size)
+        ssplit(args.method, source_dir, args.train_size)
     elif args.action == "filtering":
-        filter()
-    elif args.action == "convert":
-        convert(args.method, source_dir, args.data_tag, args.train_size, args.glove_dim, args.random_init)
+        filtering()
+    elif args.action == "indexify":
+        indexify(args.method, source_dir, args.train_size, args.glove_dim, args.random_init)
 
 

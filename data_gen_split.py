@@ -343,16 +343,21 @@ def ssplit(method, source_dir, train_size):
     }
     assert(args.method in methods)
 
-    marker_dir = pjoin(source_dir, "markers_" + DISCOURSE_MARKER_SET_TAG)
-    split_dir = pjoin(marker_dir, "split_train{}".format(train_size))
+    markers_dir = pjoin(source_dir, "markers_" + DISCOURSE_MARKER_SET_TAG)
+    split_dir = pjoin(markers_dir, "split_train{}".format(train_size))
+    input_dir = pjoin(split_dir, "files")
+    
     ssplit_dir = pjoin(split_dir, "ssplit_" + method)
+    output_dir = pjoin(ssplit_dir, "files")
 
     if not os.path.exists(ssplit_dir):
         os.makedirs(ssplit_dir)
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
 
     def get_data(split, marker, sentence_type):
         filename = "{}_{}_{}.txt".format(split, marker, sentence_type)
-        file_path = pjoin(split_dir, filename)
+        file_path = pjoin(input_dir, filename)
         return open(file_path, "rU").readlines()
 
     # (a dictionary {train: {...}, valid: {...}, test: {...}})
@@ -383,7 +388,7 @@ def ssplit(method, source_dir, train_size):
 
         for element_type in ["label", "s1", "s2"]:
             filename = "{}_{}_{}.txt".format(method, split, element_type)
-            file_path = pjoin(ssplit_dir, filename)
+            file_path = pjoin(output_dir, filename)
             with open(file_path, "w") as write_file:
                 for index in indices:
                     element = splits[split][element_type][index]

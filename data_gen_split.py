@@ -36,6 +36,10 @@ DISCOURSE_MARKERS = [
     "while"
 ]
 
+# patterns = {
+#     "because": ("IN", "mark", "advcl"),
+# }
+
 def setup_args():
     parser = argparse.ArgumentParser()
     code_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)))
@@ -44,128 +48,198 @@ def setup_args():
     parser.add_argument("--train_size", default=0.9, type=float)
     parser.add_argument("--method", default="string_ssplit_int_init", type=str)
     parser.add_argument("--caching", action='store_true')
+    parser.add_argument("--action", default='collect_raw', type=str)
     return parser.parse_args()
 
-def save_to_pickle(obj, file_path):
-    with open(file_path, 'wb') as f:
-        pickle.dump(obj, f)
+def string_ssplit_int_init(source_dir, split, train_size):
 
-def undo_rephrase(lst):
-    return " ".join(lst).replace("for_example", "for example").split()
+    def undo_rephrase(lst):
+        return " ".join(lst).replace("for_example", "for example").split()
 
-def rephrase(str):
-    return str.replace("for example", "for_example")
+    def rephrase(str):
+        return str.replace("for example", "for_example")
 
-def get_wiki_pairs(file_path, sentence_initial=False, caching=False):
-    sents = {d: [] for d in DISCOURSE_MARKERS}
+    def get_data(source_dir, marker, sentence_type, split, train_size):
+        filename = "{}_raw_{}_{}_{}.txt".format(marker, sentence_type, split, train_size)
+        file_path = pjoin(source_dir, "raw", filename)
+        return open(file_path, "rU").readlines()
 
-    with io.open(file_path, 'rU', encoding="utf-8") as f:
+    data = {"s1": [], "s2": [], "label": []}
+    for marker in DISCOURSE_MARKERS:
+        sentences = get_data(source_dir, marker, "s", split, train_size)
+        previous = get_data(source_dir, marker, "prev", split, train_size)
+        assert(len(sentences) == len(previous))
 
-        # tokenize sentences
-        sentences_cache_file = file_path + ".CACHE_SENTS"
-        if caching and os.path.isfile(sentences_cache_file):
-            sent_list = pickle.load(open(sentences_cache_file, "rb"))
-        else:
-            tokens = f.read().replace("\n", ". ")
-            print("tokenizing")
-            sent_list = nltk.sent_tokenize(tokens)
-            if caching:
-                pickle.dump(sent_list, open(sentences_cache_file, "wb"))
+        for i in range(len(sentences)):
+            sentence = sentences[i]
+            previous_sentence = previous[i]
 
-        print("sent num: " + str(len(sent_list)))
-
-        # check each sentence for discourse markers and collect sentence pairs
-        prev_words = None
-        i = 0
-        for sent in sent_list:
-            i += 1
-            if i % 100000 == 0:
-                print("reading sentence {}".format(i))
-            words = rephrase(sent).split()  # strip puncts and then split (already tokenized)
-            # all of these have try statements, because sometimes the discourse marker will
-            # only be a part of the word, and so it won't show up in the words list
-            for marker in DISCOURSE_MARKERS:
-                if marker == "for example":
-                    proxy_marker = "for_example" 
+            if marker=="for example":
+                words = rephrase(sentence).split()
+                if "for_example"==words[0].lower():
+                    s1 = previous_sentence
+                    s2 = " ".join(undo_rephrase(words[1:]))
                 else:
-                    proxy_marker = marker
-                if proxy_marker in words[1:]: # sentence-internal
-                    idx = words.index(proxy_marker)
-                    sents[marker].append((undo_rephrase(words[:idx]), undo_rephrase(words[idx+1:])))
-                elif sentence_initial and marker in ["but", "because"] and prev_words!=None and words[0].lower()==marker:
-                    sents[marker].append((prev_words, undo_rephrase(words[1:])))
-                elif sentence_initial and proxy_marker in ["for_example"] and prev_words!=None and sent[:11].lower()=="for example":
-                    sents[marker].append((prev_words, undo_rephrase(words[2:])))
+                    idx = [w.lower() for w in words].index("for_example")
+                    s1 = " ".join(undo_rephrase(words[:idx]))
+                    s2 = " ".join(undo_rephrase(words[idx+1:]))
+            else:
+                words = sentence.split()
+                if marker==words[0].lower(): # sentence-initial
+                    s1 = previous_sentence
+                    s2 = " ".join(words[1:])
+                else: # sentence-internal
+                    idx = [w.lower() for w in words].index(marker)
+                    s1 = " ".join(words[:idx])
+                    s2 = " ".join(words[idx+1:])
+            data["label"].append(marker)
+            data["s1"].append(s1.strip())
+            data["s2"].append(s2.strip())
 
-            prev_words = sent.split()
-
-    return sents
-
-def string_ssplit_int_init(dataset, caching=False):
-
-    if dataset == "wikitext-103":
-
-        wikitext_103_train_path = pjoin("data", "wikitext-103", "wiki.train.tokens")
-        wikitext_103_valid_path = pjoin("data", "wikitext-103", "wiki.valid.tokens")
-        wikitext_103_test_path = pjoin("data", "wikitext-103", "wiki.test.tokens")
-
-        print("extracting sentence pairs from train")
-        wikitext_103_train = get_wiki_pairs(wikitext_103_train_path, sentence_initial=True, caching=caching)
-        print("extracting sentence pairs from valid")
-        wikitext_103_valid = get_wiki_pairs(wikitext_103_valid_path, sentence_initial=True, caching=caching)
-        print("extracting sentence pairs from test")
-        wikitext_103_test = get_wiki_pairs(wikitext_103_test_path, sentence_initial=True, caching=caching)
-
-        return merge_dict(wikitext_103_train, merge_dict(wikitext_103_valid, wikitext_103_test))
-
-    elif dataset == "books":
-        raise Exception("haven't written how to parse dataset {}".format(dataset))
-    else:
-        raise Exception("don't know how to parse dataset {}".format(dataset))
+    return data
 
 def string_ssplit_clean_markers():
     raise Exception("haven't included clean ssplit in this script yet")
 
 def depparse_ssplit_v1():
-    raise Exception("haven't included depparse ssplit in this script yet")
+    raise Exception("haven't included old combination depparse ssplit in this script yet")
 
-def split_dictionary(data_dict, train_size):
-    split_proportions = {
-        "train": args.train_size,
-        "valid": (1-args.train_size)/2,
-        "test": (1-args.train_size)/2
+def depparse_ssplit_v2():
+    raise Exception("haven't included new depparse ssplit in this script yet")
+
+def collect_raw_sentences(source_dir, dataset, caching):
+    raw_dir = pjoin(source_dir, "raw")
+
+    if not os.path.exists(raw_dir):
+        os.makedirs(raw_dir)
+
+    if dataset == "wikitext-103":
+        filenames = [
+            "wiki.train.tokens",
+            "wiki.valid.tokens", 
+            "wiki.test.tokens"
+        ]
+    else:
+        raise Exception("not implemented")
+
+    sentences = {marker: {"sentence": [], "previous": []} for marker in DISCOURSE_MARKERS}
+    
+    for filename in filenames:
+        print("reading {}".format(filename))
+        file_path = pjoin(source_dir, filename)
+        with io.open(file_path, 'rU', encoding="utf-8") as f:
+            # tokenize sentences
+            sentences_cache_file = file_path + ".CACHE_SENTS"
+            if caching and os.path.isfile(sentences_cache_file):
+                sent_list = pickle.load(open(sentences_cache_file, "rb"))
+            else:
+                tokens = f.read().replace("\n", ". ")
+                print("tokenizing")
+                sent_list = nltk.sent_tokenize(tokens)
+                if caching:
+                    pickle.dump(sent_list, open(sentences_cache_file, "wb"))
+
+        # check each sentence for discourse markers
+        previous_sentence = ""
+        for sentence in sent_list:
+            words = rephrase(sentence).split()  # replace "for example"
+            for marker in DISCOURSE_MARKERS:
+                if marker == "for example":
+                    proxy_marker = "for_example" 
+                else:
+                    proxy_marker = marker
+
+                if proxy_marker in words:
+                    sentences[marker]["sentence"].append(sentence)
+                    sentences[marker]["previous"].append(previous_sentence)
+            previous_sentence = sentence
+
+    print('writing files')
+    for marker in sentences:
+        sentence_path = pjoin(raw_dir, "{}_raw_s.txt".format(marker))
+        previous_path = pjoin(raw_dir, "{}_raw_prev.txt".format(marker))
+        with open(sentence_path, "w") as sentence_file:
+            for s in sentences[marker]["sentence"]:
+                sentence_file.write(s + "\n")
+        with open(previous_path, "w") as previous_file:
+            for s in sentences[marker]["previous"]:
+                previous_file.write(s + "\n")
+
+def split_raw(source_dir, train_size):
+    assert(train_size < 1 and train_size > 0)
+
+    for marker in DISCOURSE_MARKERS:
+        sentences = open(pjoin(source_dir, "raw", "{}_raw_s.txt".format(marker)), "rU").readlines()
+        previous_sentences = open(pjoin(source_dir, "raw", "{}_raw_prev.txt".format(marker)), "rU").readlines()
+        assert(len(sentences)==len(previous_sentences))
+
+        indices = range(len(sentences))
+        np.random.shuffle(indices)
+
+        n_test = len(indices) * train_size
+        n_valid = n_test
+        n_train = len(indices) - n_test - n_valid
+
+        splits = {split: {"s": [], "prev": []} for split in ["train", "valid", "test"]}
+
+        for i in range(len(indices)):
+            sentence_index = indices[i]
+            sentence = sentences[sentence_index]
+            previous = previous_sentences[sentence_index]
+            if i<n_test:
+                split="test"
+            elif i<(n_test + n_valid):
+                split="valid"
+            else:
+                split="train"
+            splits[split]["s"].append(sentence)
+            splits[split]["prev"].append(previous)
+
+        for split in splits:
+            for sentence_type in ["s", "prev"]:
+                write_path = pjoin(source_dir, "raw", "{}_raw_{}_{}_{}.txt".format(marker, sentence_type, split, train_size))
+                with open(write_path, "w") as write_file:
+                    for sentence in splits[split][sentence_type]:
+                        write_file.write(sentence)
+
+def ssplit(method, source_dir, data_tag, train_size):
+    methods = {
+        "string_ssplit_int_init": string_ssplit_int_init,
+        "string_ssplit_clean_markers": string_ssplit_clean_markers,
+        "depparse_ssplit_v1": depparse_ssplit_v1
     }
-    assert(sum([split_proportions[split] for split in split_proportions])==1)
-    splits = {split: {} for split in split_proportions}
+    assert(args.method in methods)
 
-    n_total = 0
-    for marker in data_dict:
-        examples_for_this_marker = data_dict[marker]
-        
-        np.random.shuffle(examples_for_this_marker)
+    # (a dictionary {train: {...}, valid: {...}, test: {...}})
+    splits = {split: methods[args.method](source_dir, split, train_size) for split in ["train", "valid", "test"]}
 
-        n_marker = len(examples_for_this_marker)
-        n_total += n_marker
+    if data_tag == "":
+        extra_tag = ""
+    else:
+        extra_tag = "_" + data_tag
 
-        print("number of examples for {}: {}".format(marker, n_marker))
+    sub_directory = "{}_train{}{}".format(
+        args.method,
+        train_size,
+        extra_tag
+    )
+    for split in splits:
+        # randomize the order at this point
+        labels = splits[split]["label"]
+        s1 = splits[split]["s1"]
+        s2 = splits[split]["s2"]
 
-        # make valid and test sets (they will be equal size)
-        valid_size = int(np.floor(split_proportions["valid"]*n_marker))
-        test_size = valid_size
-        splits["valid"][marker] = examples_for_this_marker[0:valid_size]
-        splits["test"][marker] = examples_for_this_marker[valid_size:valid_size+test_size]
-        # make train set with remaining examples
-        splits["train"][marker] = examples_for_this_marker[valid_size+test_size:]
+        assert(len(labels) == len(s1) and len(s1) == len(s2))
+        indices = range(len(labels))
+        np.random.shuffle(indices)
 
-    print("total number of examples: {}".format(n_total))
-
-    return splits
-
-
-def merge_dict(dict_list1, dict_list2):
-    for key, list_sent in dict_list1.iteritems():
-        dict_list1[key].extend(dict_list2[key])
-    return dict_list1
+        for element_type in ["label", "s1", "s2"]:
+            filename = sub_directory + "_{}_{}.txt".format(split, element_type)
+            file_path = pjoin(source_dir, sub_directory, filename)
+            with open(file_path, "w") as write_file:
+                for index in indices:
+                    element = splits[split][element_type][index]
+                    write_file.write(element + "\n")
 
 
 if __name__ == '__main__':
@@ -173,35 +247,11 @@ if __name__ == '__main__':
 
     source_dir = os.path.join("data", args.dataset)
 
-    # collect sentence pairs
-    methods = {
-        "string_ssplit_int_init": string_ssplit_int_init,
-        "string_ssplit_clean_markers": string_ssplit_clean_markers,
-        "depparse_ssplit_v1": depparse_ssplit_v1,
-        "split_dictionary": split_dictionary
-    }
-    data_dict = methods[args.method](args.dataset, caching=args.caching)
-
-    assert(args.train_size < 1 and args.train_size > 0)
-    assert(args.method in methods)
-
-    # split train, valid, test
-    # (returns a dictionary {train: {...}, valid: {...}, test: {...}})
-    splits = split_dictionary(data_dict, args.train_size)
-
-    if args.data_tag == "":
-        extra_tag = ""
-    else:
-        extra_tag = "_" + args.data_tag
-
-    for split in splits:
-        data = splits[split]
-        filename = pjoin(source_dir, "{}_allpairs_allmarkers_{}_train{}{}.pkl".format(
-            split,
-            args.method,
-            args.train_size,
-            extra_tag
-        ))
-        pickle.dump(data, open(filename, "wb"))
+    if args.action == "collect_raw":
+        collect_raw_sentences(source_dir, args.dataset, args.caching)
+    elif args.action == "split":
+        split_raw(source_dir, args.train_size)
+    elif args.action == "ssplit":
+        ssplit(args.method, source_dir, args.data_tag, args.train_size)
 
 

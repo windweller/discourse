@@ -243,7 +243,12 @@ class SequenceClassifier(object):
         persA_B_avg = (seqA_c_vec + seqB_c_vec) / 2.0
 
         # logits is [batch_size, label_size]
-        self.logits = rnn_cell._linear([seqA_c_vec, seqB_c_vec, persA_B_mul, persA_B_sub, persA_B_avg],
+        if FLAGS.snli:
+            persA_B_sub = tf.abs(seqA_c_vec - seqB_c_vec)
+            self.logits = rnn_cell._linear([seqA_c_vec, seqB_c_vec, persA_B_mul, persA_B_sub],
+                                           self.label_size, bias=True)
+        else:
+            self.logits = rnn_cell._linear([seqA_c_vec, seqB_c_vec, persA_B_mul, persA_B_sub, persA_B_avg],
                                        self.label_size, bias=True)
 
     def optimize(self, session, seqA_tokens, seqA_mask, seqB_tokens, seqB_mask, labels):

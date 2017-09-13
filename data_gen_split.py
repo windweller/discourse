@@ -555,8 +555,8 @@ def indexify(source_dir, args):
     process_glove(args, vocab, pjoin(output_dir, "glove.trimmed.{}.npz".format(args.glove_dim)),
                   random_init=args.random_init)
 
-    json.dump(class_labels, open(pjoin(output_dir, "class_labels.pkl"), "w"))
-    json.dump(reverse_class_labels, open(pjoin(output_dir, "reverse_class_labels.pkl"), "w"))
+    pickle.dump(class_labels, open(pjoin(output_dir, "class_labels.pkl"), "w"))
+    json.dump(reverse_class_labels, open(pjoin(output_dir, "reverse_class_labels.json"), "w"))
 
     for split in splits:
         data = splits[split]
@@ -579,6 +579,8 @@ if __name__ == '__main__':
     elif args.action == "ssplit":
         ssplit(args.method, source_dir, args.train_size)
     elif args.action == "filtering":
+        if args.undersamp_cutoff != 0:
+            raise Exception("not implemented")
         filtering(source_dir, args)
     elif args.action == "indexify":
         indexify(source_dir, args)

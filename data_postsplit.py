@@ -162,7 +162,7 @@ def sentence_to_token_ids(sentence, vocabulary):
     return [vocabulary.get(w, UNK_ID) for w in sentence]
 
 
-def data_to_token_ids(data, class_labels, rev_class_labels, target_path, text_path, vocabulary_path, data_dir):
+def data_to_token_ids(data, class_labels, rev_class_labels, target_path, vocabulary_path, data_dir):
     if gfile.Exists(target_path):
         print("file {} already exists".format(target_path))
     else:
@@ -172,22 +172,22 @@ def data_to_token_ids(data, class_labels, rev_class_labels, target_path, text_pa
         for marker in data:
             counter = 0
             for s1, s2 in data[marker]:
-                label = class_labels[marker]
-                counter += 1
-                if counter % 100000 == 0:
-                    print("converting %s %d" % (marker, counter))
-                token_ids_s1 = sentence_to_token_ids(s1, vocab)
-                token_ids_s2 = sentence_to_token_ids(s2, vocab)
-                ids_data.append((token_ids_s1, token_ids_s2, label))
+                if marker in class_labels:
+                    label = class_labels[marker]
+                    counter += 1
+                    if counter % 100000 == 0:
+                        print("converting %s %d" % (marker, counter))
+                    token_ids_s1 = sentence_to_token_ids(s1, vocab)
+                    token_ids_s2 = sentence_to_token_ids(s2, vocab)
+                    ids_data.append((token_ids_s1, token_ids_s2, label))
 
         # shuffle so markers aren't all clumped together
         shuffled_idx = range(len(ids_data))
         np.random.shuffle(shuffled_idx)
 
         shuffled_ids_data = [ids_data[idx] for idx in shuffled_idx]
-        shuffled_text_data = [text_data[idx] for idx in shuffled_idx]
 
-        print("writing {} and {}".format(target_path, text_path))
+        print("writing {}".format(target_path))
         pickle.dump(shuffled_ids_data, gfile.GFile(target_path, mode="wb"))
 
 

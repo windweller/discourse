@@ -42,6 +42,7 @@ tf.app.flags.DEFINE_boolean("temp_max", False, "if flag true, will use Temporal 
 tf.app.flags.DEFINE_boolean("temp_mean", False, "if flag true, will use Temporal Mean Pooling")
 tf.app.flags.DEFINE_boolean("correct_example", False, "if flag false, will print error, true will print out success")
 tf.app.flags.DEFINE_boolean("snli", False, "if flag True, the classifier will train on SNLI")
+tf.app.flags.DEFINE_boolean("abs", False, "if flag True, the classifier will train on absolute difference vec op")
 tf.app.flags.DEFINE_boolean("concat", False, "if flag True, bidirectional does concatenation not average")
 tf.app.flags.DEFINE_integer("num_examples", 30, "enter the best epoch to use")
 tf.app.flags.DEFINE_string("prefix", "", "provide the prefix to the data/glove embeddings, used for Deep Clusters")
@@ -243,7 +244,7 @@ class SequenceClassifier(object):
         persA_B_avg = (seqA_c_vec + seqB_c_vec) / 2.0
 
         # logits is [batch_size, label_size]
-        if FLAGS.snli:
+        if FLAGS.abs:
             persA_B_sub = tf.abs(seqA_c_vec - seqB_c_vec)
             self.logits = rnn_cell._linear([seqA_c_vec, seqB_c_vec, persA_B_mul, persA_B_sub],
                                            self.label_size, bias=True)

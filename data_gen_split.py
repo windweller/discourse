@@ -336,6 +336,7 @@ def split_raw(source_dir, train_size):
     )
 
 def ssplit(method, source_dir, train_size):
+
     methods = {
         "string_ssplit_int_init": string_ssplit_int_init,
         "string_ssplit_clean_markers": string_ssplit_clean_markers,
@@ -346,7 +347,7 @@ def ssplit(method, source_dir, train_size):
     markers_dir = pjoin(source_dir, "markers_" + DISCOURSE_MARKER_SET_TAG)
     split_dir = pjoin(markers_dir, "split_train{}".format(train_size))
     input_dir = pjoin(split_dir, "files")
-    
+
     ssplit_dir = pjoin(split_dir, "ssplit_" + method)
     output_dir = pjoin(ssplit_dir, "files")
 
@@ -354,6 +355,8 @@ def ssplit(method, source_dir, train_size):
         os.makedirs(ssplit_dir)
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
+
+    open(pjoin(ssplit_dir, "VERSION.txt"), "w").write("commit: \n\ncommand: \n\n")
 
     def get_data(split, marker, sentence_type):
         filename = "{}_{}_{}.txt".format(split, marker, sentence_type)
@@ -363,6 +366,7 @@ def ssplit(method, source_dir, train_size):
     # (a dictionary {train: {...}, valid: {...}, test: {...}})
     splits = {}
     for split in ["train", "valid", "test"]:
+        print("extracting {}".format(split))
         data = {"s1": [], "s2": [], "label": []}
         for marker in DISCOURSE_MARKERS:
             sentences = get_data(split, marker, "s")
@@ -375,8 +379,10 @@ def ssplit(method, source_dir, train_size):
                 data["label"].append(marker)
                 data["s1"].append(s1)
                 data["s2"].append(s2)
+        splits[split] = data
 
     for split in splits:
+        print("randomizing {}".format(split))
         # randomize the order at this point
         labels = splits[split]["label"]
         s1 = splits[split]["s1"]
@@ -386,6 +392,7 @@ def ssplit(method, source_dir, train_size):
         indices = range(len(labels))
         np.random.shuffle(indices)
 
+        print("writing {}".format(split))
         for element_type in ["label", "s1", "s2"]:
             filename = "{}_{}_{}.txt".format(method, split, element_type)
             file_path = pjoin(output_dir, filename)
@@ -393,8 +400,6 @@ def ssplit(method, source_dir, train_size):
                 for index in indices:
                     element = splits[split][element_type][index]
                     write_file.write(element + "\n")
-
-    open(pjoin(ssplit_dir, "VERSION.txt"), "w").write("commit: \n\ncommand: \n\n")
 
 def filtering(source_dir, train_size, method, max_seq_len, min_seq_len, max_ratio, undersamp_cutoff):
 

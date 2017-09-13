@@ -13,7 +13,17 @@ sys.setdefaultencoding('utf8')
 import os
 from os.path import join as pjoin
 
+import json
+from itertools import izip
+
 np.random.seed(123)
+
+_PAD = b"<pad>" # no need to pad
+_UNK = b"<unk>"
+_START_VOCAB = [_PAD, _UNK]
+
+PAD_ID = 0
+UNK_ID = 1
 
 DISCOURSE_MARKERS = [
     "after",
@@ -44,8 +54,10 @@ DISCOURSE_MARKER_SET_TAG = "ALL18"
 def setup_args():
     parser = argparse.ArgumentParser()
     code_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)))
+    glove_dir = os.path.join("data", "glove.6B")
     parser.add_argument("--dataset", default="wikitext-103", type=str)
     parser.add_argument("--train_size", default=0.9, type=float)
+    parser.add_argument("--glove_dir", default=glove_dir)
     parser.add_argument("--method", default="string_ssplit_int_init", type=str)
     parser.add_argument("--caching", action='store_true')
     parser.add_argument("--action", default='collect_raw', type=str)
@@ -59,9 +71,9 @@ def setup_args():
 
 def initialize_vocabulary(vocabulary_path):
     # map vocab to word embeddings
-    if gfile.Exists(vocabulary_path):
+    if os.path.isfile(vocabulary_path):
         rev_vocab = []
-        with gfile.GFile(vocabulary_path, mode="rb") as f:
+        with open(vocabulary_path, mode="rb") as f:
             rev_vocab.extend(f.readlines())
         rev_vocab = [line.strip('\n') for line in rev_vocab]
         vocab = dict([(x, y) for (y, x) in enumerate(rev_vocab)])
@@ -74,7 +86,7 @@ def process_glove(args, vocab_dict, save_path, random_init=True):
     :param vocab_list: [vocab]
     :return:
     """
-    if gfile.Exists(save_path + ".npz"):
+    if os.path.isfile(save_path + ".npz"):
         print("Glove file already exists at %s" % (save_path + ".npz"))
     else:
         glove_path = os.path.join(args.glove_dir, "glove.840B.{}d.txt".format(args.glove_dim))
@@ -93,13 +105,13 @@ def process_glove(args, vocab_dict, save_path, random_init=True):
                     glove[idx, :] = np.fromstring(vec, sep=' ')
                     found += 1
 
-        print("{}/{} of word vocab have corresponding vectors in {}".format(found, len(vocab), glove_path))
+        # print("{}/{} of word vocab have corresponding vectors in {}".format(found, len(vocab), glove_path))
         np.savez_compressed(save_path, glove=glove)
         print("saved trimmed glove matrix at: {}".format(save_path))
 
 
 def create_vocabulary(vocabulary_path, sentence_pairs_data, discourse_markers=None):
-    if gfile.Exists(vocabulary_path):
+    if os.path.isfile(vocabulary_path):
         print("Vocabulary file already exists at %s" % vocabulary_path)
     else:
         print("Creating vocabulary {}".format(vocabulary_path))
@@ -125,7 +137,7 @@ def create_vocabulary(vocabulary_path, sentence_pairs_data, discourse_markers=No
 
         vocab_list = _START_VOCAB + sorted(vocab, key=vocab.get, reverse=True)
         print("Vocabulary size: %d" % len(vocab_list))
-        with gfile.GFile(vocabulary_path, mode="wb") as vocab_file:
+        with open(vocabulary_path, mode="wb") as vocab_file:
             for w in vocab_list:
                 vocab_file.write(w + b"\n")
 
@@ -139,9 +151,9 @@ def merge_dict(dict_list1, dict_list2):
         dict_list1[key].extend(dict_list2[key])
     return dict_list1
 
-def data_to_token_ids(data, all_labels, class_label_dict, target_path, vocabulary_path, data_dir):
-    rev_class_labels = all_labels
-    if gfile.Exists(target_path):
+
+def data_to_token_ids(data, rev_class_labels, class_label_dict, target_path, vocabulary_path, data_dir):
+    if os.path.isfile(target_path):
         print("file {} already exists".format(target_path))
     else:
         vocab, _ = initialize_vocabulary(vocabulary_path)
@@ -153,25 +165,19 @@ def data_to_token_ids(data, all_labels, class_label_dict, target_path, vocabular
         for s1, s2, text_label in data:
             label = class_label_dict[text_label]
             counter += 1
-            if counter % 100000 == 0:
+            if counter % 1000000 == 0:
                 print("converting %d" % (counter))
             token_ids_s1 = sentence_to_token_ids(s1, vocab)
             token_ids_s2 = sentence_to_token_ids(s2, vocab)
             ids_data.append((token_ids_s1, token_ids_s2, label))
-            text_data.append((s1, s2, label))
 
-        shuffled_idx = range(len(ids_data))
-        random.shuffle(shuffled_idx)
-        shuffled_ids_data = [ids_data[idx] for idx in shuffled_idx]
-        shuffled_text_data = [text_data[idx] for idx in shuffled_idx]
+        # shuffled_idx = range(len(ids_data))
+        # np.random.shuffle(shuffled_idx)
+        # shuffled_ids_data = [ids_data[idx] for idx in shuffled_idx]
+        # shuffled_text_data = [text_data[idx] for idx in shuffled_idx]
 
-        print("writing {} and {}".format(target_path, text_path))
-        pickle.dump(shuffled_ids_data, gfile.GFile(target_path, mode="wb"))
-
-        with gfile.GFile(text_path, mode="wb") as f:
-            for t in shuffled_text_data:
-                f.write(str([" ".join(t[0]), " ".join(t[1]), rev_class_labels[t[2]]]) + "\n")
-
+        print("writing {}".format(target_path))
+        pickle.dump(ids_data, open(target_path, mode="wb"))
 
 def undo_rephrase(lst):
     return " ".join(lst).replace("for_example", "for example").split()
@@ -401,20 +407,20 @@ def ssplit(method, source_dir, train_size):
                     element = splits[split][element_type][index]
                     write_file.write(element + "\n")
 
-def filtering(source_dir, train_size, method, max_seq_len, min_seq_len, max_ratio, undersamp_cutoff):
+def filtering(source_dir, args):
 
-    min_ratio = 1/max_ratio
+    args.min_ratio = 1/args.max_ratio
 
     marker_dir = pjoin(source_dir, "markers_" + DISCOURSE_MARKER_SET_TAG)
-    split_dir = pjoin(marker_dir, "split_train{}".format(train_size))
-    ssplit_dir = pjoin(split_dir, "ssplit_" + method)
+    split_dir = pjoin(marker_dir, "split_train{}".format(args.train_size))
+    ssplit_dir = pjoin(split_dir, "ssplit_" + args.method)
     input_dir = pjoin(ssplit_dir, "files")
 
     filter_dir = pjoin(ssplit_dir, "filter_max{}_min{}_ratio{}_undersamp{}".format(
-        max_seq_len,
-        min_seq_len,
-        max_ratio,
-        undersamp_cutoff
+        args.max_seq_len,
+        args.min_seq_len,
+        args.max_ratio,
+        args.undersamp_cutoff
     ))
     output_dir = pjoin(filter_dir, "files")
 
@@ -424,7 +430,7 @@ def filtering(source_dir, train_size, method, max_seq_len, min_seq_len, max_rati
         os.makedirs(output_dir)
     
     def get_data(element_type, split):
-        filename = "{}_{}_{}.txt".format(method, split, element_type)
+        filename = "{}_{}_{}.txt".format(args.method, split, element_type)
         file_path = pjoin(input_dir, filename)
         return open(file_path, "rU").readlines()
 
@@ -450,9 +456,9 @@ def filtering(source_dir, train_size, method, max_seq_len, min_seq_len, max_rati
             len1 = len(s1.split())
             len2 = len(s2.split())
             ratio = float(len2)/len1
-            if min_seq_len<len1 and len1<max_seq_len \
-                    and min_seq_len<len2 and len2<max_seq_len \
-                    and min_ratio<ratio and ratio<max_ratio:
+            if args.min_seq_len<len1 and len1<args.max_seq_len \
+                    and args.min_seq_len<len2 and len2<args.max_seq_len \
+                    and args.min_ratio<ratio and ratio<args.max_ratio:
                 keep["s1"].append(s1)
                 keep["s2"].append(s2)
                 keep["label"].append(label)
@@ -461,12 +467,12 @@ def filtering(source_dir, train_size, method, max_seq_len, min_seq_len, max_rati
         # write new filtered files
         for element_type in ["s1", "s2", "label"]:
             filename = "{}_{}_{}_{}_{}_{}.txt".format(
-                method, 
                 split, 
                 element_type,
-                max_seq_len, 
-                min_seq_len, 
-                max_ratio
+                args.method, 
+                args.max_seq_len, 
+                args.min_seq_len, 
+                args.max_ratio
             )
             file_path = pjoin(output_dir, filename)
             with open(file_path, "w") as write_file:
@@ -480,36 +486,26 @@ def filtering(source_dir, train_size, method, max_seq_len, min_seq_len, max_rati
             statistics_lines.append("{}\t{}\t{}".format(split, marker, freq))
     statistics_report = "\n".join(statistics_lines)
     open(pjoin(filter_dir, "VERSION.txt"), "w").write(
-        "commit: \n\ncommand: \n\nmarkers:\n" + statistics_report
+        "commit: \n\ncommand: \n\statistics:\n" + statistics_report
     )
 
-
-def indexify(method, source_dir, train_size, glove_dim, random_init):
+def indexify(source_dir, args):
 
     marker_dir = pjoin(source_dir, "markers_" + DISCOURSE_MARKER_SET_TAG)
-    split_dir = pjoin(marker_dir, "split_train" + train_size)
-    ssplit_dir = pjoin(split_dir, "ssplit_" + method)
+    split_dir = pjoin(marker_dir, "split_train{}".format(args.train_size))
+    ssplit_dir = pjoin(split_dir, "ssplit_" + args.method)
     filter_dir = pjoin(ssplit_dir, "filter_max{}_min{}_ratio{}_undersamp{}".format(
-        max_seq_len,
-        min_seq_len,
-        max_ratio,
-        undersamp_cutoff
+        args.max_seq_len,
+        args.min_seq_len,
+        args.max_ratio,
+        args.undersamp_cutoff
     ))
+    input_dir = pjoin(filter_dir, "files")
+
     indexified_dir = pjoin(filter_dir, "indexified")
-
-    # marker_dir = pjoin(source_dir, "markers_" + DISCOURSE_MARKER_SET_TAG)
-    # split_dir = pjoin(marker_dir, "split_train" + train_size)
-    # ssplit_dir = pjoin(split_dir, "ssplit_" + method)
-
-    # "{}_{}_{}.txt".format(method, split, element_type)
-
-    sub_directory = "{}_train{}{}".format(
-        args.method,
-        train_size,
-        extra_tag
-    )
-
-    vocab_path = pjoin(sub_directory, "vocab.dat")
+    if not os.path.exists(indexified_dir):
+        os.makedirs(indexified_dir)
+    output_dir = indexified_dir
 
     splits = {
         "train": [],
@@ -517,14 +513,28 @@ def indexify(method, source_dir, train_size, glove_dim, random_init):
         "test": []
     }
 
-    def get_file_path(split, element_type):
-        filename = sub_directory + "_{}_{}.txt".format(split, element_type)
-        return pjoin(source_dir, sub_directory, filename)
+
+    class_labels = {DISCOURSE_MARKERS[i]: i for i in range(len(DISCOURSE_MARKERS))}
+    reverse_class_labels = [marker for marker in class_labels]
+    
+    for marker in class_labels:
+        index = class_labels[marker]
+        reverse_class_labels[index] = marker
+
+    def get_filename(split, element_type):
+        return "{}_{}_{}_{}_{}_{}.txt".format(
+            split, 
+            element_type,
+            args.method, 
+            args.max_seq_len, 
+            args.min_seq_len, 
+            args.max_ratio
+        )
 
     for split in splits:
-        s1_path = get_file_path(split, "s1")
-        s2_path = get_file_path(split, "s2")
-        labels_path = get_file_path(split, "label")
+        s1_path = pjoin(input_dir, get_filename(split, "s1"))
+        s2_path = pjoin(input_dir, get_filename(split, "s2"))
+        labels_path = pjoin(input_dir, get_filename(split, "label"))
         with open(s1_path) as f1, open(s2_path) as f2, open(labels_path) as flab: 
             for s1, s2, label in izip(f1, f2, flab):
                 s1 = s1.strip().split()
@@ -535,11 +545,9 @@ def indexify(method, source_dir, train_size, glove_dim, random_init):
 
     all_examples = splits["train"] + splits["valid"] + splits["test"]
 
+    vocab_path = pjoin(output_dir, "vocab.dat")
     create_vocabulary(vocab_path, all_examples)
-
-    output_dir = pjoin(source_dir, sub_directory)
-
-    vocab, rev_vocab = initialize_vocabulary(pjoin(output_dir, "vocab.dat"))
+    vocab, rev_vocab = initialize_vocabulary(vocab_path)
 
     # ======== Trim Distributed Word Representation =======
     # If you use other word representations, you should change the code below
@@ -547,20 +555,17 @@ def indexify(method, source_dir, train_size, glove_dim, random_init):
     process_glove(args, vocab, pjoin(output_dir, "glove.trimmed.{}.npz".format(args.glove_dim)),
                   random_init=args.random_init)
 
-
-    class_labels = {all_labels[i]: i for i in range(len(all_labels))}
-
-    pickle.dump(class_labels, open(pjoin(output_dir, "class_labels.pkl"), "wb"))
-    pickle.dump(reverse_class_labels, open(pjoin(output_dir, "reverse_class_labels.pkl"), "wb"))
+    json.dump(class_labels, open(pjoin(output_dir, "class_labels.pkl"), "w"))
+    json.dump(reverse_class_labels, open(pjoin(output_dir, "reverse_class_labels.pkl"), "w"))
 
     for split in splits:
         data = splits[split]
         print("Converting data in {}".format(split))
         ids_path = pjoin(
-            args.run_dir,
+            output_dir,
             "{}.ids.pkl".format(split)
         )
-        data_to_token_ids(data, all_labels, class_labels, ids_path, vocab_path, args.run_dir)
+        data_to_token_ids(data, reverse_class_labels, class_labels, ids_path, vocab_path, output_dir)
 
 if __name__ == '__main__':
     args = setup_args()
@@ -574,8 +579,8 @@ if __name__ == '__main__':
     elif args.action == "ssplit":
         ssplit(args.method, source_dir, args.train_size)
     elif args.action == "filtering":
-        filtering(source_dir, args.train_size, args.method, args.max_seq_len, args.min_seq_len, args.max_ratio, args.undersamp_cutoff)
+        filtering(source_dir, args)
     elif args.action == "indexify":
-        indexify(args.method, source_dir, args.train_size, args.glove_dim, args.random_init)
+        indexify(source_dir, args)
 
 

@@ -109,3 +109,7 @@ ggsave("visualizations/ratio_histogram.png")
 # lengths %>% ggplot(., aes(x=skew)) +
 #   geom_bar(stat="count")
 
+lengths %>%
+  filter(keep) %>%
+  filter(marker=="because") %>%
+  nrow

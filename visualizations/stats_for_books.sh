@@ -1,33 +1,51 @@
 marker="after"
-grep -ci "^"$marker"[^a-z]" books_large_p1.txt # init1
-grep -ci "[^a-z]"$marker"[^a-z]" books_large_p1.txt # total1
-grep -ci "^"$marker"[^a-z]" books_large_p2.txt # init2
-grep -ci "[^a-z]"$marker"[^a-z]" books_large_p2.txt # internal2
+grep -i "^"$marker"[^a-z]" books_large_p1.txt >> has_marker.txt
+grep -i "[^a-z]"$marker"[^a-z]" books_large_p1.txt >> has_marker.txt
+grep -i "^"$marker"[^a-z]" books_large_p2.txt >> has_marker.txt
+grep -i "[^a-z]"$marker"[^a-z]" books_large_p2.txt >> has_marker.txt
 marker="also"
-grep -ci "^"$marker"[^a-z]" books_large_p1.txt # init1
-grep -ci "[^a-z]"$marker"[^a-z]" books_large_p1.txt # total1
-grep -ci "^"$marker"[^a-z]" books_large_p2.txt # init2
-grep -ci "[^a-z]"$marker"[^a-z]" books_large_p2.txt # internal2
+grep -i "^"$marker"[^a-z]" books_large_p1.txt >> has_marker.txt
+grep -i "[^a-z]"$marker"[^a-z]" books_large_p1.txt >> has_marker.txt
+grep -i "^"$marker"[^a-z]" books_large_p2.txt >> has_marker.txt
+grep -i "[^a-z]"$marker"[^a-z]" books_large_p2.txt >> has_marker.txt
 marker="although"
-grep -ci "^"$marker"[^a-z]" books_large_p1.txt # init1
-grep -ci "[^a-z]"$marker"[^a-z]" books_large_p1.txt # total1
-grep -ci "^"$marker"[^a-z]" books_large_p2.txt # init2
-grep -ci "[^a-z]"$marker"[^a-z]" books_large_p2.txt # internal2
+grep -i "^"$marker"[^a-z]" books_large_p1.txt >> has_marker.txt
+grep -i "[^a-z]"$marker"[^a-z]" books_large_p1.txt >> has_marker.txt
+grep -i "^"$marker"[^a-z]" books_large_p2.txt >> has_marker.txt
+grep -i "[^a-z]"$marker"[^a-z]" books_large_p2.txt >> has_marker.txt
 marker="and"
-grep -ci "^"$marker"[^a-z]" books_large_p1.txt # init1
-grep -ci "[^a-z]"$marker"[^a-z]" books_large_p1.txt # total1
-grep -ci "^"$marker"[^a-z]" books_large_p2.txt # init2
-grep -ci "[^a-z]"$marker"[^a-z]" books_large_p2.txt # internal2
+grep -i "^"$marker"[^a-z]" books_large_p1.txt >> has_marker.txt
+grep -i "[^a-z]"$marker"[^a-z]" books_large_p1.txt >> has_marker.txt
+grep -i "^"$marker"[^a-z]" books_large_p2.txt >> has_marker.txt
+grep -i "[^a-z]"$marker"[^a-z]" books_large_p2.txt >> has_marker.txt
 marker="as"
-grep -ci "^"$marker"[^a-z]" books_large_p1.txt # init1
-grep -ci "[^a-z]"$marker"[^a-z]" books_large_p1.txt # total1
-grep -ci "^"$marker"[^a-z]" books_large_p2.txt # init2
-grep -ci "[^a-z]"$marker"[^a-z]" books_large_p2.txt # internal2
+grep -i "^"$marker"[^a-z]" books_large_p1.txt >> has_marker.txt
+grep -i "[^a-z]"$marker"[^a-z]" books_large_p1.txt >> has_marker.txt
+grep -i "^"$marker"[^a-z]" books_large_p2.txt >> has_marker.txt
+grep -i "[^a-z]"$marker"[^a-z]" books_large_p2.txt >> has_marker.txt
 marker="because"
-grep -ci "^"$marker"[^a-z]" books_large_p1.txt # init1
-grep -ci "[^a-z]"$marker"[^a-z]" books_large_p1.txt # total1
-grep -ci "^"$marker"[^a-z]" books_large_p2.txt # init2
-grep -ci "[^a-z]"$marker"[^a-z]" books_large_p2.txt # internal2
+grep -i "^"$marker"[^a-z]" books_large_p1.txt >> has_marker.txt
+grep -i "[^a-z]"$marker"[^a-z]" books_large_p1.txt >> has_marker.txt
+grep -i "^"$marker"[^a-z]" books_large_p2.txt >> has_marker.txt
+grep -i "[^a-z]"$marker"[^a-z]" books_large_p2.txt >> has_marker.txt
+marker="before"
+grep -i "^"$marker"[^a-z]" books_large_p1.txt >> has_marker.txt
+grep -i "[^a-z]"$marker"[^a-z]" books_large_p1.txt >> has_marker.txt
+grep -i "^"$marker"[^a-z]" books_large_p2.txt >> has_marker.txt
+grep -i "[^a-z]"$marker"[^a-z]" books_large_p2.txt >> has_marker.txt
+marker="but"
+grep -i "^"$marker"[^a-z]" books_large_p1.txt >> has_marker.txt
+grep -i "[^a-z]"$marker"[^a-z]" books_large_p1.txt >> has_marker.txt
+grep -i "^"$marker"[^a-z]" books_large_p2.txt >> has_marker.txt
+grep -i "[^a-z]"$marker"[^a-z]" books_large_p2.txt >> has_marker.txt
+marker="for example"
+grep -i "^"$marker"[^a-z]" books_large_p1.txt >> has_marker.txt
+grep -i "[^a-z]"$marker"[^a-z]" books_large_p1.txt >> has_marker.txt
+grep -i "^"$marker"[^a-z]" books_large_p2.txt >> has_marker.txt
+grep -i "[^a-z]"$marker"[^a-z]" books_large_p2.txt >> has_marker.txt
+
+
+
 marker="before"
 grep -ci "^"$marker"[^a-z]" books_large_p1.txt # init1
 grep -ci "[^a-z]"$marker"[^a-z]" books_large_p1.txt # total1

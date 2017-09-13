@@ -84,5 +84,83 @@ low priority:
 
 * reimplement in pytorch [Erin]
 
+## Setting up AWS to run model
+
+[helpful script here](https://bitbucket.org/jhong1/azure-gpu-setup/src/4f736634c9a714fba988e664805c19cf4ca05508/gpu-setup-part2.sh?at=master&fileviewer=file-view-default)
+
+* Use this image: `Deep Learning AMI Ubuntu Linux - 2.2_Aug2017 - ami-599a7721`
+* check that CUDA 8.0 is installed: `nvcc --version`. if it's not, bail. find another image or whatever.
+* add new users
+	```
+	sudo adduser erindb
+	sudo adduser anie
+	```
+	* add ssh keys to `~/.ssh/authorized_keys` for each user (see, e.g. [github.com/windweller.keys](https://github.com/windweller.keys))
+* get cuDNN from [NVIDIA](https://developer.nvidia.com/rdp/cudnn-download)
+* setup tensorflow with CUDA
+	```
+	scp ~/Downloads/cudnn-8.0-linux-x64-v5.1.tgz erindb@52.38.236.178:~/
+
+	tar -xzvf cudnn-8.0-linux-x64-v5.1.tgz
+	sudo cp -P cuda/include/cudnn.h /usr/local/cuda/include/
+	sudo cp -P cuda/lib64/libcudnn* /usr/local/cuda/lib64/
+	sudo chmod a+r /usr/local/cuda/include/cudnn.h /usr/local/cuda/lib64/libcudnn*
+
+	sudo apt-get update
+	sudo apt-get -y install python-dev libffi-dev libssl-dev libcupti-dev
+
+	sudo pip install --upgrade pip
+	pip install pyOpenSSL ndg-httpsclient pyasn1
+
+	# update bashrc
+	# Note: this will create duplicates if you run it more than once. Not elegant...
+	echo "Updating bashrc"
+	echo >> $HOME/.bashrc '
+	export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:/usr/local/cuda/lib64:/usr/local/cuda/extras/CUPTI/lib64"
+	export CUDA_HOME=/usr/local/cuda
+
+	export PATH=$PATH:~/bin
+
+	white="\[\033[1;37m\]"
+	pink="\[\033[1;35m\]"
+	yellow="\[\033[1;33m\]"
+	green="\[\033[1;32m\]"
+	blue="\[\033[1;36m\]"
+
+	time="$pink\t"
+	user="$yellow\u"
+	host="$green\h"
+	wd="$blue\w"
+
+	export PS1="$time $user@$host:$wd$ $white"
+	'
+
+	source $HOME/.bashrc
+
+	# create bash_profie
+	# Note: this will destroy your existing .bash_profile if have one...
+	echo "Creating bash_profile"
+	echo > $HOME/.bash_profile '
+	if [ -f ~/.bashrc ]; then
+	    source ~/.bashrc
+	fi
+	'
+
+	# install tensorflow
+	TF_VERSION="https://storage.googleapis.com/tensorflow/linux/gpu/tensorflow_gpu-0.12.1-cp27-none-linux_x86_64.whl"
+
+	export TF_BINARY_URL=$TF_VERSION
+	sudo pip install --upgrade $TF_BINARY_URL
+	```
+* clone our repo
+	```
+	git clone https://github.com/windweller/discourse.git
+	mkdir discourse/data/books
+	```
+* then on the data pre-processing instance:
+	```
+	scp *but_because_if_when_so.* erindb@52.38.236.178:~/discourse/data/books/
+	```
+
 
 

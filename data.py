@@ -57,6 +57,9 @@ where `label` is class index from {0, ..., number_of_discourse_markers},
 and `s1` and `s2` are lists of word ids
 
 Also creates vocabulary file `vocab.dat` specifying the mapping between glove embeddings and ids.
+
+python data.py --dataset books --data_name all_pairs_all_markers_clean_ssplit.pkl --data_tag new5 --include "but,because,when,if,for example,so,before,still" --undersamp_cutoff
+
 """
 
 

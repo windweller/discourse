@@ -46,6 +46,7 @@ tf.app.flags.DEFINE_boolean("abs", False, "if flag True, the classifier will tra
 tf.app.flags.DEFINE_boolean("concat", False, "if flag True, bidirectional does concatenation not average")
 tf.app.flags.DEFINE_integer("num_examples", 30, "enter the best epoch to use")
 tf.app.flags.DEFINE_string("prefix", "", "provide the prefix to the data/glove embeddings, used for Deep Clusters")
+tf.app.flags.DEFINE_string("cost_function", "overall", "overall accuracy or per_marker accuracy")
 
 logging.basicConfig(format='[%(asctime)s] %(levelname)s: %(message)s',
                     datefmt='%m/%d/%Y %I:%M:%S %p', level=logging.INFO)
@@ -210,7 +211,16 @@ class SequenceClassifier(object):
 
         # main computation graph is here
         self.setup_but_because()
-        self.loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(self.logits, self.labels))
+        if FLAGS.cost_function == "overall":
+            self.loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(self.logits, self.labels))
+        elif FLAGS.cost_function == "per_marker":
+            self.loss = sparse_softmax_cross_entropy(
+                labels = self.labels,
+                logits = self.logits,
+                weights=np.full(self.label_size, 1.0/self.label_size)
+            )
+        else:
+            raise Exception("not implemented:" + FLAGS.cost_function)
 
         if is_training:
             # ==== set up training/updating procedure ====
@@ -282,6 +292,7 @@ class SequenceClassifier(object):
 
         outputs = session.run(output_feed, input_feed)
 
+        # cost, logits
         return outputs[0], outputs[1]
 
     def extract_sent(self, positions, sent):
@@ -326,7 +337,9 @@ class SequenceClassifier(object):
 
         for seqA_tokens, seqA_mask, seqB_tokens, \
                 seqB_mask, labels in pair_iter(q, self.flags.batch_size, self.max_seq_len, self.max_seq_len):
+
             cost, logits = self.test(session, seqA_tokens, seqA_mask, seqB_tokens, seqB_mask, labels)
+
             valid_costs.append(cost)
             accu = np.mean(np.argmax(logits, axis=1) == labels)
 

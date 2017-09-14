@@ -22,8 +22,7 @@ FLAGS = tf.app.flags.FLAGS
 
 tf.app.flags.DEFINE_string("exclude", "", "discourse markers excluded")
 tf.app.flags.DEFINE_string("include", "", "discourse markers included")
-tf.app.flags.DEFINE_boolean("no_tag", False, "if true, will not expect any labels for which discourse markers")
-tf.app.flags.DEFINE_integer("label_size", -1, "can manually input label_size")
+
 
 def initialize_vocab(vocab_path):
     if tf.gfile.Exists(vocab_path):
@@ -60,16 +59,9 @@ def main(_):
             tag = FLAGS.include.replace(",", "_").replace(" ", "_")
         else:
             raise Exception("no match state for exclude/include")
-        if FLAGS.no_tag:
-            glove_name = "glove.trimmed.{}.npz".format(FLAGS.embedding_size)
-        else:
-            glove_name = "glove.trimmed.{}_{}.npz".format(FLAGS.embedding_size, tag)
-        if FLAGS.no_tag:
-            vocab_name = "vocab.dat"
-            tag = ""
-        else: 
-            vocab_name = "vocab_{}.dat".format(tag)
-            tag = "_" + tag
+        glove_name = "glove.trimmed.{}_{}.npz".format(FLAGS.embedding_size, tag)
+        vocab_name = "vocab_{}.dat".format(tag)
+        tag = "_" + tag
     else:
         logging.info("Training on SNLI")
         tag = ""  # ha, makes me wonder if the SNLI result is solid...
@@ -101,9 +93,7 @@ def main(_):
 
     # auto-adjust label size
     label_size = 14
-    if FLAGS.label_size > 0:
-        label_size = FLAGS.label_size
-    elif FLAGS.exclude != "":
+    if FLAGS.exclude != "":
         label_size -= len(FLAGS.exclude.split(","))
     elif FLAGS.include != "":
         label_size = len(FLAGS.include.split(","))
@@ -134,7 +124,6 @@ def main(_):
             # restore_epoch by default is 0
             with open(pkl_train_name, "rb") as f:
                 q_train = pickle.load(f)
-                print(q_train[0])
 
             with open(pkl_val_name, "rb") as f:
                 q_valid = pickle.load(f)

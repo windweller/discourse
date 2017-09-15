@@ -214,7 +214,23 @@ class SequenceClassifier(object):
         if FLAGS.cost_function == "overall":
             self.loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(self.logits, self.labels))
         elif FLAGS.cost_function == "per_marker":
-            raise Exception("not implemented: per_marker")
+            # patched together from
+            # https://github.com/tensorflow/tensorflow/blob/r1.3/tensorflow/python/ops/losses/losses_impl.py
+            weights = tf.fill(self.label_size, 1.0/self.label_size)
+            unweighted_losses = tf.nn.sparse_softmax_cross_entropy_with_logits(self.logits, self.labels)
+            unweighted_losses = ops.convert_to_tensor(unweighted_losses)
+
+            input_dtype = unweighted_losses.dtype
+            unweighted_losses = math_ops.to_float(unweighted_losses)
+            weights = math_ops.to_float(weights)
+            weighted_losses = math_ops.multiply(unweighted_losses, weights)
+
+            loss = math_ops.reduce_sum(weighted_losses)
+            loss = _safe_mean(loss, _num_present(unweighted_losses, weights))
+
+            # Convert the result back to the input type.
+            loss = math_ops.cast(loss, input_dtype)
+            self.loss = loss
         else:
             raise Exception("not implemented:" + FLAGS.cost_function)
 

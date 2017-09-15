@@ -42,7 +42,7 @@ tf.app.flags.DEFINE_boolean("temp_max", False, "if flag true, will use Temporal 
 tf.app.flags.DEFINE_boolean("temp_mean", False, "if flag true, will use Temporal Mean Pooling")
 tf.app.flags.DEFINE_boolean("correct_example", False, "if flag false, will print error, true will print out success")
 tf.app.flags.DEFINE_boolean("snli", False, "if flag True, the classifier will train on SNLI")
-tf.app.flags.DEFINE_boolean("abs", False, "if flag True, the classifier will train on absolute difference vec op")
+tf.app.flags.DEFINE_string("ops", "mul,sub,avg", "vec ops for classifier")
 tf.app.flags.DEFINE_boolean("concat", False, "if flag True, bidirectional does concatenation not average")
 tf.app.flags.DEFINE_integer("num_examples", 30, "enter the best epoch to use")
 tf.app.flags.DEFINE_string("prefix", "", "provide the prefix to the data/glove embeddings, used for Deep Clusters")
@@ -214,11 +214,7 @@ class SequenceClassifier(object):
         if FLAGS.cost_function == "overall":
             self.loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(self.logits, self.labels))
         elif FLAGS.cost_function == "per_marker":
-            self.loss = sparse_softmax_cross_entropy(
-                labels = self.labels,
-                logits = self.logits,
-                weights=np.full(self.label_size, 1.0/self.label_size)
-            )
+            raise Exception("not implemented: per_marker")
         else:
             raise Exception("not implemented:" + FLAGS.cost_function)
 
@@ -254,13 +250,18 @@ class SequenceClassifier(object):
         persA_B_avg = (seqA_c_vec + seqB_c_vec) / 2.0
 
         # logits is [batch_size, label_size]
-        if FLAGS.abs:
+        if FLAGS.ops == "mul,avg,abs":
             persA_B_sub = tf.abs(seqA_c_vec - seqB_c_vec)
             self.logits = rnn_cell._linear([seqA_c_vec, seqB_c_vec, persA_B_mul, persA_B_sub],
                                            self.label_size, bias=True)
-        else:
+        elif FLAGS.ops == "mul":
+            self.logits = rnn_cell._linear([seqA_c_vec, seqB_c_vec, persA_B_mul],
+                                       self.label_size, bias=True)
+        elif FLAGS.ops == "mul,sub,avg":
             self.logits = rnn_cell._linear([seqA_c_vec, seqB_c_vec, persA_B_mul, persA_B_sub, persA_B_avg],
                                        self.label_size, bias=True)
+        else:
+            raise Exception("not implemented")
 
     def optimize(self, session, seqA_tokens, seqA_mask, seqB_tokens, seqB_mask, labels):
         input_feed = {}

@@ -214,22 +214,13 @@ class SequenceClassifier(object):
         if FLAGS.cost_function == "overall":
             self.loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(self.logits, self.labels))
         elif FLAGS.cost_function == "per_marker":
-            # https://blog.fineighbor.com/tensorflow-dealing-with-imbalanced-data-eb0108b10701
-            def weighted_loss(logits, labels, num_classes, head=None):
+            def weighted_loss(logits, labels, num_classes, batch_size, head=None):
                 with tf.name_scope('loss_1'):
-                    logits = tf.reshape(logits, (-1, num_classes))
-                    epsilon = tf.constant(value=1e-10)
-                    logits = logits + epsilon
-                    # consturct one-hot label array
-                    label_flat = tf.reshape(labels, (-1, 1))
-                    labels = tf.reshape(tf.one_hot(label_flat, depth=num_classes), (-1, num_classes))
-                    softmax = tf.nn.softmax(logits)
-                    cross_entropy = -tf.reduce_sum(tf.mul(labels * tf.log(softmax + epsilon), coefficients), reduction_indices=[1])
-                    cross_entropy_mean = tf.reduce_mean(cross_entropy, name='cross_entropy')
-                    tf.add_to_collection('losses', cross_entropy_mean)
-                    loss = tf.add_n(tf.get_collection('losses'), name='total_loss')
-                    return loss
-            self.loss = weighted_loss(self.logits, self.labels, self.label_size)
+                    unweighted_losses = tf.nn.sparse_softmax_cross_entropy_with_logits(logits, labels)
+                    frequencies = tf.gather(labels, tf.reshape(labels, [FLAGS.batch_size]))
+                    weights = tf.div(tf.cast(frequencies, tf.float32), batch_size)
+                    return tf.reduce_sum(tf.mul(unweighted_losses, weights))
+            self.loss = weighted_loss(self.logits, self.labels, self.label_size, FLAGS.batch_size)
         else:
             raise Exception("not implemented:" + FLAGS.cost_function)
 

@@ -108,7 +108,7 @@ def main(_):
         initializer = tf.uniform_unit_scaling_initializer(FLAGS.init_scale, seed=FLAGS.seed)
 
         with tf.variable_scope("model", reuse=None, initializer=initializer):
-            encoder = Encoder(size=FLAGS.state_size, num_layers=FLAGS.layers)
+            encoder = Encoder(size=FLAGS.state_size, num_layers=FLAGS.layers, tied_weights=FLAGS.tied_weights)
             sc = SequenceClassifier(encoder, FLAGS, vocab_size, vocab, rev_vocab, label_size, embed_path,
                                     optimizer=FLAGS.opt)
 

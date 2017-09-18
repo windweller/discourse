@@ -40,7 +40,7 @@ tf.app.flags.DEFINE_integer("restore_epoch", 0, "the epoch of checkpoint file")
 tf.app.flags.DEFINE_boolean("dev", False, "if flag true, will run on dev dataset in a pure testing mode")
 tf.app.flags.DEFINE_boolean("temp_max", False, "if flag true, will use Temporal Max Pooling")
 tf.app.flags.DEFINE_boolean("temp_mean", False, "if flag true, will use Temporal Mean Pooling")
-tf.app.flags.DEFINE_boolean("tied_weights", False, "if flag true, fw/bw will be two different cells")
+tf.app.flags.DEFINE_boolean("tied_weights", True, "if flag false, fw/bw will be two different cells")
 tf.app.flags.DEFINE_boolean("correct_example", False, "if flag false, will print error, true will print out success")
 tf.app.flags.DEFINE_boolean("snli", False, "if flag True, the classifier will train on SNLI")
 tf.app.flags.DEFINE_boolean("abs", False, "if flag True, the classifier will train on absolute difference vec op")
@@ -90,7 +90,7 @@ def pair_iter(q, batch_size, inp_len, query_len):
 
 
 class Encoder(object):
-    def __init__(self, size, num_layers, tied_weights=False):
+    def __init__(self, size, num_layers, tied_weights=True):
         self.size = size
         self.keep_prob = tf.placeholder(tf.float32)
         self.tied_weights = tied_weights

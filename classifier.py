@@ -40,6 +40,7 @@ tf.app.flags.DEFINE_integer("restore_epoch", 0, "the epoch of checkpoint file")
 tf.app.flags.DEFINE_boolean("dev", False, "if flag true, will run on dev dataset in a pure testing mode")
 tf.app.flags.DEFINE_boolean("temp_max", False, "if flag true, will use Temporal Max Pooling")
 tf.app.flags.DEFINE_boolean("temp_mean", False, "if flag true, will use Temporal Mean Pooling")
+tf.app.flags.DEFINE_boolean("tied_weights", False, "if flag true, fw/bw will be two different cells")
 tf.app.flags.DEFINE_boolean("correct_example", False, "if flag false, will print error, true will print out success")
 tf.app.flags.DEFINE_boolean("snli", False, "if flag True, the classifier will train on SNLI")
 tf.app.flags.DEFINE_boolean("abs", False, "if flag True, the classifier will train on absolute difference vec op")
@@ -87,10 +88,16 @@ def pair_iter(q, batch_size, inp_len, query_len):
         yield padded_input, input_mask, padded_query, query_mask, labels
         batched_seq1, batched_seq2, batched_label = [], [], []
 
+
 class Encoder(object):
-    def __init__(self, size, num_layers):
+    def __init__(self, size, num_layers, tied_weights=False):
         self.size = size
         self.keep_prob = tf.placeholder(tf.float32)
+        self.tied_weights = tied_weights
+
+        # when we use different weights, we force the model to concatenate
+        if not self.tied_weights:
+            FLAGS.concat = True
 
         if FLAGS.rnn == "lstm":
             cell = rnn_cell.BasicLSTMCell(self.size)
@@ -101,6 +108,18 @@ class Encoder(object):
 
         cell = DropoutWrapper(cell, input_keep_prob=self.keep_prob, seed=123)
         self.encoder_cell = tf.nn.rnn_cell.MultiRNNCell([cell] * num_layers, state_is_tuple=state_is_tuple)
+
+        if not tied_weights:
+            if FLAGS.rnn == "lstm":
+                cell_back = rnn_cell.BasicLSTMCell(self.size)
+                state_is_tuple = True
+            else:
+                cell_back = rnn_cell.GRUCell(self.size)
+                state_is_tuple = False
+
+            cell_back = DropoutWrapper(cell_back, input_keep_prob=self.keep_prob, seed=123)
+            self.encoder_cell_bw = tf.nn.rnn_cell.MultiRNNCell([cell_back] * num_layers,
+                                                               state_is_tuple=state_is_tuple)
 
     # could consider instead of averaging, I concatenate
     def encode(self, inputs, masks, reuse=False, scope_name="", temp_max=False):
@@ -126,11 +145,21 @@ class Encoder(object):
 
             with vs.variable_scope("EncoderCell") as scope:
                 srclen = tf.reduce_sum(mask, reduction_indices=1)
-                (fw_out, bw_out), (output_state_fw, output_state_bw) = tf.nn.bidirectional_dynamic_rnn(self.encoder_cell,
-                                                                                         self.encoder_cell, inp, srclen,
-                                                                                         scope=scope, dtype=tf.float32)
+                if self.tied_weights:
+                    (fw_out, bw_out), (output_state_fw, output_state_bw) = tf.nn.bidirectional_dynamic_rnn(
+                        self.encoder_cell,
+                        self.encoder_cell, inp, srclen,
+                        scope=scope, dtype=tf.float32)
+                else:
+                    (fw_out, bw_out), (output_state_fw, output_state_bw) = tf.nn.bidirectional_dynamic_rnn(
+                        self.encoder_cell,
+                        self.encoder_cell_bw, inp, srclen,
+                        scope=scope, dtype=tf.float32)
                 # (batch_size, T, hidden_size)
-                out = fw_out + bw_out
+                if FLAGS.concat:
+                    out = tf.concat(1, [fw_out, bw_out])
+                else:
+                    out = fw_out + bw_out
 
             # before we are using state_is_tuple=True, meaning we only chose top layer
             # now we choose both so layer 1 and layer 2 will have a difference
@@ -146,6 +175,7 @@ class Encoder(object):
                     if not FLAGS.concat:
                         encoder_outputs = max_forward + max_backward
                     else:
+                        # this is the same operation as concatenate then temporal max
                         encoder_outputs = tf.concat(1, [max_forward, max_backward])
                 elif FLAGS.temp_mean:
                     mean_forward = tf.reduce_mean(fw_out, axis=1)
@@ -161,6 +191,81 @@ class Encoder(object):
                         encoder_outputs = tf.concat(1, [output_state_fw[-1][1], output_state_bw[-1][1]])
 
         return out, encoder_outputs
+
+# class Encoder(object):
+#     def __init__(self, size, num_layers):
+#         self.size = size
+#         self.keep_prob = tf.placeholder(tf.float32)
+#
+#         if FLAGS.rnn == "lstm":
+#             cell = rnn_cell.BasicLSTMCell(self.size)
+#             state_is_tuple = True
+#         else:
+#             cell = rnn_cell.GRUCell(self.size)
+#             state_is_tuple = False
+#
+#         cell = DropoutWrapper(cell, input_keep_prob=self.keep_prob, seed=123)
+#         self.encoder_cell = tf.nn.rnn_cell.MultiRNNCell([cell] * num_layers, state_is_tuple=state_is_tuple)
+#
+#     # could consider instead of averaging, I concatenate
+#     def encode(self, inputs, masks, reuse=False, scope_name="", temp_max=False):
+#         """
+#         In a generalized encode function, you pass in your inputs,
+#         masks, and an initial
+#         hidden state input into this function.
+#
+#         :param inputs: (time_step, length, size), notice that input is "time-major"
+#                         instead of "batch-major".
+#         :param masks: this is to make sure tf.nn.dynamic_rnn doesn't iterate
+#                       through masked steps
+#         :param encoder_state_input: (Optional) pass this as initial hidden state
+#                                     to tf.nn.dynamic_rnn to build conditional representations
+#         :return: an encoded representation of your input.
+#                  It can be context-level representation, word-level representation,
+#                  or both.
+#         """
+#         with vs.variable_scope(scope_name + "Encoder", reuse=reuse):
+#             inp = inputs
+#             mask = masks
+#             encoder_outputs = None
+#
+#             with vs.variable_scope("EncoderCell") as scope:
+#                 srclen = tf.reduce_sum(mask, reduction_indices=1)
+#                 (fw_out, bw_out), (output_state_fw, output_state_bw) = tf.nn.bidirectional_dynamic_rnn(self.encoder_cell,
+#                                                                                          self.encoder_cell, inp, srclen,
+#                                                                                          scope=scope, dtype=tf.float32)
+#                 # (batch_size, T, hidden_size)
+#                 out = fw_out + bw_out
+#
+#             # before we are using state_is_tuple=True, meaning we only chose top layer
+#             # now we choose both so layer 1 and layer 2 will have a difference
+#             # this is extracting the last hidden states
+#             if FLAGS.rnn == "gru":
+#                 encoder_outputs = tf.add(output_state_fw, output_state_bw)  # used to have [0][1]
+#             else:
+#                 # last layer [-1], hidden state [1]
+#                 # this works with multilayer
+#                 if temp_max:
+#                     max_forward = tf.reduce_max(fw_out, axis=1)
+#                     max_backward = tf.reduce_max(bw_out, axis=1)
+#                     if not FLAGS.concat:
+#                         encoder_outputs = max_forward + max_backward
+#                     else:
+#                         encoder_outputs = tf.concat(1, [max_forward, max_backward])
+#                 elif FLAGS.temp_mean:
+#                     mean_forward = tf.reduce_mean(fw_out, axis=1)
+#                     mean_backward = tf.reduce_mean(bw_out, axis=1)
+#                     if not FLAGS.concat:
+#                         encoder_outputs = mean_forward + mean_backward
+#                     else:
+#                         encoder_outputs = tf.concat(1, [mean_forward, mean_backward])
+#                 else:
+#                     if not FLAGS.concat:
+#                         encoder_outputs = tf.add(output_state_fw[-1][1], output_state_bw[-1][1])
+#                     else:
+#                         encoder_outputs = tf.concat(1, [output_state_fw[-1][1], output_state_bw[-1][1]])
+#
+#         return out, encoder_outputs
 
 
 class AttentionEncoder(object):

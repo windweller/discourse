@@ -319,7 +319,7 @@ class SequenceClassifier(object):
         if FLAGS.cost_function == "overall":
             self.loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(self.logits, self.labels))
         elif FLAGS.cost_function == "per_marker":
-            def weighted_loss(logits, labels, num_classes, head=None):
+            def weighted_loss(logits, labels):
                 with tf.name_scope('loss_1'):
                     # calculate frequencies of each label within the batch
                     onehot_labels = tf.one_hot(
@@ -346,7 +346,7 @@ class SequenceClassifier(object):
 
                     return loss
 
-            self.loss = weighted_loss(self.logits, self.labels, self.label_size)
+            self.loss = weighted_loss(self.logits, self.labels)
 
         else:
             raise Exception("not implemented:" + FLAGS.cost_function)

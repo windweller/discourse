@@ -321,13 +321,17 @@ class SequenceClassifier(object):
         elif FLAGS.cost_function == "per_marker":
             def weighted_loss(logits, labels, num_classes, head=None):
                 with tf.name_scope('loss_1'):
+                    # calculate frequencies of each label within the batch
                     onehot_labels = tf.one_hot(
                         labels,
                         depth=num_classes  
                     )
                     frequencies = tf.reduce_sum(onehot_labels, 0)
-                    num_classes_in_batch = tf.reduce_sum(tf.reduce_max(onehot_labels, 0), 0)
-                    class_weights = tf.constant(1.0) / frequencies / num_classes_in_batch
+
+                    # reweight so that more frequent labels count less per sample
+                    class_weights = tf.constant(1.0) / frequencies
+
+                    # ignore labels that don't occur at all
                     class_weights = tf.where(tf.is_inf(class_weights), tf.zeros_like(class_weights), class_weights)
 
                     # deduce weights for batch samples based on their true label
@@ -338,7 +342,7 @@ class SequenceClassifier(object):
                     # apply the weights, relying on broadcasting of the multiplication
                     weighted_losses = unweighted_losses * weights
                     # reduce the result to get your final loss
-                    loss = tf.reduce_sum(weighted_losses)
+                    loss = tf.reduce_mean(weighted_losses)
 
                     return loss
 

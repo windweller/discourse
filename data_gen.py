@@ -7,6 +7,7 @@ import io
 import nltk
 import pickle
 import requests
+import re
 
 import sys
 reload(sys)
@@ -332,6 +333,12 @@ def depparse_ssplit_v2(sentence, previous_sentence, marker):
         return lst[np.argmin(distances)]
 
 
+    def separate_at_signs(lst):
+        s = " ".join(lst)
+        separated_s = re.sub(" @([^ ]+)@ ", " @ \1 @ ", s)
+        return separated_s.split()
+
+
     """
     parsed tokenization is different from original tokenization.
     try to re-align and extract the correct words given the
@@ -341,6 +348,8 @@ def depparse_ssplit_v2(sentence, previous_sentence, marker):
     """
     def extract_subphrase(orig_words, parsed_words, extraction_indices):
         extraction_indices = [i-1 for i in extraction_indices]
+
+        orig_words = separate_at_signs(orig_words)
 
         if len(orig_words) == len(parsed_words):
             return " ".join([orig_words[i] for i in extraction_indices])
@@ -425,7 +434,7 @@ def depparse_ssplit_v2(sentence, previous_sentence, marker):
             deps = self.find_deps(index, dir="parents", filter_types=filter_types)
 
             if needs_verb:
-                deps = [d for d in deps if self.gov_is_verb(d)]
+                deps = [d for d in deps if self.gov_is_verb(d) or self.dep_is_verb(d)]
 
             return [d["governor"] for d in deps]
 
@@ -564,18 +573,9 @@ def depparse_ssplit_v2(sentence, previous_sentence, marker):
             for marker_index in self.get_valid_marker_indices(marker):
 
                 for s2_head_index in self.get_candidate_S2_indices(marker, marker_index, needs_verb=True):
-                    # store S2 if we have one
-                    S2 = self.get_phrase_from_head(
-                        s2_head_index,
-                        exclude_indices=[marker_index],
-                        exclude_types=dependency_patterns[marker]["S1"]
-                    )
-                    # we'll lose some stuff here because of alignment between
-                    # wikitext tokenization and corenlp tokenization.
-                    # if we can't get a phrase, reject this pair
-                    if not S2:
-                        return None
                     s2_ind = s2_head_index
+
+                    possible_S1s = []
 
                     for s1_head_index in self.get_candidate_S1_indices(marker, s2_head_index, needs_verb=True):
                         # store S1 if we have one
@@ -587,13 +587,31 @@ def depparse_ssplit_v2(sentence, previous_sentence, marker):
                         # wikitext tokenization and corenlp tokenization.
                         # if we can't get a phrase, reject this pair
                         if not S1:
-                            return None
-                        s1_ind = s1_head_index
+                            break
 
-            # if we are only checking for the "reverse" order, reject anything else
-            if order=="s2 discourse_marker s1":
-                if s1_ind < s2_ind:
-                    return None
+                        # if we are only checking for the "reverse" order, reject anything else
+                        if order=="s2 discourse_marker s1":
+                            if s1_ind < s2_ind:
+                                break
+
+                        possible_S1s.append((s1_head_index, S1))
+
+                    # to do: fix this. it is wrong. we're just grabbing the first if there are multiple matches for the S1 pattern rather than choosing in a principled way
+                    if len(possible_S1s) > 0:
+                        s1_ind, S1 = possible_S1s[0]
+
+                    # store S2 if we have one
+                    S2 = self.get_phrase_from_head(
+                        s2_head_index,
+                        exclude_indices=[marker_index, s1_ind],
+                        # exclude_types=dependency_patterns[marker]["S1"]
+                    )
+                    # we'll lose some stuff here because of alignment between
+                    # wikitext tokenization and corenlp tokenization.
+                    # if we can't get a phrase, reject this pair
+                    # update: we fixed some of these with the @ correction
+                    if not S2:
+                        return None
 
             # if S2 is the whole sentence *and* we're missing S1, let S1 be the previous sentence
             if S2 and not S1:
@@ -1095,26 +1113,20 @@ def test():
             "sentence": "Although this species is discarded when caught , it is more delicate @-@ bodied than other maskrays and is thus unlikely to survive encounters with trawling gear .",
             "previous_sentence": "In the present day , this is mostly caused by Australia 's Northern Prawn Fishery , which operates throughout its range .",
             "marker": "although",
-            "output": None
+            "output": (', it is more delicate @ \x01 @ bodied than other maskrays and is thus unlikely to survive encounters with trawling gear .', 'this species is discarded when caught')
         },
         {
-            "sentence": "The remainder held professional pilot licences , either a Commercial Pilot Licence or an Airline Transport Pilot Licence , although not all of these would be engaged in GA activities .",
-            "previous_sentence": "The number of pilots licensed by the CAA to fly powered aircraft in 2005 was 47 @,@ 000 , of whom 28 @,@ 000 held a Private Pilot Licence .",
+            "sentence": "In the nineteenth @-@ century , the mound was higher on the western end of the tomb , although this was removed by excavation to reveal the sarsens beneath during the 1920s .",
+            "previous_sentence": "The earthen mound that once covered the tomb is now visible only as an undulation approximately 1 foot , 6 inches in height .",
             "marker": "although",
-            "output": None
+            "output": ('In the nineteenth @ \x01 @ century , the mound was higher on the western end of the tomb , .', 'this was removed by excavation to reveal the sarsens beneath during the 1920s')
         },
-        # {
-        #     "sentence": "",
-        #     "previous_sentence": "",
-        #     "marker": "although",
-        #     "output": None
-        # },
-        # {
-        #     "sentence": "",
-        #     "previous_sentence": "",
-        #     "marker": "although",
-        #     "output": None
-        # },
+        {
+            "sentence": "In 1880 , the archaeologist Flinders Petrie included the existence of the stones at \" <unk> \" in his list of Kentish earthworks ; although noting that a previous commentator had described the stones as being in the shape of an oval , he instead described them as forming \" a rectilinear enclosure \" around the chamber .",
+            "previous_sentence": "He believed that the monument consisted of both a \" chamber \" and an \" oval \" of stones , suggesting that they were \" two distinct erections \" .",
+            "marker": "although",
+            "output": (', he instead described them as forming " a rectilinear enclosure " around the chamber', 'noting that a previous commentator had described the stones as being in the shape of an oval')
+        },
         # {
         #     "sentence": "",
         #     "previous_sentence": "",
@@ -1155,6 +1167,12 @@ def test():
             "marker": "although",
             "output": ("love simulation elements related to the game 's two main heroines ,", 'they take a very minor role')
         },
+        {
+            "sentence": "The remainder held professional pilot licences , either a Commercial Pilot Licence or an Airline Transport Pilot Licence , although not all of these would be engaged in GA activities .",
+            "previous_sentence": "The number of pilots licensed by the CAA to fly powered aircraft in 2005 was 47 @,@ 000 , of whom 28 @,@ 000 held a Private Pilot Licence .",
+            "marker": "although",
+            "output": ('either a Commercial Pilot Licence or an Airline Transport Pilot Licence ,', 'not all of these would be engaged in GA activities')
+        },
     ]
         
     print("{} cases are weird and I can't figure out how to handle them. :(".format(len(curious_cases)))
@@ -1171,7 +1189,7 @@ def test():
         print("====================")
 
 
-    n_tests = 21
+    n_tests = 23
     i = 0
     failures = 0
     print("running tests...")
